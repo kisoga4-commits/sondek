@@ -24,6 +24,8 @@ const completeQuizBtn = document.getElementById('completeQuizBtn');
 const completionNotice = document.getElementById('completionNotice');
 const quizMetaForm = document.getElementById('quizMetaForm');
 const drawCountPresetEls = Array.from(document.querySelectorAll('input[name="drawCountPreset"]'));
+const drawCountHintEl = document.getElementById('drawCountHint');
+const templateHealthEl = document.getElementById('templateHealth');
 
 const params = new URLSearchParams(window.location.search);
 const editingCourseId = params.get('courseId') || '';
@@ -32,6 +34,24 @@ const draftCourseId = editingCourseId || `quiz_${Date.now()}`;
 let bankQuestions = [];
 let editingIndex = null;
 let autoSaveTimer = null;
+
+function updateDrawCountHint() {
+  const drawPreset = drawCountPresetEls.find((item) => item.checked)?.value;
+  const drawCount = Math.max(1, Number(drawPreset || document.getElementById('drawCount').value) || 10);
+  document.getElementById('drawCount').value = String(drawCount);
+
+  if (!drawCountHintEl) return;
+
+  const enoughQuestionInBank = bankQuestions.length >= drawCount;
+  drawCountHintEl.textContent = enoughQuestionInBank
+    ? `ตอนนี้ตั้งไว้ ${drawCount} ข้อ • คลังมี ${bankQuestions.length} ข้อ พร้อมใช้งาน`
+    : `ตอนนี้ตั้งไว้ ${drawCount} ข้อ • คลังมี ${bankQuestions.length} ข้อ (ระบบจะสุ่มเท่าที่มี)`;
+}
+
+function renderTemplateHealth() {
+  if (!templateHealthEl) return;
+  templateHealthEl.textContent = 'Template status: พร้อมใช้งาน (Autosave + บันทึก Firebase)';
+}
 
 function showAnswerEditor(answerMode, question = null) {
   if (answerMode === 'short_text') {
@@ -159,6 +179,7 @@ function renderQuestionBank() {
 
   if (!bankQuestions.length) {
     bankSummary.textContent = `ยังไม่มีคำถาม (ขั้นต่ำ ${MIN_QUESTION_BANK} ข้อ)`;
+    updateDrawCountHint();
     return;
   }
 
@@ -208,6 +229,8 @@ function renderQuestionBank() {
     li.appendChild(actions);
     questionBankList.appendChild(li);
   });
+
+  updateDrawCountHint();
 }
 
 function buildQuizLink(courseId) {
@@ -441,9 +464,12 @@ quizMetaForm.addEventListener('input', () => {
 drawCountPresetEls.forEach((item) => {
   item.addEventListener('change', () => {
     document.getElementById('drawCount').value = item.value;
+    updateDrawCountHint();
     queueAutoSave();
   });
 });
 
 showAnswerEditor('multiple_choice');
+renderTemplateHealth();
+updateDrawCountHint();
 void loadCourseForEditing();

@@ -259,9 +259,9 @@ function renderQuestion() {
   }
 
   nextBtn.disabled = !isCurrentQuestionAnswered();
-  nextBtn.textContent = questionNo === state.quizQuestions.length ? 'Show Result' : 'Next';
-  progressText.textContent = `Question ${questionNo}/${state.quizQuestions.length}`;
-  scoreText.textContent = `Answered ${Object.keys(state.answers).length}`;
+  nextBtn.textContent = questionNo === state.quizQuestions.length ? 'ส่งคำตอบและดูผล' : 'Next (ข้อถัดไป)';
+  progressText.textContent = `ข้อ ${questionNo}/${state.quizQuestions.length}`;
+  scoreText.textContent = `ตอบแล้ว ${Object.keys(state.answers).length}`;
   progressFill.style.width = `${(questionNo / state.quizQuestions.length) * 100}%`;
 
   startQuestionTimer(question);
