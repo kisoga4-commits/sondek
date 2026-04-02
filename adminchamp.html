@@ -10,7 +10,7 @@
     <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
       <header class="rounded-3xl bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-cyan-500 p-6 text-white shadow-xl">
         <h1 class="text-2xl font-bold md:text-3xl">Admin Quiz Builder</h1>
-        <p class="mt-2 text-sm md:text-base">สร้างควิซผสมคำถามหลายประเภท + จัดการโปรไฟล์ครู</p>
+        <p class="mt-2 text-sm md:text-base">สร้างควิซผสมคำถามหลายประเภท + จัดการโปรไฟล์ครู + ตั้งค่ากติการายควิซ</p>
       </header>
 
       <section class="grid gap-6 lg:grid-cols-2">
@@ -111,6 +111,12 @@
             <button class="w-full rounded-xl bg-fuchsia-600 px-4 py-3 font-bold text-white" type="submit">Save Profile</button>
           </form>
         </article>
+      </section>
+
+      <section class="rounded-2xl bg-white p-6 shadow">
+        <h2 class="text-xl font-bold">Quiz Settings & Share Links</h2>
+        <p class="mt-1 text-sm text-slate-500">ตั้งค่าจำนวนข้อ + โหมดจับเวลาแยกรายบททดสอบ แล้วคัดลอกลิงก์ส่งต่อได้ทันที</p>
+        <div id="quizLibrary" class="mt-4 space-y-3"></div>
       </section>
     </main>
 

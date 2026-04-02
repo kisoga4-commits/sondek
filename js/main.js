@@ -23,6 +23,11 @@ const profileCta = document.getElementById('profileCta');
 const enrollCta = document.getElementById('enrollCta');
 const quizTitle = document.getElementById('quizTitle');
 const quizDescription = document.getElementById('quizDescription');
+const timerWrap = document.getElementById('timerWrap');
+const timerFill = document.getElementById('timerFill');
+const timerText = document.getElementById('timerText');
+
+const TIME_PER_QUESTION_SECONDS = 30;
 
 const state = {
   course: null,
@@ -34,10 +39,21 @@ const state = {
   orderingView: {},
   startedAt: null,
   studentName: '',
+  questionCount: 10,
+  timedMode: false,
+  timeLeft: TIME_PER_QUESTION_SECONDS,
+  timerId: null,
 };
 
 function getQuestionType(question) {
   return question?.type || 'multiple_choice';
+}
+
+function clearTimer() {
+  if (state.timerId) {
+    window.clearInterval(state.timerId);
+    state.timerId = null;
+  }
 }
 
 function isCurrentQuestionAnswered() {
@@ -48,6 +64,46 @@ function isCurrentQuestionAnswered() {
     return Array.isArray(answer) && answer.length === (question.orderingItems || []).length;
   }
   return answer !== undefined;
+}
+
+function refreshTimerUi() {
+  timerText.textContent = `${state.timeLeft}s`;
+  const widthPercent = (state.timeLeft / TIME_PER_QUESTION_SECONDS) * 100;
+  timerFill.style.width = `${Math.max(0, widthPercent)}%`;
+}
+
+function jumpNextByTimeout() {
+  clearTimer();
+
+  if (state.currentIndex + 1 >= state.quizQuestions.length) {
+    void showResult();
+    return;
+  }
+
+  state.currentIndex += 1;
+  renderQuestion();
+}
+
+function startQuestionTimer() {
+  clearTimer();
+
+  if (!state.timedMode) {
+    timerWrap.classList.add('hidden');
+    return;
+  }
+
+  state.timeLeft = TIME_PER_QUESTION_SECONDS;
+  timerWrap.classList.remove('hidden');
+  refreshTimerUi();
+
+  state.timerId = window.setInterval(() => {
+    state.timeLeft -= 1;
+    refreshTimerUi();
+
+    if (state.timeLeft <= 0) {
+      jumpNextByTimeout();
+    }
+  }, 1000);
 }
 
 async function init() {
@@ -72,9 +128,12 @@ async function init() {
       return;
     }
 
+    state.questionCount = Number(course.questionCount) === 20 ? 20 : 10;
+    state.timedMode = Boolean(course.timedMode);
+
     quizTitle.textContent = course.title || 'Dynamic Quiz';
-    quizDescription.textContent = course.description || 'Answer 10 random questions.';
-    courseInfo.textContent = `Questions available: ${questions.length} (session uses random 10)`;
+    quizDescription.textContent = course.description || 'Answer random questions and climb leaderboard.';
+    courseInfo.textContent = `คลังโจทย์ ${questions.length} ข้อ | เล่นจริง ${state.questionCount} ข้อ | ${state.timedMode ? 'จับเวลา 30 วินาที/ข้อ' : 'ไม่จำกัดเวลา'}`;
 
     profileCta.href = profile?.profileUrl || '#';
     enrollCta.href = course.enrollmentUrl || '#';
@@ -90,7 +149,7 @@ function renderChoiceQuestion(question, questionIndex) {
 
   shuffledChoices.forEach((choiceText, idx) => {
     const label = document.createElement('label');
-    label.className = 'flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-lg transition hover:border-indigo-300';
+    label.className = 'flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-4 text-lg font-semibold transition hover:border-indigo-300';
 
     const input = document.createElement('input');
     input.type = 'radio';
@@ -173,10 +232,12 @@ function renderQuestion() {
   progressText.textContent = `Question ${questionNo}/${state.quizQuestions.length}`;
   scoreText.textContent = `Answered ${Object.keys(state.answers).length}`;
   progressFill.style.width = `${(questionNo / state.quizQuestions.length) * 100}%`;
+
+  startQuestionTimer();
 }
 
 function startQuiz() {
-  state.quizQuestions = pickRandomQuestions(state.allQuestions, 10);
+  state.quizQuestions = pickRandomQuestions(state.allQuestions, state.questionCount);
   state.currentIndex = 0;
   state.answers = {};
   state.orderingView = {};
@@ -204,6 +265,7 @@ async function renderLeaderboard() {
 }
 
 async function showResult() {
+  clearTimer();
   quizSection.classList.add('hidden');
   resultSection.classList.remove('hidden');
 
@@ -226,10 +288,13 @@ async function showResult() {
 }
 
 function onNext() {
+  clearTimer();
+
   if (state.currentIndex + 1 >= state.quizQuestions.length) {
     void showResult();
     return;
   }
+
   state.currentIndex += 1;
   renderQuestion();
 }

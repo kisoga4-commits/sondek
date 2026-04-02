@@ -17,7 +17,7 @@
           <label class="block text-sm font-semibold">Student Name
             <input id="studentName" required minlength="2" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg" placeholder="Type your name" />
           </label>
-          <button id="startBtn" class="w-full rounded-2xl bg-fuchsia-600 px-4 py-3 text-xl font-bold text-white disabled:opacity-50" disabled>
+          <button id="startBtn" class="w-full rounded-2xl bg-fuchsia-600 px-4 py-4 text-xl font-black text-white disabled:opacity-50" disabled>
             Start Quiz
           </button>
         </form>
@@ -30,9 +30,19 @@
         </div>
         <div class="h-2 rounded-full bg-slate-200"><div id="progressFill" class="h-2 rounded-full bg-indigo-500" style="width: 0%"></div></div>
 
+        <div id="timerWrap" class="mt-4 hidden">
+          <div class="mb-1 flex items-center justify-between text-sm font-bold text-rose-700">
+            <span>⏳ Time per question</span>
+            <span id="timerText">30s</span>
+          </div>
+          <div class="h-3 rounded-full bg-rose-100">
+            <div id="timerFill" class="h-3 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 transition-all" style="width: 100%"></div>
+          </div>
+        </div>
+
         <h2 id="questionTitle" class="mt-5 text-2xl font-black"></h2>
         <div id="choices" class="mt-4 space-y-3"></div>
-        <button id="nextBtn" class="mt-5 w-full rounded-2xl bg-indigo-600 px-4 py-3 text-lg font-bold text-white disabled:opacity-50" disabled>Next</button>
+        <button id="nextBtn" class="mt-5 w-full rounded-2xl bg-indigo-600 px-4 py-4 text-lg font-black text-white disabled:opacity-50">Next</button>
       </section>
 
       <section id="resultSection" class="hidden rounded-3xl bg-white p-6 shadow-xl">
@@ -46,8 +56,8 @@
         </div>
 
         <div class="mt-5 grid gap-3 md:grid-cols-2">
-          <a id="profileCta" href="#" target="_blank" rel="noreferrer" class="rounded-2xl bg-fuchsia-600 px-4 py-3 text-center font-bold text-white">View Profile</a>
-          <a id="enrollCta" href="#" target="_blank" rel="noreferrer" class="rounded-2xl bg-emerald-600 px-4 py-3 text-center font-bold text-white">Enroll Now</a>
+          <a id="profileCta" href="#" target="_blank" rel="noreferrer" class="rounded-2xl bg-fuchsia-600 px-4 py-4 text-center text-lg font-black text-white">ดูโปรไฟล์ครู</a>
+          <a id="enrollCta" href="#" target="_blank" rel="noreferrer" class="rounded-2xl bg-emerald-600 px-4 py-4 text-center text-lg font-black text-white">สมัครเรียน</a>
         </div>
       </section>
     </main>
