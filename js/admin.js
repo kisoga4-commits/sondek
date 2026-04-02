@@ -51,7 +51,11 @@ function setNotice(text) {
 }
 
 function getQuizLink(courseId) {
-  return `${window.location.origin}${window.location.pathname.replace('adminchamp.html', 'quiz.html')}?id=${encodeURIComponent(courseId)}`;
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(courseId)}`;
 }
 
 function setShareLink(courseId) {
