@@ -21,7 +21,8 @@ const quizLinkOutput = document.getElementById('quizLinkOutput');
 const qrOutput = document.getElementById('qrOutput');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 const seedDefaultBtn = document.getElementById('seedDefaultBtn');
-const saveCourseBtn = document.getElementById('saveCourseBtn');
+const completeQuizBtn = document.getElementById('completeQuizBtn');
+const completionNotice = document.getElementById('completionNotice');
 
 const params = new URLSearchParams(window.location.search);
 const editingCourseId = params.get('courseId') || '';
@@ -105,7 +106,7 @@ function buildQuestionPayloadFromEditor() {
 
 function resetEditor() {
   editingIndex = null;
-  addOrUpdateBtn.textContent = 'เพิ่มคำถาม';
+  addOrUpdateBtn.textContent = 'ถัดไป (Next)';
   cancelEditBtn.classList.add('hidden');
   questionEditor.reset();
   questionTypeLabelEl.value = 'คณิตศาสตร์พื้นฐาน';
@@ -186,11 +187,12 @@ function fillDefault20() {
 }
 
 function getMetaPayload() {
-  const courseId = document.getElementById('quizCourseId').value.trim();
+  const rawCourseId = document.getElementById('quizCourseId').value.trim();
+  const courseId = rawCourseId || `quiz_${Date.now()}`;
   const title = document.getElementById('quizTitle').value.trim();
 
   if (!courseId || !title) {
-    alert('กรุณากรอก courseId และชื่อแบบทดสอบ');
+    alert('กรุณากรอกชื่อแบบทดสอบ');
     return null;
   }
 
@@ -213,10 +215,11 @@ async function saveToFirebase() {
   const meta = getMetaPayload();
   if (!meta) return;
 
-  saveCourseBtn.disabled = true;
-  saveCourseBtn.textContent = 'กำลังบันทึก...';
+  completeQuizBtn.disabled = true;
+  completeQuizBtn.textContent = 'กำลังบันทึก...';
 
   try {
+    document.getElementById('quizCourseId').value = meta.courseId;
     const quizLink = buildQuizLink(meta.courseId);
 
     await saveCourse({
@@ -241,14 +244,15 @@ async function saveToFirebase() {
     qrOutput.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(quizLink)}`;
     qrOutput.classList.remove('hidden');
     sharePanel.classList.remove('hidden');
+    completionNotice.classList.remove('hidden');
 
-    alert('บันทึกคอร์สและคำถามเรียบร้อย');
+    alert('ระบบอนุญาตให้นายทำควิซให้แล้ว และบันทึกขึ้น Firebase เรียบร้อย');
   } catch (error) {
     console.error(error);
     alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
   } finally {
-    saveCourseBtn.disabled = false;
-    saveCourseBtn.textContent = 'บันทึกคอร์สขึ้น Firebase';
+    completeQuizBtn.disabled = false;
+    completeQuizBtn.textContent = 'เสร็จ';
   }
 }
 
@@ -323,7 +327,7 @@ seedDefaultBtn.addEventListener('click', () => {
   fillDefault20();
   alert('เติมโจทย์มาตรฐาน 20 ข้อแล้ว');
 });
-saveCourseBtn.addEventListener('click', () => {
+completeQuizBtn.addEventListener('click', () => {
   void saveToFirebase();
 });
 copyLinkBtn.addEventListener('click', async () => {
