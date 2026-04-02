@@ -36,6 +36,7 @@ const timerText = document.getElementById('timerText');
 const questionMeta = document.getElementById('questionMeta');
 const questionMedia = document.getElementById('questionMedia');
 const answerReview = document.getElementById('answerReview');
+const soundToggle = document.getElementById('soundToggle');
 
 const state = {
   course: null,
@@ -51,7 +52,55 @@ const state = {
   timeLeft: 30,
   timerId: null,
   isAdvancing: false,
+  audioEnabled: true,
+  lowTimeAlertPlayed: false,
+  audioContext: null,
 };
+
+const LOW_TIME_ALERT_SECONDS = 5;
+
+function getBasePathUrl(pathname) {
+  const basePath = pathname.includes('/')
+    ? pathname.slice(0, pathname.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}`;
+}
+
+function ensureAudioContext() {
+  if (state.audioContext) {
+    return state.audioContext;
+  }
+
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+
+  state.audioContext = new Ctx();
+  return state.audioContext;
+}
+
+function playBeep({ frequency = 880, duration = 0.12, type = 'sine', gain = 0.08 } = {}) {
+  if (!state.audioEnabled) return;
+  const context = ensureAudioContext();
+  if (!context) return;
+
+  if (context.state === 'suspended') {
+    void context.resume();
+  }
+
+  const oscillator = context.createOscillator();
+  const gainNode = context.createGain();
+
+  oscillator.type = type;
+  oscillator.frequency.value = frequency;
+  gainNode.gain.value = gain;
+
+  oscillator.connect(gainNode);
+  gainNode.connect(context.destination);
+
+  const now = context.currentTime;
+  oscillator.start(now);
+  oscillator.stop(now + duration);
+}
 
 function clearTimer() {
   if (state.timerId) {
@@ -82,6 +131,12 @@ function refreshTimerUi(question) {
   const limit = question.timeLimitSeconds || 30;
   const widthPercent = (state.timeLeft / limit) * 100;
   timerFill.style.width = `${Math.max(0, widthPercent)}%`;
+
+  if (state.timeLeft > 0 && state.timeLeft <= LOW_TIME_ALERT_SECONDS && !state.lowTimeAlertPlayed) {
+    state.lowTimeAlertPlayed = true;
+    playBeep({ frequency: 540, duration: 0.3, type: 'square', gain: 0.12 });
+    window.setTimeout(() => playBeep({ frequency: 720, duration: 0.22, type: 'square', gain: 0.12 }), 180);
+  }
 }
 
 function jumpNextByTimeout() {
@@ -94,6 +149,7 @@ function jumpNextByTimeout() {
 function startQuestionTimer(question) {
   clearTimer();
   state.timeLeft = question.timeLimitSeconds;
+  state.lowTimeAlertPlayed = false;
   refreshTimerUi(question);
 
   state.timerId = window.setInterval(() => {
@@ -142,8 +198,9 @@ async function init() {
     quizDescription.textContent = course.description || 'ตอบคำถามให้ครบ แล้วไปดูอันดับ TOP';
     courseInfo.textContent = `คลังคำถาม ${state.allQuestions.length} ข้อ | สุ่มต่อครั้ง ${Math.min(state.drawCount, state.allQuestions.length)} ข้อ`;
 
-    profileCta.href = profile?.profileUrl || '#';
-    enrollCta.href = course.enrollmentUrl || '#';
+    const baseUrl = getBasePathUrl(window.location.pathname);
+    profileCta.href = profile?.profileUrl || `${baseUrl}adminchamp.html#profile-destination`;
+    enrollCta.href = course.enrollmentUrl || `${baseUrl}adminchamp.html#course-destination`;
     startBtn.disabled = false;
   } catch (error) {
     console.error(error);
@@ -163,6 +220,7 @@ function renderChoiceQuestion(question, questionIndex) {
     input.addEventListener('change', () => {
       state.answers[questionIndex] = idx;
       nextBtn.disabled = false;
+      playBeep({ frequency: 920, duration: 0.08, gain: 0.05 });
     });
 
     const span = document.createElement('span');
@@ -226,6 +284,7 @@ function renderOrderingQuestion(question, questionIndex) {
 
       state.answers[questionIndex] = currentAnswer.filter(Boolean);
       nextBtn.disabled = !isCurrentQuestionAnswered();
+      playBeep({ frequency: 860, duration: 0.07, gain: 0.04 });
     });
 
     const text = document.createElement('p');
@@ -367,13 +426,10 @@ async function showResult() {
 
   await renderLeaderboard();
 
-  const basePath = window.location.pathname.includes('/')
-    ? window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1)
-    : '/';
-  const topUrl = `${window.location.origin}${basePath}top.html?id=${encodeURIComponent(courseId || '')}`;
+  const topUrl = `${getBasePathUrl(window.location.pathname)}top.html?id=${encodeURIComponent(courseId || '')}`;
   window.setTimeout(() => {
     window.location.href = topUrl;
-  }, 1000);
+  }, 1800);
 }
 
 async function goNextQuestion() {
@@ -409,10 +465,20 @@ entryForm.addEventListener('submit', (event) => {
   }
 
   state.studentName = name;
+  const context = ensureAudioContext();
+  if (context && context.state === 'suspended') {
+    void context.resume();
+  }
   startQuiz();
 });
 
 nextBtn.addEventListener('click', onNext);
+
+if (soundToggle) {
+  soundToggle.addEventListener('change', () => {
+    state.audioEnabled = Boolean(soundToggle.checked);
+  });
+}
 
 init().catch((error) => {
   console.error(error);
