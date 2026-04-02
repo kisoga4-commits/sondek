@@ -70,6 +70,9 @@ function isCurrentQuestionAnswered() {
   if (getQuestionType(question) === 'ordering') {
     return Array.isArray(answer) && answer.length === (question.orderingItems || []).length;
   }
+  if (getQuestionType(question) === 'short_text') {
+    return String(answer ?? '').trim().length > 0;
+  }
   return answer !== undefined;
 }
 
@@ -167,6 +170,25 @@ function renderChoiceQuestion(question, questionIndex) {
   });
 }
 
+function renderShortTextQuestion(questionIndex) {
+  const label = document.createElement('label');
+  label.className = 'block text-sm font-semibold text-slate-700';
+  label.textContent = 'พิมพ์คำตอบของคุณ';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg';
+  input.placeholder = 'กรอกคำตอบ';
+  input.value = String(state.answers[questionIndex] || '');
+  input.addEventListener('input', () => {
+    state.answers[questionIndex] = input.value;
+    nextBtn.disabled = !isCurrentQuestionAnswered();
+  });
+
+  label.appendChild(input);
+  choicesWrap.appendChild(label);
+}
+
 function renderOrderingQuestion(question, questionIndex) {
   if (!state.orderingView[questionIndex]) {
     state.orderingView[questionIndex] = {
@@ -230,6 +252,8 @@ function renderQuestion() {
 
   if (getQuestionType(question) === 'ordering') {
     renderOrderingQuestion(question, state.currentIndex);
+  } else if (getQuestionType(question) === 'short_text') {
+    renderShortTextQuestion(state.currentIndex);
   } else {
     renderChoiceQuestion(question, state.currentIndex);
   }
@@ -278,6 +302,10 @@ function formatCorrectAnswer(reviewItem) {
     return question.orderingItems.join(' → ');
   }
 
+  if (question.type === 'short_text') {
+    return (question.acceptedAnswers || []).join(' / ') || '-';
+  }
+
   return question.choices?.[question.answerIndex] || '-';
 }
 
@@ -285,6 +313,11 @@ function formatUserAnswer(reviewItem) {
   const { question, userAnswer } = reviewItem;
   if (question.type === 'ordering') {
     return Array.isArray(userAnswer) && userAnswer.length ? userAnswer.join(' → ') : 'No answer';
+  }
+
+  if (question.type === 'short_text') {
+    const text = String(userAnswer ?? '').trim();
+    return text || 'No answer';
   }
 
   return question.choices?.[Number(userAnswer)] || 'No answer';

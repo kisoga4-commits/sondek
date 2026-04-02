@@ -1,4 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import {
   addDoc,
   collection,
@@ -30,8 +31,23 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+
+let authInitPromise = null;
+
+async function ensureAuthReady() {
+  if (!authInitPromise) {
+    authInitPromise = signInAnonymously(auth).catch((error) => {
+      console.warn('Anonymous auth failed, continuing without auth session.', error);
+      return null;
+    });
+  }
+
+  await authInitPromise;
+}
 
 export async function saveCourse(course) {
+  await ensureAuthReady();
   const currentPath = String(window.location.pathname || '/');
   const basePath = currentPath.includes('/')
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
@@ -51,6 +67,7 @@ export async function saveCourse(course) {
 }
 
 export async function addQuestion(courseId, question, order) {
+  await ensureAuthReady();
   await addDoc(collection(db, 'questions'), {
     courseId,
     question: question.question,
@@ -67,10 +84,12 @@ export async function addQuestion(courseId, question, order) {
 }
 
 export async function saveQuestionsBatch(courseId, questions) {
+  await ensureAuthReady();
   await Promise.all(questions.map((question, idx) => addQuestion(courseId, question, idx + 1)));
 }
 
 export async function replaceQuestionsForCourse(courseId, questions) {
+  await ensureAuthReady();
   const existingQuestions = await getQuestionsByCourse(courseId);
   const batch = writeBatch(db);
 
@@ -99,6 +118,7 @@ export async function replaceQuestionsForCourse(courseId, questions) {
 }
 
 export async function updateQuestion(questionId, question) {
+  await ensureAuthReady();
   await updateDoc(doc(db, 'questions', questionId), {
     question: question.question,
     type: question.type || 'multiple_choice',
@@ -112,10 +132,12 @@ export async function updateQuestion(questionId, question) {
 }
 
 export async function deleteQuestionById(questionId) {
+  await ensureAuthReady();
   await deleteDoc(doc(db, 'questions', questionId));
 }
 
 export async function deleteCourseWithQuestions(courseId) {
+  await ensureAuthReady();
   const existingQuestions = await getQuestionsByCourse(courseId);
   const batch = writeBatch(db);
 
@@ -152,6 +174,7 @@ export function subscribeQuestionsByCourse(courseId, callback, onError) {
 }
 
 export async function saveLead(payload) {
+  await ensureAuthReady();
   await addDoc(collection(db, 'leads'), {
     ...payload,
     createdAt: serverTimestamp(),
@@ -164,6 +187,7 @@ export function subscribeLeads(callback, onError) {
 }
 
 export async function deleteLeadById(leadId) {
+  await ensureAuthReady();
   await deleteDoc(doc(db, 'leads', leadId));
 }
 
@@ -180,6 +204,7 @@ export async function getLeaderboard(courseId) {
 }
 
 export async function saveProfile(profile) {
+  await ensureAuthReady();
   await setDoc(doc(db, 'profile', 'tutor_profile'), {
     name: profile.name,
     bio: profile.bio,

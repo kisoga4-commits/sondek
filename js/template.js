@@ -23,6 +23,7 @@ const downloadQrBtn = document.getElementById('downloadQrBtn');
 const completeQuizBtn = document.getElementById('completeQuizBtn');
 const completionNotice = document.getElementById('completionNotice');
 const quizMetaForm = document.getElementById('quizMetaForm');
+const drawCountPresetEls = Array.from(document.querySelectorAll('input[name="drawCountPreset"]'));
 
 const params = new URLSearchParams(window.location.search);
 const editingCourseId = params.get('courseId') || '';
@@ -33,6 +34,19 @@ let editingIndex = null;
 let autoSaveTimer = null;
 
 function showAnswerEditor(answerMode, question = null) {
+  if (answerMode === 'short_text') {
+    const acceptedAnswers = Array.isArray(question?.acceptedAnswers)
+      ? question.acceptedAnswers.join(', ')
+      : '';
+    answerEditor.innerHTML = `
+      <label>คำตอบที่ถูก (พิมพ์ได้หลายค่า คั่นด้วย ,)
+        <input id="textCorrectAnswer" type="text" value="${acceptedAnswers}" placeholder="เช่น 42, สี่สิบสอง" />
+      </label>
+      <p class="muted">ระบบจะเช็คแบบไม่สนตัวพิมพ์ใหญ่/เล็ก และตัดช่องว่างหัวท้ายให้อัตโนมัติ</p>
+    `;
+    return;
+  }
+
   if (answerMode === 'true_false') {
     const selected = question?.correctAnswer?.value === false ? 'false' : 'true';
     answerEditor.innerHTML = `
@@ -87,6 +101,26 @@ function buildQuestionPayloadFromEditor() {
     };
   }
 
+  if (answerMode === 'short_text') {
+    const raw = document.getElementById('textCorrectAnswer').value;
+    const acceptedAnswers = raw
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (!acceptedAnswers.length) {
+      alert('กรุณาใส่คำตอบที่ถูกอย่างน้อย 1 ค่า');
+      return null;
+    }
+
+    return {
+      ...base,
+      acceptedAnswers,
+      options: [],
+      correctAnswer: { text: acceptedAnswers[0] },
+    };
+  }
+
   const options = [
     document.getElementById('optionA').value.trim(),
     document.getElementById('optionB').value.trim(),
@@ -107,15 +141,17 @@ function buildQuestionPayloadFromEditor() {
 }
 
 function resetEditor() {
+  const selectedMode = questionAnswerModeEl.value || 'multiple_choice';
+  const selectedTime = document.getElementById('questionTimeLimit').value || '30';
   editingIndex = null;
   addOrUpdateBtn.textContent = 'ถัดไป (Next)';
   cancelEditBtn.classList.add('hidden');
   questionEditor.reset();
   questionTypeLabelEl.value = 'คณิตศาสตร์พื้นฐาน';
-  document.getElementById('questionTimeLimit').value = '30';
+  document.getElementById('questionTimeLimit').value = selectedTime;
   document.getElementById('questionPoints').value = '10';
-  questionAnswerModeEl.value = 'multiple_choice';
-  showAnswerEditor('multiple_choice');
+  questionAnswerModeEl.value = selectedMode;
+  showAnswerEditor(selectedMode);
 }
 
 function renderQuestionBank() {
@@ -132,7 +168,9 @@ function renderQuestionBank() {
     const li = document.createElement('li');
     const correctDisplay = question.answerMode === 'true_false'
       ? String(question.correctAnswer.value)
-      : question.correctAnswer.key;
+      : (question.answerMode === 'short_text'
+        ? (question.acceptedAnswers || []).join(' / ')
+        : question.correctAnswer.key);
 
     li.innerHTML = `<div class="preview-item-main"><strong>ข้อ ${index + 1}</strong> [${question.questionTypeLabel}] ${question.questionText}<div class="muted">เฉลย: ${correctDisplay} | ${question.points} คะแนน / ${question.timeLimitSeconds} วินาที</div></div>`;
 
@@ -209,12 +247,15 @@ function getMetaPayload() {
     return null;
   }
 
+  const drawPreset = drawCountPresetEls.find((item) => item.checked)?.value;
+  const drawCount = Math.max(1, Number(drawPreset || document.getElementById('drawCount').value) || 10);
+
   return {
     courseId,
     title,
     description: document.getElementById('quizDescription').value.trim(),
     enrollmentUrl: document.getElementById('enrollmentUrl').value.trim(),
-    drawCount: Math.max(1, Number(document.getElementById('drawCount').value) || 10),
+    drawCount,
   };
 }
 
@@ -222,10 +263,11 @@ function buildNormalizedQuestions() {
   return bankQuestions.map((question) => ({
     question: question.questionText,
     type: question.answerMode,
-    choices: question.answerMode === 'true_false' ? ['True', 'False'] : question.options,
+    choices: question.answerMode === 'true_false' ? ['True', 'False'] : (question.options || []),
+    acceptedAnswers: question.answerMode === 'short_text' ? (question.acceptedAnswers || []) : [],
     answerIndex: question.answerMode === 'true_false'
       ? (question.correctAnswer.value ? 0 : 1)
-      : ['A', 'B', 'C', 'D'].indexOf(question.correctAnswer.key),
+      : (question.answerMode === 'short_text' ? -1 : ['A', 'B', 'C', 'D'].indexOf(question.correctAnswer.key)),
     points: question.points,
     timeLimitSeconds: question.timeLimitSeconds,
   }));
@@ -238,12 +280,14 @@ async function autoSaveDraft() {
   const courseId = document.getElementById('quizCourseId').value.trim() || draftCourseId;
   document.getElementById('quizCourseId').value = courseId;
 
+  const drawPreset = drawCountPresetEls.find((item) => item.checked)?.value;
+
   await saveCourse({
     courseId,
     title,
     description: document.getElementById('quizDescription').value.trim(),
     enrollmentUrl: document.getElementById('enrollmentUrl').value.trim(),
-    drawCount: Math.max(1, Number(document.getElementById('drawCount').value) || 10),
+    drawCount: Math.max(1, Number(drawPreset || document.getElementById('drawCount').value) || 10),
     status: 'draft',
     quizLink: buildQuizLink(courseId),
   });
@@ -321,15 +365,25 @@ async function loadCourseForEditing() {
     document.getElementById('quizDescription').value = course.description || '';
     document.getElementById('enrollmentUrl').value = course.enrollmentUrl || '';
     document.getElementById('drawCount').value = String(Math.max(1, Number(course.drawCount) || 10));
+    const courseDrawCount = String(Math.max(1, Number(course.drawCount) || 10));
+    const matchedPreset = drawCountPresetEls.find((item) => item.value === courseDrawCount);
+    if (matchedPreset) {
+      matchedPreset.checked = true;
+    }
 
     bankQuestions = questions.map((q) => ({
       questionText: q.question || '',
       questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
-      answerMode: q.type === 'true_false' ? 'true_false' : 'multiple_choice',
+      answerMode: q.type === 'short_text'
+        ? 'short_text'
+        : (q.type === 'true_false' ? 'true_false' : 'multiple_choice'),
+      acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
       options: q.choices || ['', '', '', ''],
       correctAnswer: q.type === 'true_false'
         ? { value: Number(q.answerIndex) === 0 }
-        : { key: ['A', 'B', 'C', 'D'][Number(q.answerIndex)] || 'A' },
+        : (q.type === 'short_text'
+          ? { text: (Array.isArray(q.acceptedAnswers) && q.acceptedAnswers[0]) || '' }
+          : { key: ['A', 'B', 'C', 'D'][Number(q.answerIndex)] || 'A' }),
       points: Number(q.points) || 10,
       timeLimitSeconds: Number(q.timeLimitSeconds) || 30,
     }));
@@ -382,6 +436,13 @@ downloadQrBtn.addEventListener('click', () => {
 
 quizMetaForm.addEventListener('input', () => {
   queueAutoSave();
+});
+
+drawCountPresetEls.forEach((item) => {
+  item.addEventListener('change', () => {
+    document.getElementById('drawCount').value = item.value;
+    queueAutoSave();
+  });
 });
 
 showAnswerEditor('multiple_choice');
