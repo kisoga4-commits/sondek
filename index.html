@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiz Template - Tutor Lead Gen</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <section class="card" id="introSection">
+        <h1>แบบทดสอบติวเตอร์</h1>
+        <p class="muted">เลือกคอร์สจาก URL เช่น <code>index.html?id=course_01</code> แล้วเริ่มทำข้อสอบได้ทันที</p>
+        <div id="courseInfo" class="pill">กำลังโหลดคอร์ส...</div>
+        <button id="startBtn" class="btn" disabled>เริ่มทำข้อสอบ</button>
+      </section>
+
+      <section class="card hidden" id="quizSection">
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span id="progressText">ข้อ 1/10</span>
+            <span id="scoreText">คะแนนสะสม 0</span>
+          </div>
+          <div class="progress-bar"><div id="progressFill"></div></div>
+        </div>
+
+        <h2 id="questionTitle">คำถาม</h2>
+        <div id="choices" class="choices"></div>
+        <div class="quiz-actions">
+          <button id="nextBtn" class="btn" disabled>ข้อต่อไป</button>
+        </div>
+      </section>
+
+      <section class="card hidden" id="resultSection">
+        <h2>สรุปผล</h2>
+        <p id="resultScore" class="result-score"></p>
+        <p id="resultMessage" class="result-message"></p>
+
+        <article class="tutor-box">
+          <img id="tutorPhoto" class="tutor-photo" src="" alt="Tutor profile" />
+          <div>
+            <h3 id="tutorName">คุณครู</h3>
+            <p id="tutorBio" class="muted"></p>
+          </div>
+        </article>
+
+        <form id="leadForm" class="lead-form">
+          <h3>สนใจเรียนต่อกับครู?</h3>
+          <label>ชื่อ
+            <input type="text" id="leadName" required minlength="2" />
+          </label>
+          <label>เบอร์โทร
+            <input type="tel" id="leadPhone" required pattern="[0-9]{9,10}" />
+          </label>
+          <button type="submit" class="btn">ส่งข้อมูลรับคำแนะนำ</button>
+        </form>
+
+        <div class="leaderboard">
+          <h3>Top 5 Leaderboard</h3>
+          <ol id="leaderboardList"></ol>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
