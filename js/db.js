@@ -155,7 +155,17 @@ export async function getAllCourses() {
 
 export function subscribeCourses(callback, onError) {
   const q = query(collection(db, 'courses'), orderBy('courseId', 'asc'));
-  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+  let unsubscribe = () => {};
+
+  ensureAuthReady()
+    .then(() => {
+      unsubscribe = onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+
+  return () => unsubscribe();
 }
 
 export async function getCourse(courseId) {
@@ -175,12 +185,22 @@ export async function getQuestionsByCourse(courseId) {
 
 export function subscribeQuestionsByCourse(courseId, callback, onError) {
   const q = query(collection(db, 'questions'), where('courseId', '==', courseId));
-  return onSnapshot(q, (snap) => {
-    const rows = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-    callback(rows);
-  }, onError);
+  let unsubscribe = () => {};
+
+  ensureAuthReady()
+    .then(() => {
+      unsubscribe = onSnapshot(q, (snap) => {
+        const rows = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+        callback(rows);
+      }, onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+
+  return () => unsubscribe();
 }
 
 export async function saveLead(payload) {
@@ -193,7 +213,17 @@ export async function saveLead(payload) {
 
 export function subscribeLeads(callback, onError) {
   const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+  let unsubscribe = () => {};
+
+  ensureAuthReady()
+    .then(() => {
+      unsubscribe = onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+
+  return () => unsubscribe();
 }
 
 export async function deleteLeadById(leadId) {
@@ -202,15 +232,17 @@ export async function deleteLeadById(leadId) {
 }
 
 export async function getLeaderboard(courseId) {
-  const q = query(
-    collection(db, 'leads'),
-    where('courseId', '==', courseId),
-    orderBy('scorePercent', 'desc'),
-    orderBy('durationSeconds', 'asc'),
-    limit(5),
-  );
+  await ensureAuthReady();
+  const q = query(collection(db, 'leads'), where('courseId', '==', courseId));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => {
+      const scoreDiff = Number(b.scorePercent || 0) - Number(a.scorePercent || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return Number(a.durationSeconds || 0) - Number(b.durationSeconds || 0);
+    })
+    .slice(0, 5);
 }
 
 export async function saveProfile(profile) {
@@ -225,10 +257,21 @@ export async function saveProfile(profile) {
 }
 
 export async function getProfile() {
+  await ensureAuthReady();
   const snap = await getDoc(doc(db, 'profile', 'tutor_profile'));
   return snap.exists() ? snap.data() : null;
 }
 
 export function subscribeProfile(callback, onError) {
-  return onSnapshot(doc(db, 'profile', 'tutor_profile'), (snap) => callback(snap.exists() ? snap.data() : null), onError);
+  let unsubscribe = () => {};
+
+  ensureAuthReady()
+    .then(() => {
+      unsubscribe = onSnapshot(doc(db, 'profile', 'tutor_profile'), (snap) => callback(snap.exists() ? snap.data() : null), onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+
+  return () => unsubscribe();
 }

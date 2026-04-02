@@ -20,6 +20,10 @@
           <button id="startBtn" class="w-full rounded-2xl bg-fuchsia-600 px-4 py-4 text-xl font-black text-white disabled:opacity-50" disabled>
             เริ่มทำข้อสอบ
           </button>
+          <label class="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input id="soundToggle" type="checkbox" checked />
+            เปิดเสียงเตือนเวลาใกล้หมด + เสียงคลิกคำตอบ
+          </label>
         </form>
       </section>
 
@@ -59,7 +63,7 @@
         </div>
 
         <div class="mt-4 rounded-xl bg-slate-50 p-4">
-          <h3 class="font-bold">อันดับคะแนน</h3>
+          <h3 class="font-bold">อันดับคะแนน TOP 5</h3>
           <ol id="leaderboardList" class="mt-2 list-decimal space-y-1 pl-5"></ol>
         </div>
 
