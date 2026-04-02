@@ -61,7 +61,17 @@ async function onDeleteCourse(courseId) {
     alert('ลบแบบทดสอบสำเร็จ');
   } catch (error) {
     console.error(error);
-    alert(`ลบไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+    const errorCode = String(error?.code || '');
+    const errorMessage = String(error?.message || '');
+    const isPermissionIssue = errorCode.includes('permission-denied')
+      || errorMessage.includes('Missing or insufficient permissions');
+
+    if (isPermissionIssue) {
+      alert('ลบไม่สำเร็จ: บัญชีนี้ยังไม่มีสิทธิ์ลบข้อมูลใน Firestore (Missing or insufficient permissions)\n\nวิธีแก้:\n1) เปิด Firebase Console > Firestore Database > Rules\n2) อนุญาตสิทธิ์ delete ให้ผู้ใช้ที่ล็อกอิน (รวม anonymous ถ้าใช้)\n3) ไปที่ Firebase Console > Authentication > Sign-in method แล้วเปิด Anonymous ถ้ายังปิดอยู่\n4) Publish rules แล้วรีเฟรชหน้าเว็บ');
+      return;
+    }
+
+    alert(`ลบไม่สำเร็จ: ${errorMessage || 'กรุณาลองใหม่'}`);
   }
 }
 
@@ -178,13 +188,15 @@ function renderCourses(courses) {
         <p class="muted item-sub">${courseId}</p>
       </div>
       <div class="share-box">
-        <input value="${escapeHtml(quizLink)}" readonly />
+        <div class="share-inline">
+          <input value="${escapeHtml(quizLink)}" readonly />
+          <a class="btn btn-success" href="${editLink}">แก้ไข</a>
+        </div>
         <div class="qr-box hidden" data-role="qr-wrap">
           <img alt="QR ${title}" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(quizLink)}" />
         </div>
       </div>
       <div class="item-actions">
-        <a class="btn" href="${editLink}">แก้ไข</a>
         <a class="btn btn-secondary" href="${quizLink}" target="_blank" rel="noopener noreferrer">เปิดแบบทดสอบ</a>
         <button class="btn btn-secondary" type="button" data-action="copy">คัดลอกลิงก์</button>
         <button class="btn btn-secondary" type="button" data-action="toggle-qr">แสดง QR</button>
