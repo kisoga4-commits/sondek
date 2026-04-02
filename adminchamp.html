@@ -17,6 +17,20 @@
         <article class="card">
           <h2>สร้างบททดสอบ (Manage Quizzes)</h2>
           <a class="btn" href="template.html">+ ไปหน้า Template ทำแบบทดสอบ</a>
+          <div class="qr-tool mt-12">
+            <label>ลิงก์แบบทดสอบ (URL)
+              <input
+                type="url"
+                id="quizQrUrlInput"
+                placeholder="https://your-web.com/quiz?id=math01"
+              />
+            </label>
+            <div class="qr-tool-actions">
+              <button type="button" class="btn btn-primary btn-tiny" id="generateQrBtn">สร้าง QR</button>
+              <button type="button" class="btn btn-success btn-tiny" id="downloadQrBtn" disabled>Download</button>
+            </div>
+            <div id="qrPreviewWrap" class="qr-preview-wrap muted">ยังไม่ได้สร้าง QR</div>
+          </div>
           <div class="table-wrap mt-12">
             <table class="admin-table">
               <thead>
@@ -58,6 +72,7 @@
       </section>
     </main>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script type="module" src="js/adminchamp.js"></script>
   </body>
 </html>

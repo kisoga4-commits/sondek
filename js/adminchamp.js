@@ -12,6 +12,54 @@ import {
 const courseTableBody = document.getElementById('courseTableBody');
 const activeCoursesWrap = document.getElementById('activeCoursesWrap');
 const profileForm = document.getElementById('profileForm');
+const quizQrUrlInput = document.getElementById('quizQrUrlInput');
+const generateQrBtn = document.getElementById('generateQrBtn');
+const downloadQrBtn = document.getElementById('downloadQrBtn');
+const qrPreviewWrap = document.getElementById('qrPreviewWrap');
+
+let activeQrImageSrc = '';
+
+function clearQrPreview(message = 'ยังไม่ได้สร้าง QR') {
+  qrPreviewWrap.innerHTML = `<p class="muted">${message}</p>`;
+  downloadQrBtn.disabled = true;
+  activeQrImageSrc = '';
+}
+
+function generateQuizQr(url) {
+  if (!window.QRCode) {
+    alert('ไม่พบไลบรารี qrcode.js');
+    return;
+  }
+  qrPreviewWrap.innerHTML = '';
+  const qrCanvasWrap = document.createElement('div');
+  qrCanvasWrap.className = 'qr-canvas-wrap';
+  qrPreviewWrap.appendChild(qrCanvasWrap);
+
+  // qrcode.js will append canvas/img into this container.
+  new window.QRCode(qrCanvasWrap, {
+    text: url,
+    width: 240,
+    height: 240,
+    correctLevel: window.QRCode.CorrectLevel.H,
+  });
+
+  window.setTimeout(() => {
+    const img = qrCanvasWrap.querySelector('img');
+    const canvas = qrCanvasWrap.querySelector('canvas');
+
+    if (img?.src) {
+      activeQrImageSrc = img.src;
+      downloadQrBtn.disabled = false;
+      return;
+    }
+    if (canvas) {
+      activeQrImageSrc = canvas.toDataURL('image/png');
+      downloadQrBtn.disabled = false;
+      return;
+    }
+    clearQrPreview('ไม่สามารถสร้าง QR ได้');
+  }, 0);
+}
 
 function maskPhoneForAdmin(phoneRaw) {
   const phone = String(phoneRaw || '').replace(/\D/g, '');
@@ -110,11 +158,36 @@ courseTableBody.addEventListener('click', async (event) => {
   if (btn.dataset.act === 'copy') {
     await navigator.clipboard.writeText(btn.dataset.url);
     alert('คัดลอกลิงก์แล้ว');
+    if (quizQrUrlInput) {
+      quizQrUrlInput.value = btn.dataset.url;
+    }
   }
 
   if (btn.dataset.act === 'edit') {
     window.location.href = `template.html?id=${btn.dataset.id}`;
   }
+});
+
+generateQrBtn?.addEventListener('click', () => {
+  const rawUrl = quizQrUrlInput.value.trim();
+  if (!rawUrl) {
+    clearQrPreview('กรุณาใส่ลิงก์แบบทดสอบก่อน');
+    return;
+  }
+  try {
+    const url = new URL(rawUrl);
+    generateQuizQr(url.toString());
+  } catch {
+    clearQrPreview('ลิงก์ไม่ถูกต้อง กรุณาตรวจสอบใหม่');
+  }
+});
+
+downloadQrBtn?.addEventListener('click', () => {
+  if (!activeQrImageSrc) return;
+  const downloadLink = document.createElement('a');
+  downloadLink.href = activeQrImageSrc;
+  downloadLink.download = `quiz-qr-${Date.now()}.png`;
+  downloadLink.click();
 });
 
 activeCoursesWrap.addEventListener('click', async (event) => {
