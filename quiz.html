@@ -3,61 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quiz Template - Tutor Lead Gen</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <title>Dynamic Quiz Runner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
-    <main class="container">
-      <section class="card" id="introSection">
-        <h1>แบบทดสอบติวเตอร์</h1>
-        <p class="muted">เลือกคอร์สจาก URL เช่น <code>quiz.html?id=course_01</code> แล้วเริ่มทำข้อสอบได้ทันที</p>
-        <div id="courseInfo" class="pill">กำลังโหลดคอร์ส...</div>
-        <button id="startBtn" class="btn" disabled>เริ่มทำข้อสอบ</button>
-      </section>
+  <body class="min-h-screen bg-gradient-to-b from-sky-100 to-violet-100 p-4 text-slate-900 md:p-8">
+    <main class="mx-auto max-w-3xl space-y-4">
+      <section id="introSection" class="rounded-3xl bg-white p-6 shadow-xl">
+        <h1 id="quizTitle" class="text-3xl font-black text-indigo-700">Loading quiz...</h1>
+        <p id="quizDescription" class="mt-2 text-slate-600"></p>
+        <p id="courseInfo" class="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700"></p>
 
-      <section class="card hidden" id="quizSection">
-        <div class="progress-wrap">
-          <div class="progress-label">
-            <span id="progressText">ข้อ 1/10</span>
-            <span id="scoreText">คะแนนสะสม 0</span>
-          </div>
-          <div class="progress-bar"><div id="progressFill"></div></div>
-        </div>
-
-        <h2 id="questionTitle">คำถาม</h2>
-        <div id="choices" class="choices"></div>
-        <div class="quiz-actions">
-          <button id="nextBtn" class="btn" disabled>ข้อต่อไป</button>
-        </div>
-      </section>
-
-      <section class="card hidden" id="resultSection">
-        <h2>สรุปผล</h2>
-        <p id="resultScore" class="result-score"></p>
-        <p id="resultMessage" class="result-message"></p>
-
-        <article class="tutor-box">
-          <img id="tutorPhoto" class="tutor-photo" src="" alt="Tutor profile" />
-          <div>
-            <h3 id="tutorName">คุณครู</h3>
-            <p id="tutorBio" class="muted"></p>
-          </div>
-        </article>
-
-        <form id="leadForm" class="lead-form">
-          <h3>สนใจเรียนต่อกับครู?</h3>
-          <label>ชื่อ
-            <input type="text" id="leadName" required minlength="2" />
+        <form id="entryForm" class="mt-5 space-y-3">
+          <label class="block text-sm font-semibold">Student Name
+            <input id="studentName" required minlength="2" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-lg" placeholder="Type your name" />
           </label>
-          <label>เบอร์โทร
-            <input type="tel" id="leadPhone" required pattern="[0-9]{9,10}" />
-          </label>
-          <button type="submit" class="btn">ส่งข้อมูลรับคำแนะนำ</button>
+          <button id="startBtn" class="w-full rounded-2xl bg-fuchsia-600 px-4 py-3 text-xl font-bold text-white disabled:opacity-50" disabled>
+            Start Quiz
+          </button>
         </form>
+      </section>
 
-        <div class="leaderboard">
-          <h3>Top 5 Leaderboard</h3>
-          <ol id="leaderboardList"></ol>
+      <section id="quizSection" class="hidden rounded-3xl bg-white p-6 shadow-xl">
+        <div class="mb-4 flex items-center justify-between text-sm font-semibold">
+          <span id="progressText">Question 1/10</span>
+          <span id="scoreText">Answered 0</span>
+        </div>
+        <div class="h-2 rounded-full bg-slate-200"><div id="progressFill" class="h-2 rounded-full bg-indigo-500" style="width: 0%"></div></div>
+
+        <h2 id="questionTitle" class="mt-5 text-2xl font-black"></h2>
+        <div id="choices" class="mt-4 space-y-3"></div>
+        <button id="nextBtn" class="mt-5 w-full rounded-2xl bg-indigo-600 px-4 py-3 text-lg font-bold text-white disabled:opacity-50" disabled>Next</button>
+      </section>
+
+      <section id="resultSection" class="hidden rounded-3xl bg-white p-6 shadow-xl">
+        <h2 class="text-3xl font-black text-emerald-600">Result</h2>
+        <p id="resultScore" class="mt-2 text-xl font-bold"></p>
+        <p id="resultMessage" class="mt-1 text-slate-600"></p>
+
+        <div class="mt-4 rounded-xl bg-slate-50 p-4">
+          <h3 class="font-bold">Leaderboard</h3>
+          <ol id="leaderboardList" class="mt-2 list-decimal space-y-1 pl-5"></ol>
+        </div>
+
+        <div class="mt-5 grid gap-3 md:grid-cols-2">
+          <a id="profileCta" href="#" target="_blank" rel="noreferrer" class="rounded-2xl bg-fuchsia-600 px-4 py-3 text-center font-bold text-white">View Profile</a>
+          <a id="enrollCta" href="#" target="_blank" rel="noreferrer" class="rounded-2xl bg-emerald-600 px-4 py-3 text-center font-bold text-white">Enroll Now</a>
         </div>
       </section>
     </main>

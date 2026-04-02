@@ -35,8 +35,9 @@ export async function saveCourse(course) {
   await setDoc(doc(db, 'courses', course.courseId), {
     courseId: course.courseId,
     title: course.title,
+    description: course.description || '',
     status: course.status || 'open',
-    quizLink: course.quizLink || `${window.location.origin}/index.html?id=${course.courseId}`,
+    quizLink: course.quizLink || `${window.location.origin}/quiz.html?id=${course.courseId}`,
     enrollmentUrl: course.enrollmentUrl || '',
     updatedAt: serverTimestamp(),
   }, { merge: true });
