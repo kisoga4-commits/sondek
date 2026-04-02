@@ -55,10 +55,17 @@
               <select id="questionAnswerMode" required>
                 <option value="multiple_choice">ตัวเลือก 4 ข้อ</option>
                 <option value="true_false">จริง / เท็จ</option>
+                <option value="short_text">กรอกคำตอบ (ข้อความ/ตัวเลข)</option>
               </select>
             </label>
             <label>เวลา (วินาที)
-              <input id="questionTimeLimit" type="number" min="5" value="30" required />
+              <select id="questionTimeLimit" required>
+                <option value="5">5 วินาที</option>
+                <option value="10">10 วินาที</option>
+                <option value="20">20 วินาที</option>
+                <option value="30" selected>30 วินาที</option>
+                <option value="60">60 วินาที</option>
+              </select>
             </label>
             <label>คะแนน
               <input id="questionPoints" type="number" min="1" value="10" required />
@@ -69,6 +76,13 @@
             </div>
           </aside>
         </form>
+        <hr />
+        <h2>จำนวนข้อที่จะแสดงตอนทำข้อสอบ</h2>
+        <div class="stack-form">
+          <label><input type="radio" name="drawCountPreset" value="10" checked /> 10 ข้อ</label>
+          <label><input type="radio" name="drawCountPreset" value="20" /> 20 ข้อ</label>
+        </div>
+
         <hr />
         <h2>รายการคำถามที่เพิ่ม</h2>
         <p id="bankSummary" class="muted">กำลังโหลด...</p>

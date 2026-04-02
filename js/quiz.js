@@ -50,6 +50,19 @@ export function normalizeQuestion(rawQuestion = {}) {
     };
   }
 
+  if (type === 'short_text') {
+    const acceptedAnswers = Array.isArray(rawQuestion.acceptedAnswers)
+      ? rawQuestion.acceptedAnswers.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+    return {
+      ...base,
+      choices: [],
+      acceptedAnswers,
+      answerIndex: -1,
+    };
+  }
+
   const normalizedChoices = Array.isArray(rawQuestion.choices)
     ? rawQuestion.choices.map((choice) => String(choice || '').trim())
     : [];
@@ -76,6 +89,15 @@ function isOrderingAnswerCorrect(question, answer) {
 }
 
 export function isQuestionCorrect(question, answer) {
+  if (getQuestionType(question) === 'short_text') {
+    const normalizedAnswer = String(answer ?? '').trim().toLowerCase();
+    if (!normalizedAnswer) return false;
+
+    return (question.acceptedAnswers || [])
+      .map((item) => String(item).trim().toLowerCase())
+      .includes(normalizedAnswer);
+  }
+
   if (getQuestionType(question) === 'ordering') {
     return isOrderingAnswerCorrect(question, answer);
   }
