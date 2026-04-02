@@ -6,11 +6,14 @@ import {
   doc,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
   where,
+  updateDoc,
+  writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
@@ -61,11 +64,57 @@ export async function replaceQuestionsForCourse(courseId, questions) {
   await saveQuestionsBatch(courseId, questions);
 }
 
+
+export async function addQuestion(courseId, question, order) {
+  await addDoc(collection(db, 'questions'), {
+    courseId,
+    question: question.question,
+    choices: question.choices,
+    answerIndex: Number(question.answerIndex),
+    order,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function updateQuestion(questionId, question) {
+  await updateDoc(doc(db, 'questions', questionId), {
+    question: question.question,
+    choices: question.choices,
+    answerIndex: Number(question.answerIndex),
+  });
+}
+export async function deleteQuestionById(questionId) {
+  await deleteDoc(doc(db, 'questions', questionId));
+}
+
+export async function deleteCourseWithQuestions(courseId) {
+  const existingQuestions = await getQuestionsByCourse(courseId);
+  const batch = writeBatch(db);
+
+  existingQuestions.forEach((item) => {
+    batch.delete(doc(db, 'questions', item.id));
+  });
+
+  batch.delete(doc(db, 'courses', courseId));
+  await batch.commit();
+}
+
 export async function getAllCourses() {
   const snap = await getDocs(collection(db, 'courses'));
   return snap.docs
     .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
     .sort((a, b) => String(a.courseId).localeCompare(String(b.courseId)));
+}
+
+export function subscribeCourses(callback, onError) {
+  const q = query(collection(db, 'courses'), orderBy('courseId', 'asc'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() })));
+    },
+    onError,
+  );
 }
 
 export async function getCourse(courseId) {
@@ -84,11 +133,37 @@ export async function getQuestionsByCourse(courseId) {
   return snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }));
 }
 
+export function subscribeQuestionsByCourse(courseId, callback, onError) {
+  const q = query(collection(db, 'questions'), where('courseId', '==', courseId), orderBy('order', 'asc'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() })));
+    },
+    onError,
+  );
+}
+
 export async function saveLead(payload) {
   await addDoc(collection(db, 'leads'), {
     ...payload,
     createdAt: serverTimestamp(),
   });
+}
+
+export function subscribeLeads(callback, onError) {
+  const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() })));
+    },
+    onError,
+  );
+}
+
+export async function deleteLeadById(leadId) {
+  await deleteDoc(doc(db, 'leads', leadId));
 }
 
 export async function getLeaderboard(courseId) {
