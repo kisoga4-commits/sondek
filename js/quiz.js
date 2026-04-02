@@ -15,10 +15,35 @@ export function pickRandomQuestions(allQuestions, amount = 10) {
   return shuffleArray(allQuestions).slice(0, Math.min(amount, allQuestions.length));
 }
 
+function getQuestionType(question) {
+  return question?.type || 'multiple_choice';
+}
+
+function isOrderingAnswerCorrect(question, answer) {
+  if (!Array.isArray(question.orderingItems) || !Array.isArray(answer)) {
+    return false;
+  }
+
+  if (question.orderingItems.length !== answer.length) {
+    return false;
+  }
+
+  return question.orderingItems.every((item, index) => item === answer[index]);
+}
+
 export function calculateScore(quizQuestions, answersMap) {
   let correct = 0;
 
   quizQuestions.forEach((question, index) => {
+    const type = getQuestionType(question);
+
+    if (type === 'ordering') {
+      if (isOrderingAnswerCorrect(question, answersMap[index])) {
+        correct += 1;
+      }
+      return;
+    }
+
     if (Number(question.answerIndex) === Number(answersMap[index])) {
       correct += 1;
     }

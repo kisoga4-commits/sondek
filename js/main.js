@@ -1,5 +1,5 @@
 import { getCourse, getLeaderboard, getProfile, getQuestionsByCourse, saveLead } from './db.js';
-import { calculateScore, getResultMessage, maskPhone, pickRandomQuestions } from './quiz.js';
+import { calculateScore, getResultMessage, maskPhone, pickRandomQuestions, shuffleArray } from './quiz.js';
 
 const params = new URLSearchParams(window.location.search);
 const courseId = params.get('id') || 'course_01';
@@ -34,7 +34,32 @@ const state = {
   score: null,
   leadName: '',
   leadPhone: '',
+  orderingView: {},
 };
+
+function getQuestionType(question) {
+  return question?.type || 'multiple_choice';
+}
+
+function getQuestionByIndex(index) {
+  return state.quizQuestions[index];
+}
+
+function isCurrentQuestionAnswered() {
+  const question = getQuestionByIndex(state.currentIndex);
+  if (!question) {
+    return false;
+  }
+
+  const type = getQuestionType(question);
+  const answer = state.answers[state.currentIndex];
+
+  if (type === 'ordering') {
+    return Array.isArray(answer) && answer.length === (question.orderingItems || []).length;
+  }
+
+  return answer !== undefined;
+}
 
 async function init() {
   try {
@@ -57,7 +82,7 @@ async function init() {
     courseInfo.textContent = `คอร์ส: ${course.title || course.courseId} | สุ่ม 10 จาก ${questions.length} ข้อ`;
 
     profileCta.href = profile?.profileUrl || '#';
-    enrollCta.href = course.enrollmentUrl || '#';
+    enrollCta.href = course.quizLink || `${window.location.origin}/quiz.html?id=${courseId}`;
   } catch (error) {
     console.error(error);
     courseInfo.textContent = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
@@ -68,6 +93,7 @@ function startQuiz() {
   state.quizQuestions = pickRandomQuestions(state.allQuestions, 10);
   state.currentIndex = 0;
   state.answers = {};
+  state.orderingView = {};
   state.startedAt = Date.now();
 
   introSection.classList.add('hidden');
@@ -75,24 +101,90 @@ function startQuiz() {
   renderQuestion();
 }
 
-function renderQuestion() {
-  const q = state.quizQuestions[state.currentIndex];
-  const questionNo = state.currentIndex + 1;
-  questionTitle.textContent = `${questionNo}. ${q.question}`;
-  choicesWrap.innerHTML = '';
-
-  q.choices.forEach((choiceText, idx) => {
+function renderChoiceQuestion(question, questionIndex) {
+  question.choices.forEach((choiceText, idx) => {
     const label = document.createElement('label');
     label.className = 'choice';
-    label.innerHTML = `<input type="radio" name="choice" value="${idx}" ${Number(state.answers[state.currentIndex]) === idx ? 'checked' : ''} /> <span>${choiceText}</span>`;
+    label.innerHTML = `<input type="radio" name="choice" value="${idx}" ${Number(state.answers[questionIndex]) === idx ? 'checked' : ''} /> <span>${choiceText}</span>`;
     label.querySelector('input').addEventListener('change', () => {
-      state.answers[state.currentIndex] = idx;
+      state.answers[questionIndex] = idx;
       nextBtn.disabled = false;
     });
     choicesWrap.appendChild(label);
   });
+}
 
-  nextBtn.disabled = state.answers[state.currentIndex] === undefined;
+function renderOrderingQuestion(question, questionIndex) {
+  if (!state.orderingView[questionIndex]) {
+    state.orderingView[questionIndex] = {
+      shuffledItems: shuffleArray(question.orderingItems || []),
+    };
+  }
+
+  const view = state.orderingView[questionIndex];
+  const answer = state.answers[questionIndex] || [];
+
+  const rowWrap = document.createElement('div');
+  rowWrap.className = 'ordering-wrap';
+
+  view.shuffledItems.forEach((item) => {
+    const row = document.createElement('label');
+    row.className = 'ordering-row';
+
+    const select = document.createElement('select');
+    select.innerHTML = `<option value="">ลำดับ?</option>${view.shuffledItems
+      .map((_, idx) => `<option value="${idx + 1}">${idx + 1}</option>`)
+      .join('')}`;
+
+    const selectedOrder = answer.indexOf(item);
+    if (selectedOrder >= 0) {
+      select.value = String(selectedOrder + 1);
+    }
+
+    select.addEventListener('change', () => {
+      const pickedOrder = Number(select.value);
+      const currentAnswer = [...(state.answers[questionIndex] || [])];
+      const existingOrder = currentAnswer.indexOf(item);
+
+      if (existingOrder >= 0) {
+        currentAnswer[existingOrder] = undefined;
+      }
+
+      if (pickedOrder > 0) {
+        currentAnswer[pickedOrder - 1] = item;
+      }
+
+      state.answers[questionIndex] = currentAnswer.filter(Boolean);
+      nextBtn.disabled = !isCurrentQuestionAnswered();
+      renderQuestion();
+    });
+
+    const text = document.createElement('span');
+    text.textContent = item;
+
+    row.appendChild(select);
+    row.appendChild(text);
+    rowWrap.appendChild(row);
+  });
+
+  choicesWrap.appendChild(rowWrap);
+}
+
+function renderQuestion() {
+  const q = state.quizQuestions[state.currentIndex];
+  const questionNo = state.currentIndex + 1;
+  const questionType = getQuestionType(q);
+
+  questionTitle.textContent = `${questionNo}. ${q.question} (${questionType})`;
+  choicesWrap.innerHTML = '';
+
+  if (questionType === 'ordering') {
+    renderOrderingQuestion(q, state.currentIndex);
+  } else {
+    renderChoiceQuestion(q, state.currentIndex);
+  }
+
+  nextBtn.disabled = !isCurrentQuestionAnswered();
   nextBtn.textContent = questionNo === state.quizQuestions.length ? 'ดูผลลัพธ์' : 'ข้อต่อไป';
   scoreText.textContent = `ตอบแล้ว ${Object.keys(state.answers).length}/${state.quizQuestions.length}`;
   progressText.textContent = `ข้อ ${questionNo}/${state.quizQuestions.length}`;
