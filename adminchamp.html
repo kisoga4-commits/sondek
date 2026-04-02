@@ -10,7 +10,7 @@
     <main class="container home-layout">
       <section class="card">
         <h1>แผงแอดมิน (ใช้งานคนเดียว)</h1>
-        <p class="muted">หน้าเรียบ ๆ รวม 4 โหมดหลักสำหรับจัดการงานประจำวัน</p>
+        <p class="muted">หน้าเรียบ ๆ ใช้งานคนเดียว รวม 4 โหมดหลักที่ต้องใช้ทุกวัน</p>
       </section>
 
       <section class="card">
@@ -52,6 +52,9 @@
                 <option value="open">เปิดรับสมัคร</option>
                 <option value="closed">ปิดรับสมัคร</option>
               </select>
+            </label>
+            <label>จำนวนคนสมัครล่าสุด (ใส่เอง)
+              <input type="number" id="courseApplicants" min="0" value="0" />
             </label>
             <button type="submit" class="btn">บันทึกสถานะ</button>
           </form>
@@ -115,10 +118,11 @@
         const payload = {
           name: document.getElementById('courseName').value.trim(),
           status: document.getElementById('courseStatus').value,
+          applicants: Math.max(0, Number(document.getElementById('courseApplicants').value) || 0),
           updatedAt: new Date().toLocaleString('th-TH'),
         };
         localStorage.setItem('solo_course_status', JSON.stringify(payload));
-        courseStatusText.textContent = `คอร์ส "${payload.name || '-'}" ถูกตั้งเป็น ${payload.status === 'open' ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'} (${payload.updatedAt})`;
+        courseStatusText.textContent = `คอร์ส "${payload.name || '-'}" ถูกตั้งเป็น ${payload.status === 'open' ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'} | คนสมัคร ${payload.applicants} คน (${payload.updatedAt})`;
       });
 
       const savedCourse = localStorage.getItem('solo_course_status');
@@ -126,7 +130,8 @@
         const parsed = JSON.parse(savedCourse);
         document.getElementById('courseName').value = parsed.name || '';
         document.getElementById('courseStatus').value = parsed.status || 'open';
-        courseStatusText.textContent = `สถานะล่าสุด: ${parsed.status === 'open' ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'} (${parsed.updatedAt || '-'})`;
+        document.getElementById('courseApplicants').value = parsed.applicants ?? 0;
+        courseStatusText.textContent = `สถานะล่าสุด: ${parsed.status === 'open' ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'} | คนสมัคร ${parsed.applicants ?? 0} คน (${parsed.updatedAt || '-'})`;
       }
 
       document.getElementById('createQrBtn').addEventListener('click', () => {

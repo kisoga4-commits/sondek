@@ -10,7 +10,7 @@
     <main class="container">
       <section class="card" id="builderView">
         <h1>ตัวสร้างข้อสอบแบบรวมคลังคำถาม</h1>
-        <p class="muted">สร้างเกิน 10 ข้อ แล้วระบบจะสุ่ม 10 ข้อให้ผู้เรียนต่อครั้ง (ไม่ซ้ำกันในครั้งเดียว)</p>
+        <p class="muted">สร้างอย่างน้อย 10 ข้อ แล้วระบบจะสุ่ม 10 ข้อให้ผู้เรียนต่อครั้ง (ไม่ซ้ำกันในครั้งเดียว)</p>
 
         <form id="quizMetaForm" class="stack-form">
           <label>ชื่อแบบทดสอบ
@@ -22,18 +22,24 @@
         </form>
 
         <hr />
-        <h2>แก้ไขคำถาม (โครงสร้างร่วมเดียว)</h2>
-        <form id="questionEditor" class="stack-form">
-          <label>โจทย์คำถาม
-            <textarea id="questionText" rows="2" required placeholder="พิมพ์โจทย์คำถาม"></textarea>
-          </label>
+        <h2>แก้ไขคำถาม</h2>
+        <form id="questionEditor" class="editor-layout">
+          <div class="editor-main stack-form">
+            <label>โจทย์คำถาม
+              <textarea id="questionText" rows="2" required placeholder="พิมพ์โจทย์คำถาม"></textarea>
+            </label>
+            <div id="answerEditor" class="answer-box"></div>
+          </div>
 
-          <div class="inline-grid">
-            <label>ประเภทคำถาม
-              <select id="questionType" required>
-                <option value="multiple_choice">multiple_choice</option>
-                <option value="true_false">true_false</option>
-                <option value="ordering">ordering</option>
+          <aside class="editor-side stack-form">
+            <h3>ตั้งค่าคำถาม</h3>
+            <label>ประเภทคำถาม (พิมพ์ข้อความ)
+              <input id="questionTypeLabel" type="text" required placeholder="เช่น ปรนัย / จริงเท็จ" />
+            </label>
+            <label>รูปแบบคำตอบ
+              <select id="questionAnswerMode" required>
+                <option value="multiple_choice">ตัวเลือก 4 ข้อ</option>
+                <option value="true_false">จริง / เท็จ</option>
               </select>
             </label>
             <label>เวลา (วินาที)
@@ -42,20 +48,18 @@
             <label>คะแนน
               <input id="questionPoints" type="number" min="1" value="10" required />
             </label>
-          </div>
-
-          <div id="answerEditor" class="answer-box"></div>
-
-          <div class="admin-actions">
-            <button type="submit" class="btn" id="addOrUpdateBtn">เพิ่มคำถาม</button>
-            <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">ยกเลิกแก้ไข</button>
-          </div>
+            <div class="admin-actions">
+              <button type="submit" class="btn" id="addOrUpdateBtn">เพิ่มคำถาม</button>
+              <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">ยกเลิกแก้ไข</button>
+            </div>
+            <button type="button" class="btn btn-secondary" id="lessonDoneBtn">เสร็จบทนี้</button>
+          </aside>
         </form>
       </section>
 
       <section class="card" id="questionBankView">
         <h2>คลังคำถาม</h2>
-        <p id="bankSummary" class="muted">ยังไม่มีคำถาม</p>
+        <p id="bankSummary" class="muted">ยังไม่มีคำถาม (ขั้นต่ำ 10 ข้อ)</p>
         <ol id="questionBankList" class="preview-list"></ol>
 
         <div class="admin-actions">

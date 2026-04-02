@@ -1,11 +1,13 @@
 const DRAW_COUNT = 10;
+const MIN_QUESTION_BANK = 10;
 
 const builderView = document.getElementById('builderView');
 const questionBankView = document.getElementById('questionBankView');
 const studentView = document.getElementById('studentView');
 const resultView = document.getElementById('resultView');
 
-const questionTypeEl = document.getElementById('questionType');
+const questionAnswerModeEl = document.getElementById('questionAnswerMode');
+const questionTypeLabelEl = document.getElementById('questionTypeLabel');
 const questionEditor = document.getElementById('questionEditor');
 const answerEditor = document.getElementById('answerEditor');
 const questionBankList = document.getElementById('questionBankList');
@@ -13,6 +15,7 @@ const bankSummary = document.getElementById('bankSummary');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 const addOrUpdateBtn = document.getElementById('addOrUpdateBtn');
 const buildQuizLinkBtn = document.getElementById('buildQuizLinkBtn');
+const lessonDoneBtn = document.getElementById('lessonDoneBtn');
 const sharePanel = document.getElementById('sharePanel');
 const quizLinkOutput = document.getElementById('quizLinkOutput');
 const qrOutput = document.getElementById('qrOutput');
@@ -45,8 +48,8 @@ let selectedQuestions = [];
 let userAnswers = [];
 let currentQuestionIndex = 0;
 
-function showAnswerEditor(type, question = null) {
-  if (type === 'true_false') {
+function showAnswerEditor(answerMode, question = null) {
+  if (answerMode === 'true_false') {
     const selected = question?.correctAnswer?.value === false ? 'false' : 'true';
     answerEditor.innerHTML = `
       <label>คำตอบที่ถูก
@@ -54,19 +57,6 @@ function showAnswerEditor(type, question = null) {
           <option value="true" ${selected === 'true' ? 'selected' : ''}>True</option>
           <option value="false" ${selected === 'false' ? 'selected' : ''}>False</option>
         </select>
-      </label>
-    `;
-    return;
-  }
-
-  if (type === 'ordering') {
-    const existing = Array.isArray(question?.correctAnswer?.sequence)
-      ? question.correctAnswer.sequence.join('\n')
-      : '';
-
-    answerEditor.innerHTML = `
-      <label>รายการเรียงลำดับที่ถูกต้อง (1 บรรทัดต่อ 1 รายการ)
-        <textarea id="orderingSequence" rows="5" placeholder="ขั้นที่ 1\nขั้นที่ 2\nขั้นที่ 3">${existing}</textarea>
       </label>
     `;
     return;
@@ -93,7 +83,8 @@ function showAnswerEditor(type, question = null) {
 
 function buildQuestionPayloadFromEditor() {
   const questionText = document.getElementById('questionText').value.trim();
-  const questionType = questionTypeEl.value;
+  const questionTypeLabel = questionTypeLabelEl.value.trim();
+  const answerMode = questionAnswerModeEl.value;
   const timeLimitSeconds = Math.max(5, Number(document.getElementById('questionTimeLimit').value) || 30);
   const points = Math.max(1, Number(document.getElementById('questionPoints').value) || 10);
 
@@ -102,29 +93,17 @@ function buildQuestionPayloadFromEditor() {
     return null;
   }
 
-  const base = { questionText, questionType, timeLimitSeconds, points };
+  if (!questionTypeLabel) {
+    alert('กรุณาใส่ประเภทคำถาม');
+    return null;
+  }
 
-  if (questionType === 'true_false') {
+  const base = { questionText, questionTypeLabel, answerMode, timeLimitSeconds, points };
+
+  if (answerMode === 'true_false') {
     return {
       ...base,
       correctAnswer: { value: document.getElementById('tfCorrectAnswer').value === 'true' },
-    };
-  }
-
-  if (questionType === 'ordering') {
-    const sequence = document.getElementById('orderingSequence').value
-      .split('\n')
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    if (sequence.length < 2) {
-      alert('ordering ต้องมีอย่างน้อย 2 รายการ');
-      return null;
-    }
-
-    return {
-      ...base,
-      correctAnswer: { sequence },
     };
   }
 
@@ -136,7 +115,7 @@ function buildQuestionPayloadFromEditor() {
   ];
 
   if (options.some((item) => !item)) {
-    alert('multiple_choice ต้องมีตัวเลือกครบ A-D');
+    alert('คำถามตัวเลือกต้องมีตัวเลือกครบ A-D');
     return null;
   }
 
@@ -154,7 +133,8 @@ function resetEditor() {
   document.getElementById('questionText').value = '';
   document.getElementById('questionTimeLimit').value = '30';
   document.getElementById('questionPoints').value = '10';
-  questionTypeEl.value = 'multiple_choice';
+  questionTypeLabelEl.value = '';
+  questionAnswerModeEl.value = 'multiple_choice';
   showAnswerEditor('multiple_choice');
 }
 
@@ -162,15 +142,15 @@ function renderQuestionBank() {
   questionBankList.innerHTML = '';
 
   if (!bankQuestions.length) {
-    bankSummary.textContent = 'ยังไม่มีคำถาม';
+    bankSummary.textContent = `ยังไม่มีคำถาม (ขั้นต่ำ ${MIN_QUESTION_BANK} ข้อ)`;
     return;
   }
 
-  bankSummary.textContent = `มีคำถามแล้ว ${bankQuestions.length} ข้อ (ต้องมากกว่า 10 ข้อก่อนสร้างลิงก์)`;
+  bankSummary.textContent = `มีคำถามแล้ว ${bankQuestions.length} ข้อ (ขั้นต่ำ ${MIN_QUESTION_BANK} ข้อก่อนสร้างลิงก์)`;
 
   bankQuestions.forEach((question, index) => {
     const li = document.createElement('li');
-    li.innerHTML = `<strong>ข้อ ${index + 1}</strong> [${question.questionType}] ${question.questionText} (${question.points} คะแนน / ${question.timeLimitSeconds} วิ)`;
+    li.innerHTML = `<strong>ข้อ ${index + 1}</strong> [${question.questionTypeLabel}] ${question.questionText} (${question.points} คะแนน / ${question.timeLimitSeconds} วิ)`;
 
     const actions = document.createElement('div');
     actions.className = 'admin-actions';
@@ -187,8 +167,9 @@ function renderQuestionBank() {
       document.getElementById('questionText').value = question.questionText;
       document.getElementById('questionTimeLimit').value = String(question.timeLimitSeconds);
       document.getElementById('questionPoints').value = String(question.points);
-      questionTypeEl.value = question.questionType;
-      showAnswerEditor(question.questionType, question);
+      questionTypeLabelEl.value = question.questionTypeLabel || '';
+      questionAnswerModeEl.value = question.answerMode || 'multiple_choice';
+      showAnswerEditor(question.answerMode || 'multiple_choice', question);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
@@ -214,8 +195,8 @@ function buildSharePayload() {
     return null;
   }
 
-  if (bankQuestions.length <= DRAW_COUNT) {
-    alert('ต้องมีคำถามมากกว่า 10 ข้อ เพื่อให้สุ่ม 10 ข้อได้');
+  if (bankQuestions.length < MIN_QUESTION_BANK) {
+    alert(`ต้องมีคำถามอย่างน้อย ${MIN_QUESTION_BANK} ข้อ เพื่อให้สุ่ม ${DRAW_COUNT} ข้อได้`);
     return null;
   }
 
@@ -223,8 +204,9 @@ function buildSharePayload() {
     title,
     description: document.getElementById('quizDescription').value.trim(),
     drawCount: DRAW_COUNT,
+    minQuestionBank: MIN_QUESTION_BANK,
     questionBank: bankQuestions,
-    version: 1,
+    version: 2,
   };
 }
 
@@ -262,24 +244,16 @@ function renderAttemptQuestion() {
   progressFill.style.width = `${((currentQuestionIndex + 1) / selectedQuestions.length) * 100}%`;
 
   attemptQuestionText.textContent = question.questionText;
-  attemptTimerText.textContent = `เวลาข้อนี้ ${question.timeLimitSeconds} วินาที`;
+  attemptTimerText.textContent = `เวลาข้อนี้ ${question.timeLimitSeconds} วินาที | ประเภท: ${question.questionTypeLabel}`;
 
   attemptAnswerArea.innerHTML = '';
 
-  if (question.questionType === 'true_false') {
+  if (question.answerMode === 'true_false') {
     attemptAnswerArea.innerHTML = `
       <div class="choices">
         <label class="choice"><input type="radio" name="answer" value="true" /> True</label>
         <label class="choice"><input type="radio" name="answer" value="false" /> False</label>
       </div>
-    `;
-  } else if (question.questionType === 'ordering') {
-    const list = shuffle(question.correctAnswer.sequence);
-    attemptAnswerArea.innerHTML = `
-      <label>เรียงลำดับคำตอบใหม่ (1 บรรทัดต่อ 1 รายการ)
-        <textarea id="orderingAnswer" rows="6">${list.join('\n')}</textarea>
-      </label>
-      <p class="muted">แก้ไขลำดับบรรทัดให้ตรงกับคำตอบที่ถูกต้อง</p>
     `;
   } else {
     const letters = ['A', 'B', 'C', 'D'];
@@ -298,12 +272,8 @@ function renderAttemptQuestion() {
 
   const previousAnswer = userAnswers[currentQuestionIndex];
   if (previousAnswer !== undefined) {
-    if (question.questionType === 'ordering') {
-      document.getElementById('orderingAnswer').value = previousAnswer.join('\n');
-    } else {
-      const answerInput = attemptAnswerArea.querySelector(`input[value="${String(previousAnswer)}"]`);
-      if (answerInput) answerInput.checked = true;
-    }
+    const answerInput = attemptAnswerArea.querySelector(`input[value="${String(previousAnswer)}"]`);
+    if (answerInput) answerInput.checked = true;
   }
 
   nextBtn.classList.toggle('hidden', currentQuestionIndex === selectedQuestions.length - 1);
@@ -311,30 +281,12 @@ function renderAttemptQuestion() {
 }
 
 function collectCurrentAnswer() {
-  const question = selectedQuestions[currentQuestionIndex];
-
-  if (question.questionType === 'ordering') {
-    return document
-      .getElementById('orderingAnswer')
-      .value.split('\n')
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
   const selectedInput = attemptAnswerArea.querySelector('input[name="answer"]:checked');
   return selectedInput ? selectedInput.value : null;
 }
 
 function isAnswerCorrect(question, answer) {
-  if (question.questionType === 'ordering') {
-    if (!Array.isArray(answer) || answer.length !== question.correctAnswer.sequence.length) {
-      return false;
-    }
-
-    return question.correctAnswer.sequence.every((value, idx) => value === answer[idx]);
-  }
-
-  if (question.questionType === 'true_false') {
+  if (question.answerMode === 'true_false') {
     return String(question.correctAnswer.value) === String(answer);
   }
 
@@ -357,11 +309,11 @@ function renderResults(studentName) {
     if (correct) correctCount += 1;
 
     const reviewItem = document.createElement('li');
-    reviewItem.innerHTML = `<strong>ข้อ ${index + 1}</strong> [${question.questionType}] ${question.questionText}`;
+    reviewItem.innerHTML = `<strong>ข้อ ${index + 1}</strong> [${question.questionTypeLabel}] ${question.questionText}`;
 
     const answerText = document.createElement('p');
     answerText.className = 'muted';
-    answerText.textContent = `คำตอบของผู้เรียน: ${Array.isArray(answer) ? answer.join(' > ') : (answer ?? 'ไม่ตอบ')} | สถานะ: ${correct ? 'ถูก' : 'ผิด'} | ได้ ${earned}/${question.points}`;
+    answerText.textContent = `คำตอบของผู้เรียน: ${answer ?? 'ไม่ตอบ'} | สถานะ: ${correct ? 'ถูก' : 'ผิด'} | ได้ ${earned}/${question.points}`;
 
     reviewItem.appendChild(answerText);
     reviewList.appendChild(reviewItem);
@@ -378,8 +330,8 @@ function renderResults(studentName) {
   studentView.classList.add('hidden');
 }
 
-questionTypeEl.addEventListener('change', () => {
-  showAnswerEditor(questionTypeEl.value);
+questionAnswerModeEl.addEventListener('change', () => {
+  showAnswerEditor(questionAnswerModeEl.value);
 });
 
 questionEditor.addEventListener('submit', (event) => {
@@ -399,6 +351,11 @@ questionEditor.addEventListener('submit', (event) => {
 
 cancelEditBtn.addEventListener('click', () => {
   resetEditor();
+});
+
+lessonDoneBtn.addEventListener('click', () => {
+  alert('เสร็จบทนี้แล้ว สามารถกลับมาแก้ไขแต่ละข้อจากคลังคำถามได้ตลอด');
+  document.getElementById('questionBankView').scrollIntoView({ behavior: 'smooth' });
 });
 
 buildQuizLinkBtn.addEventListener('click', () => {
@@ -467,7 +424,7 @@ finishBtn.addEventListener('click', () => {
 
   try {
     const payload = decodePayload(encodedData);
-    if (!payload || !Array.isArray(payload.questionBank) || payload.questionBank.length <= DRAW_COUNT) {
+    if (!payload || !Array.isArray(payload.questionBank) || payload.questionBank.length < MIN_QUESTION_BANK) {
       throw new Error('invalid payload');
     }
 
