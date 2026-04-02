@@ -2,6 +2,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   limit,
@@ -51,6 +52,20 @@ export async function saveQuestionsBatch(courseId, questions) {
   });
 
   await Promise.all(writes);
+}
+
+export async function replaceQuestionsForCourse(courseId, questions) {
+  const existingQuestions = await getQuestionsByCourse(courseId);
+
+  await Promise.all(existingQuestions.map((item) => deleteDoc(doc(db, 'questions', item.id))));
+  await saveQuestionsBatch(courseId, questions);
+}
+
+export async function getAllCourses() {
+  const snap = await getDocs(collection(db, 'courses'));
+  return snap.docs
+    .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
+    .sort((a, b) => String(a.courseId).localeCompare(String(b.courseId)));
 }
 
 export async function getCourse(courseId) {
