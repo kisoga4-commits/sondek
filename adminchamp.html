@@ -32,12 +32,27 @@
 
         <div class="subsection-head">
           <h3>คลังบททดสอบ / คลังคอร์สทั้งหมด</h3>
+          <button class="btn btn-secondary btn-compact" type="button" id="openFeedbackEditorBtn">แก้คำอวยพร/แซวผลคะแนน</button>
         </div>
 
         <div class="quiz-library" id="quizLibrary">
           <p class="muted">กำลังโหลดบททดสอบ...</p>
         </div>
       </section>
+
+      <div class="modal-backdrop hidden" id="feedbackModal" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+        <section class="card feedback-modal-card">
+          <div class="section-head">
+            <h2 id="feedbackModalTitle">แก้ข้อความผลคะแนน (0-100)</h2>
+            <button class="btn btn-secondary btn-compact" type="button" id="closeFeedbackModalBtn">ปิด</button>
+          </div>
+          <p class="muted">วางหลายประโยคได้โดยขึ้นบรรทัดใหม่ ระบบจะสุ่มเลือกแค่ 1 ประโยคต่อครั้ง</p>
+          <div class="feedback-grid" id="feedbackGrid"></div>
+          <div class="admin-actions">
+            <button class="btn" type="button" id="saveFeedbackBtn">บันทึกข้อความผลคะแนน</button>
+          </div>
+        </section>
+      </div>
 
       <section class="card adminchamp-section" id="course-destination">
         <div class="section-head">

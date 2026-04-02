@@ -328,8 +328,33 @@ export function getResultFeedback(percent) {
 
   return {
     ...feedback,
-    lines: shuffleArray(feedback.lines).slice(0, 10),
+    lines: shuffleArray(feedback.lines).slice(0, 1),
   };
+}
+
+export function getDefaultFeedbackMap() {
+  const map = {};
+  Object.entries(RESULT_FEEDBACKS).forEach(([bucket, feedback]) => {
+    map[bucket] = [...(feedback.lines || [])];
+  });
+  return map;
+}
+
+export function getResultFeedbackWithConfig(percent, feedbackByBucket) {
+  const bucket = normalizeScoreBucket(percent);
+  const customLines = Array.isArray(feedbackByBucket?.[bucket])
+    ? feedbackByBucket[bucket].map((line) => String(line || '').trim()).filter(Boolean)
+    : [];
+
+  if (customLines.length > 0) {
+    const fallback = RESULT_FEEDBACKS[bucket] || RESULT_FEEDBACKS[0];
+    return {
+      title: fallback.title,
+      lines: shuffleArray(customLines).slice(0, 1),
+    };
+  }
+
+  return getResultFeedback(percent);
 }
 
 export function maskPhone(phoneRaw) {
