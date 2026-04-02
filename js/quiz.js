@@ -45,7 +45,7 @@ export function normalizeQuestion(rawQuestion = {}) {
   if (type === 'true_false') {
     return {
       ...base,
-      choices: ['True', 'False'],
+      choices: ['จริง', 'เท็จ'],
       answerIndex: Number(rawQuestion.answerIndex) === 1 ? 1 : 0,
     };
   }
