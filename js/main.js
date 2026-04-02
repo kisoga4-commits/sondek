@@ -3,7 +3,7 @@ import {
   calculateScore,
   DEFAULT_DRAW_COUNT,
   getQuestionType,
-  getResultMessage,
+  getResultFeedback,
   normalizeQuestion,
   pickRandomQuestions,
   shuffleArray,
@@ -36,6 +36,8 @@ const timerText = document.getElementById('timerText');
 const questionMeta = document.getElementById('questionMeta');
 const questionMedia = document.getElementById('questionMedia');
 const answerReview = document.getElementById('answerReview');
+const resultJokes = document.getElementById('resultJokes');
+const openTopWindow = document.getElementById('openTopWindow');
 const soundToggle = document.getElementById('soundToggle');
 
 const state = {
@@ -201,6 +203,9 @@ async function init() {
     const baseUrl = getBasePathUrl(window.location.pathname);
     profileCta.href = profile?.profileUrl || `${baseUrl}adminchamp.html#profile-destination`;
     enrollCta.href = course.enrollmentUrl || `${baseUrl}adminchamp.html#course-destination`;
+    if (openTopWindow) {
+      openTopWindow.href = `${baseUrl}top.html?id=${encodeURIComponent(courseId || '')}`;
+    }
     startBtn.disabled = false;
   } catch (error) {
     console.error(error);
@@ -352,9 +357,17 @@ async function renderLeaderboard() {
     return;
   }
 
-  leaders.forEach((lead) => {
+  leaders.forEach((lead, index) => {
     const li = document.createElement('li');
-    li.textContent = `${lead.name || '-'} — ${lead.scorePercent || 0}% (${lead.durationSeconds || 0}s)`;
+    const rankBadge = index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
+    li.className = 'flex items-center gap-3 rounded-xl bg-white px-3 py-2';
+    li.innerHTML = `
+      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-xl">${rankBadge}</div>
+      <div>
+        <p class="font-semibold">${lead.name || '-'}</p>
+        <p class="text-sm text-slate-600">${lead.scorePercent || 0}/100 • ${lead.durationSeconds || 0}s</p>
+      </div>
+    `;
     leaderboardList.appendChild(li);
   });
 }
@@ -407,8 +420,15 @@ async function showResult() {
   resultSection.classList.remove('hidden');
 
   const score = calculateScore(state.quizQuestions, state.answers);
-  resultScore.textContent = `คะแนน ${score.totalScore}/${score.maxScore} • ${score.percent}% • ถูก ${score.correct}/${score.total} ข้อ`;
-  resultMessage.textContent = getResultMessage(score.percent);
+  resultScore.textContent = `คะแนน ${score.percent}/100 (${score.percent}%) • ถูก ${score.correct}/${score.total} ข้อ`;
+  const feedback = getResultFeedback(score.percent);
+  resultMessage.textContent = feedback.title;
+  resultJokes.innerHTML = '';
+  feedback.lines.forEach((line) => {
+    const li = document.createElement('li');
+    li.textContent = line;
+    resultJokes.appendChild(li);
+  });
   renderAnswerReview(score);
 
   const durationSeconds = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
@@ -426,10 +446,6 @@ async function showResult() {
 
   await renderLeaderboard();
 
-  const topUrl = `${getBasePathUrl(window.location.pathname)}top.html?id=${encodeURIComponent(courseId || '')}`;
-  window.setTimeout(() => {
-    window.location.href = topUrl;
-  }, 1800);
 }
 
 async function goNextQuestion() {
