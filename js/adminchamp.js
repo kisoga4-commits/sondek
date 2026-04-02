@@ -69,7 +69,19 @@ function parseLinesFromTextarea(value) {
   return String(value || '')
     .split('\n')
     .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const cleaned = line.replace(/^-+\s*/, '').trim();
+      const quoteMatched = cleaned.match(/^["“](.*)["”]$/);
+      return quoteMatched ? quoteMatched[1].trim() : cleaned;
+    })
     .filter(Boolean);
+}
+
+function formatLineForTextarea(line) {
+  const cleanLine = String(line || '').replace(/["“”]/g, '').trim();
+  if (!cleanLine) return '';
+  return `"${cleanLine}"`;
 }
 
 function openFeedbackModal() {
@@ -95,9 +107,9 @@ function renderFeedbackForm(feedbackByBucket = {}) {
     const textarea = document.createElement('textarea');
     textarea.dataset.bucket = String(bucket);
     textarea.rows = 4;
-    textarea.placeholder = 'วางข้อความหลายบรรทัดได้';
+    textarea.placeholder = '"ข้อความที่ 1"\n"ข้อความที่ 2"';
     const lines = Array.isArray(feedbackByBucket[bucket]) ? feedbackByBucket[bucket] : [];
-    textarea.value = lines.join('\n');
+    textarea.value = lines.map((line) => formatLineForTextarea(line)).filter(Boolean).join('\n');
 
     wrap.appendChild(title);
     wrap.appendChild(textarea);

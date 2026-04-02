@@ -11,11 +11,11 @@
       <section class="card adminchamp-hero">
         <h1>Admin Champion Dashboard</h1>
         <p class="muted">
-          หน้าศูนย์กลางสำหรับจัดการบททดสอบ ดูคอร์ดที่เปิดสอน และเตรียมจุดเชื่อมปลายทางหลังนักเรียนทำข้อสอบเสร็จ
+          หน้าศูนย์กลางสำหรับจัดการบททดสอบ ลิงก์แชร์ และปลายทางหลังนักเรียนทำข้อสอบเสร็จ
         </p>
         <div class="route-chip-row">
-          <span class="route-chip">ปลายทางปุ่ม: โปรไฟล์ของฉัน</span>
-          <span class="route-chip">ปลายทางปุ่ม: ดูคอร์ดที่เปิด / สมัครคอร์ดใหม่</span>
+          <span class="route-chip">ปลายทางปุ่มผลสอบ: โปรไฟล์ของฉัน</span>
+          <span class="route-chip">ปลายทางปุ่มผลสอบ: ดูคอร์สที่เปิด / สมัครคอร์สใหม่</span>
         </div>
       </section>
 
@@ -31,7 +31,7 @@
         </a>
 
         <div class="subsection-head">
-          <h3>คลังบททดสอบ / คลังคอร์สทั้งหมด</h3>
+          <h3>คลังบททดสอบทั้งหมด</h3>
           <button class="btn btn-secondary btn-compact" type="button" id="openFeedbackEditorBtn">แก้คำอวยพร/แซวผลคะแนน</button>
         </div>
 
@@ -46,7 +46,7 @@
             <h2 id="feedbackModalTitle">แก้ข้อความผลคะแนน (0-100)</h2>
             <button class="btn btn-secondary btn-compact" type="button" id="closeFeedbackModalBtn">ปิด</button>
           </div>
-          <p class="muted">วางหลายประโยคได้โดยขึ้นบรรทัดใหม่ ระบบจะสุ่มเลือกแค่ 1 ประโยคต่อครั้ง</p>
+          <p class="muted">1 บรรทัด = 1 ประโยค แนะนำใส่เครื่องหมาย "..." เพื่อแยกประโยคให้อ่านง่าย ระบบจะสุ่มเลือกแค่ 1 ประโยคต่อครั้ง</p>
           <div class="feedback-grid" id="feedbackGrid"></div>
           <div class="admin-actions">
             <button class="btn" type="button" id="saveFeedbackBtn">บันทึกข้อความผลคะแนน</button>

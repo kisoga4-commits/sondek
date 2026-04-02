@@ -455,6 +455,7 @@ async function showResult() {
 
 async function goNextQuestion() {
   if (state.isAdvancing) return;
+  if (state.timeLeft > 0 && !isCurrentQuestionAnswered()) return;
   state.isAdvancing = true;
   clearTimer();
 
@@ -470,6 +471,9 @@ async function goNextQuestion() {
 }
 
 function onNext() {
+  if (nextBtn.disabled) {
+    return;
+  }
   void goNextQuestion();
 }
 
