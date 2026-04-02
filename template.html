@@ -10,27 +10,27 @@
     <main class="container">
       <section class="card" id="builderView">
         <h1>Template ทำแบบทดสอบ</h1>
-        <p class="muted">สร้าง/แก้ไขคอร์สแล้วบันทึกขึ้น Firebase ทันที จากนั้นนำลิงก์ไปใช้ที่ Funnel นักเรียน</p>
+        <p class="muted">หน้านี้ใช้สร้างบททดสอบเท่านั้น: กรอกชื่อบททดสอบ แล้วเพิ่มคำถามทีละข้อด้วยปุ่ม Next ระบบจะสร้างลิงก์และ QR ให้หลังบันทึก</p>
 
         <form id="quizMetaForm" class="stack-form">
-          <label>รหัสคอร์ส (courseId)
-            <input id="quizCourseId" type="text" placeholder="เช่น course-math-basic" required />
-          </label>
-          <label>ชื่อแบบทดสอบ
+          <label>ชื่อบททดสอบ
             <input id="quizTitle" type="text" placeholder="เช่น Pre-test คณิตศาสตร์" required />
           </label>
-          <label>คำอธิบาย
-            <textarea id="quizDescription" rows="2" placeholder="ข้อความก่อนเริ่มทำข้อสอบ"></textarea>
+          <label class="hidden">รหัสบททดสอบ (ระบบกำหนดอัตโนมัติ)
+            <input id="quizCourseId" type="text" value="auto-quiz" readonly required />
           </label>
-          <label>ลิงก์สมัครคอร์ส / คอร์สที่เปิดสอน
-            <input id="enrollmentUrl" type="url" placeholder="เช่น https://..." />
+          <label class="hidden">คำอธิบาย
+            <textarea id="quizDescription" rows="2"></textarea>
           </label>
-          <label>จำนวนข้อที่สุ่มต่อครั้ง
+          <label class="hidden">ลิงก์สมัครคอร์ส / คอร์สที่เปิดสอน (ไม่ใช้หน้านี้)
+            <input id="enrollmentUrl" type="url" value="" />
+          </label>
+          <label class="hidden">จำนวนข้อที่สุ่มต่อครั้ง (อัตโนมัติ)
             <input id="drawCount" type="number" min="1" value="10" required />
           </label>
-          <label>สถานะคอร์ส
+          <label class="hidden">สถานะคอร์ส (อัตโนมัติ)
             <select id="courseStatus">
-              <option value="open">เปิดอยู่</option>
+              <option value="open" selected>เปิดอยู่</option>
               <option value="closed">ปิดแล้ว</option>
             </select>
           </label>
@@ -40,7 +40,7 @@
         <h2>แก้ไขคำถาม (ฐาน 20 ข้อ)</h2>
         <form id="questionEditor" class="editor-layout">
           <div class="editor-main stack-form">
-            <label>โจทย์คำถาม
+            <label>คำถามข้อปัจจุบัน
               <textarea id="questionText" rows="2" required placeholder="พิมพ์โจทย์คำถาม"></textarea>
             </label>
             <div id="answerEditor" class="answer-box"></div>
@@ -64,7 +64,7 @@
               <input id="questionPoints" type="number" min="1" value="10" required />
             </label>
             <div class="admin-actions">
-              <button type="submit" class="btn" id="addOrUpdateBtn">เพิ่มคำถาม</button>
+              <button type="submit" class="btn" id="addOrUpdateBtn">ถัดไป (Next)</button>
               <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">ยกเลิกแก้ไข</button>
             </div>
           </aside>
@@ -78,8 +78,8 @@
 
         <div class="admin-actions">
           <button type="button" id="seedDefaultBtn" class="btn btn-secondary">เติมโจทย์มาตรฐาน 20 ข้อ</button>
-          <button type="button" id="saveCourseBtn" class="btn">บันทึกคอร์สขึ้น Firebase</button>
-          <a href="adminchamp.html" class="btn btn-secondary">กลับหน้าแอดมิน</a>
+          <button type="button" id="saveCourseBtn" class="btn">สร้างบททดสอบและบันทึกขึ้น Firebase</button>
+          <a href="adminchamp.html" class="btn btn-secondary">ไปหน้า adminchamp.html</a>
         </div>
 
         <div id="sharePanel" class="hidden">
