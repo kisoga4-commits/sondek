@@ -71,7 +71,6 @@ function renderActiveCourses(courses, leads) {
             <option value="open" ${course.status !== 'closed' ? 'selected' : ''}>เปิดอยู่</option>
             <option value="closed" ${course.status === 'closed' ? 'selected' : ''}>ปิดแล้ว</option>
           </select>
-          <input type="url" data-act="enroll" data-id="${course.courseId}" value="${course.enrollmentUrl || ''}" placeholder="ลิงก์สมัครเรียน" />
           <button class="btn btn-tiny" data-act="saveCourseMeta" data-id="${course.courseId}">บันทึก</button>
           <button class="btn btn-danger btn-tiny" data-act="delCourse" data-id="${course.courseId}">ลบคอร์ส</button>
         </div>
@@ -135,16 +134,14 @@ activeCoursesWrap.addEventListener('click', async (event) => {
 
   if (btn.dataset.act === 'saveCourseMeta') {
     const select = activeCoursesWrap.querySelector(`select[data-id="${courseId}"]`);
-    const enrollInput = activeCoursesWrap.querySelector(`input[data-id="${courseId}"]`);
     const course = cachedCourses.find((c) => c.courseId === courseId);
     if (!course) return;
 
     await saveCourse({
       ...course,
       status: select.value,
-      enrollmentUrl: enrollInput.value.trim(),
     });
-    alert('อัปเดตสถานะ/ลิงก์สมัครเรียนแล้ว');
+    alert('อัปเดตสถานะคอร์สแล้ว');
   }
 });
 

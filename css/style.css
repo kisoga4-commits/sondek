@@ -460,7 +460,7 @@ select:focus {
 
 .course-inline-actions {
   display: grid;
-  grid-template-columns: 120px 1fr auto auto;
+  grid-template-columns: 120px auto auto;
   gap: 0.45rem;
 }
 
@@ -521,4 +521,20 @@ select:focus {
   align-items: center;
   justify-content: center;
   font-size: 0.9rem;
+}
+
+
+.ordering-wrap {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ordering-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.7rem;
+  padding: 0.55rem;
 }

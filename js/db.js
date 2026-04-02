@@ -46,8 +46,10 @@ export async function addQuestion(courseId, question, order) {
   await addDoc(collection(db, 'questions'), {
     courseId,
     question: question.question,
-    choices: question.choices,
-    answerIndex: Number(question.answerIndex),
+    type: question.type || 'multiple_choice',
+    choices: question.choices || [],
+    answerIndex: Number(question.answerIndex ?? 0),
+    orderingItems: question.orderingItems || [],
     order,
     createdAt: serverTimestamp(),
   });
@@ -66,8 +68,10 @@ export async function replaceQuestionsForCourse(courseId, questions) {
 export async function updateQuestion(questionId, question) {
   await updateDoc(doc(db, 'questions', questionId), {
     question: question.question,
-    choices: question.choices,
-    answerIndex: Number(question.answerIndex),
+    type: question.type || 'multiple_choice',
+    choices: question.choices || [],
+    answerIndex: Number(question.answerIndex ?? 0),
+    orderingItems: question.orderingItems || [],
   });
 }
 
