@@ -50,6 +50,7 @@ const state = {
   drawCount: DEFAULT_DRAW_COUNT,
   timeLeft: 30,
   timerId: null,
+  isAdvancing: false,
 };
 
 function clearTimer() {
@@ -84,15 +85,7 @@ function refreshTimerUi(question) {
 }
 
 function jumpNextByTimeout() {
-  clearTimer();
-
-  if (state.currentIndex + 1 >= state.quizQuestions.length) {
-    void showResult();
-    return;
-  }
-
-  state.currentIndex += 1;
-  renderQuestion();
+  void goNextQuestion();
 }
 
 function startQuestionTimer(question) {
@@ -112,7 +105,7 @@ function startQuestionTimer(question) {
 
 async function init() {
   if (!courseId) {
-    courseInfo.textContent = 'Missing quiz id in URL, example: quiz.html?id=quiz_xxx';
+    courseInfo.textContent = 'ไม่พบรหัสแบบทดสอบในลิงก์ ตัวอย่าง: quiz.html?id=quiz_xxx';
     return;
   }
 
@@ -128,22 +121,22 @@ async function init() {
     state.allQuestions = (questions || []).map((question) => normalizeQuestion(question));
 
     if (!course || !questions.length) {
-      courseInfo.textContent = `Quiz not found: ${courseId}`;
+      courseInfo.textContent = `ไม่พบแบบทดสอบ: ${courseId}`;
       return;
     }
 
     state.drawCount = Math.max(1, Number(course.drawCount || course.questionCount || DEFAULT_DRAW_COUNT));
 
-    quizTitle.textContent = course.title || 'Dynamic Quiz';
-    quizDescription.textContent = course.description || 'Answer random questions and climb leaderboard.';
-    courseInfo.textContent = `Question bank: ${state.allQuestions.length} | Draw per attempt: ${Math.min(state.drawCount, state.allQuestions.length)}`;
+    quizTitle.textContent = course.title || 'แบบทดสอบ';
+    quizDescription.textContent = course.description || 'ตอบคำถามให้ครบ แล้วไปดูอันดับ TOP';
+    courseInfo.textContent = `คลังคำถาม ${state.allQuestions.length} ข้อ | สุ่มต่อครั้ง ${Math.min(state.drawCount, state.allQuestions.length)} ข้อ`;
 
     profileCta.href = profile?.profileUrl || '#';
     enrollCta.href = course.enrollmentUrl || '#';
     startBtn.disabled = false;
   } catch (error) {
     console.error(error);
-    courseInfo.textContent = 'Load failed. Please refresh.';
+    courseInfo.textContent = 'โหลดไม่สำเร็จ กรุณารีเฟรชอีกครั้ง';
   }
 }
 
@@ -259,7 +252,7 @@ function renderQuestion() {
   }
 
   nextBtn.disabled = !isCurrentQuestionAnswered();
-  nextBtn.textContent = questionNo === state.quizQuestions.length ? 'ส่งคำตอบและดูผล' : 'Next (ข้อถัดไป)';
+  nextBtn.textContent = questionNo === state.quizQuestions.length ? 'ส่งคำตอบและดูผล' : 'ข้อต่อไป';
   progressText.textContent = `ข้อ ${questionNo}/${state.quizQuestions.length}`;
   scoreText.textContent = `ตอบแล้ว ${Object.keys(state.answers).length}`;
   progressFill.style.width = `${(questionNo / state.quizQuestions.length) * 100}%`;
@@ -285,7 +278,7 @@ async function renderLeaderboard() {
   leaderboardList.innerHTML = '';
 
   if (!leaders.length) {
-    leaderboardList.innerHTML = '<li class="text-slate-500">No attempts yet</li>';
+    leaderboardList.innerHTML = '<li class="text-slate-500">ยังไม่มีผู้ทำแบบทดสอบ</li>';
     return;
   }
 
@@ -312,15 +305,15 @@ function formatCorrectAnswer(reviewItem) {
 function formatUserAnswer(reviewItem) {
   const { question, userAnswer } = reviewItem;
   if (question.type === 'ordering') {
-    return Array.isArray(userAnswer) && userAnswer.length ? userAnswer.join(' → ') : 'No answer';
+    return Array.isArray(userAnswer) && userAnswer.length ? userAnswer.join(' → ') : 'ไม่ได้ตอบ';
   }
 
   if (question.type === 'short_text') {
     const text = String(userAnswer ?? '').trim();
-    return text || 'No answer';
+    return text || 'ไม่ได้ตอบ';
   }
 
-  return question.choices?.[Number(userAnswer)] || 'No answer';
+  return question.choices?.[Number(userAnswer)] || 'ไม่ได้ตอบ';
 }
 
 function renderAnswerReview(score) {
@@ -330,9 +323,9 @@ function renderAnswerReview(score) {
     card.className = `rounded-xl border p-3 ${item.isCorrect ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'}`;
     card.innerHTML = `
       <p class="font-semibold">Q${index + 1}. ${item.question.question}</p>
-      <p class="text-sm">Your answer: ${formatUserAnswer(item)}</p>
-      <p class="text-sm">Correct answer: ${formatCorrectAnswer(item)}</p>
-      <p class="text-sm font-semibold">${item.isCorrect ? '✅ Correct' : '❌ Incorrect'} • +${item.earnedPoints}/${item.question.points} pts</p>
+      <p class="text-sm">คำตอบของคุณ: ${formatUserAnswer(item)}</p>
+      <p class="text-sm">คำตอบที่ถูก: ${formatCorrectAnswer(item)}</p>
+      <p class="text-sm font-semibold">${item.isCorrect ? '✅ ถูกต้อง' : '❌ ยังไม่ถูก'} • +${item.earnedPoints}/${item.question.points} คะแนน</p>
     `;
     answerReview.appendChild(card);
   });
@@ -344,7 +337,7 @@ async function showResult() {
   resultSection.classList.remove('hidden');
 
   const score = calculateScore(state.quizQuestions, state.answers);
-  resultScore.textContent = `Score ${score.totalScore}/${score.maxScore} • ${score.percent}% • Correct ${score.correct}/${score.total}`;
+  resultScore.textContent = `คะแนน ${score.totalScore}/${score.maxScore} • ${score.percent}% • ถูก ${score.correct}/${score.total} ข้อ`;
   resultMessage.textContent = getResultMessage(score.percent);
   renderAnswerReview(score);
 
@@ -362,18 +355,34 @@ async function showResult() {
   });
 
   await renderLeaderboard();
+
+  const basePath = window.location.pathname.includes('/')
+    ? window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1)
+    : '/';
+  const topUrl = `${window.location.origin}${basePath}top.html?id=${encodeURIComponent(courseId || '')}`;
+  window.setTimeout(() => {
+    window.location.href = topUrl;
+  }, 1000);
 }
 
-function onNext() {
+async function goNextQuestion() {
+  if (state.isAdvancing) return;
+  state.isAdvancing = true;
   clearTimer();
 
   if (state.currentIndex + 1 >= state.quizQuestions.length) {
-    void showResult();
+    await showResult();
+    state.isAdvancing = false;
     return;
   }
 
   state.currentIndex += 1;
   renderQuestion();
+  state.isAdvancing = false;
+}
+
+function onNext() {
+  void goNextQuestion();
 }
 
 entryForm.addEventListener('input', () => {
@@ -396,5 +405,5 @@ nextBtn.addEventListener('click', onNext);
 
 init().catch((error) => {
   console.error(error);
-  courseInfo.textContent = 'Initialization failed.';
+  courseInfo.textContent = 'เริ่มแบบทดสอบไม่สำเร็จ';
 });
