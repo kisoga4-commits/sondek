@@ -10,14 +10,14 @@
     <main class="container">
       <section class="card" id="builderView">
         <h1>Template ทำแบบทดสอบ</h1>
-        <p class="muted">หน้านี้ใช้สร้างบททดสอบเท่านั้น: กรอกชื่อบททดสอบ แล้วเพิ่มคำถามทีละข้อด้วยปุ่ม Next ระบบจะสร้างลิงก์และ QR ให้หลังบันทึก</p>
+        <p class="muted">หน้านี้ใช้สร้างบททดสอบเท่านั้น: กรอกชื่อบททดสอบ แล้วเพิ่มคำถามทีละข้อด้วยปุ่ม Next เมื่อกด “เสร็จ” ระบบจะบันทึกขึ้น Firebase และสร้างลิงก์แบบทดสอบให้อัตโนมัติ</p>
 
         <form id="quizMetaForm" class="stack-form">
           <label>ชื่อบททดสอบ
             <input id="quizTitle" type="text" placeholder="เช่น Pre-test คณิตศาสตร์" required />
           </label>
           <label class="hidden">รหัสบททดสอบ (ระบบกำหนดอัตโนมัติ)
-            <input id="quizCourseId" type="text" value="auto-quiz" readonly required />
+            <input id="quizCourseId" type="text" value="" readonly required />
           </label>
           <label class="hidden">คำอธิบาย
             <textarea id="quizDescription" rows="2"></textarea>
@@ -37,7 +37,7 @@
         </form>
 
         <hr />
-        <h2>แก้ไขคำถาม (ฐาน 20 ข้อ)</h2>
+        <h2>แก้ไขคำถาม (ขั้นต่ำ 10 ข้อ)</h2>
         <form id="questionEditor" class="editor-layout">
           <div class="editor-main stack-form">
             <label>คำถามข้อปัจจุบัน
@@ -69,18 +69,17 @@
             </div>
           </aside>
         </form>
-      </section>
-
-      <section class="card" id="questionBankView">
-        <h2>คลังคำถาม</h2>
+        <hr />
+        <h2>รายการคำถามที่เพิ่ม</h2>
         <p id="bankSummary" class="muted">กำลังโหลด...</p>
         <ol id="questionBankList" class="preview-list"></ol>
 
         <div class="admin-actions">
           <button type="button" id="seedDefaultBtn" class="btn btn-secondary">เติมโจทย์มาตรฐาน 20 ข้อ</button>
-          <button type="button" id="saveCourseBtn" class="btn">สร้างบททดสอบและบันทึกขึ้น Firebase</button>
+          <button type="button" id="completeQuizBtn" class="btn">เสร็จ</button>
           <a href="adminchamp.html" class="btn btn-secondary">ไปหน้า adminchamp.html</a>
         </div>
+        <p id="completionNotice" class="muted hidden">ระบบอนุญาตให้สร้างควิซเรียบร้อยแล้ว และได้บันทึก Firebase ให้แล้ว</p>
 
         <div id="sharePanel" class="hidden">
           <label>ลิงก์แบบทดสอบ
