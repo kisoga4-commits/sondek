@@ -8,84 +8,117 @@
   </head>
   <body>
     <main class="container">
-      <section class="card">
-        <h1>Template ทำแบบทดสอบ</h1>
-        <p class="muted">สร้างคอร์ส พร้อมผสมคำถาม 3 แบบในชุดเดียว (true_false, multiple_choice, ordering)</p>
+      <section class="card" id="builderView">
+        <h1>ตัวสร้างข้อสอบแบบรวมคลังคำถาม</h1>
+        <p class="muted">สร้างเกิน 10 ข้อ แล้วระบบจะสุ่ม 10 ข้อให้ผู้เรียนต่อครั้ง (ไม่ซ้ำกันในครั้งเดียว)</p>
 
-        <form id="courseForm" class="stack-form">
-          <label>Course ID
-            <input type="text" id="courseId" value="course_02" required />
+        <form id="quizMetaForm" class="stack-form">
+          <label>ชื่อแบบทดสอบ
+            <input id="quizTitle" type="text" placeholder="เช่น Pre-test วิทยาศาสตร์" required />
           </label>
-          <label>ชื่อคอร์ส
-            <input type="text" id="courseTitle" value="Course 2" required />
+          <label>คำอธิบาย
+            <textarea id="quizDescription" rows="2" placeholder="ข้อความก่อนเริ่มทำข้อสอบ"></textarea>
           </label>
+        </form>
+
+        <hr />
+        <h2>แก้ไขคำถาม (โครงสร้างร่วมเดียว)</h2>
+        <form id="questionEditor" class="stack-form">
+          <label>โจทย์คำถาม
+            <textarea id="questionText" rows="2" required placeholder="พิมพ์โจทย์คำถาม"></textarea>
+          </label>
+
+          <div class="inline-grid">
+            <label>ประเภทคำถาม
+              <select id="questionType" required>
+                <option value="multiple_choice">multiple_choice</option>
+                <option value="true_false">true_false</option>
+                <option value="ordering">ordering</option>
+              </select>
+            </label>
+            <label>เวลา (วินาที)
+              <input id="questionTimeLimit" type="number" min="5" value="30" required />
+            </label>
+            <label>คะแนน
+              <input id="questionPoints" type="number" min="1" value="10" required />
+            </label>
+          </div>
+
+          <div id="answerEditor" class="answer-box"></div>
+
+          <div class="admin-actions">
+            <button type="submit" class="btn" id="addOrUpdateBtn">เพิ่มคำถาม</button>
+            <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">ยกเลิกแก้ไข</button>
+          </div>
         </form>
       </section>
 
-      <section class="card">
-        <h2>เพิ่มคำถาม</h2>
-        <div class="stack-form">
-          <label>ประเภทคำถาม
-            <select id="questionType" required>
-              <option value="multiple_choice">multiple_choice</option>
-              <option value="true_false">true_false</option>
-              <option value="ordering">ordering</option>
-            </select>
+      <section class="card" id="questionBankView">
+        <h2>คลังคำถาม</h2>
+        <p id="bankSummary" class="muted">ยังไม่มีคำถาม</p>
+        <ol id="questionBankList" class="preview-list"></ol>
+
+        <div class="admin-actions">
+          <button type="button" id="buildQuizLinkBtn" class="btn">สร้างลิงก์ให้เด็กทำข้อสอบ</button>
+          <a href="adminchamp.html" class="btn btn-secondary">กลับหน้าแอดมิน</a>
+        </div>
+
+        <div id="sharePanel" class="hidden">
+          <label>ลิงก์แบบทดสอบ
+            <input id="quizLinkOutput" readonly />
           </label>
-
-          <label>โจทย์
-            <textarea id="questionText" rows="2" placeholder="พิมพ์โจทย์คำถาม" required></textarea>
-          </label>
-
-          <div id="templateMultipleChoice" class="question-template stack-form">
-            <label>ตัวเลือก A <input type="text" id="mcChoiceA" /></label>
-            <label>ตัวเลือก B <input type="text" id="mcChoiceB" /></label>
-            <label>ตัวเลือก C <input type="text" id="mcChoiceC" /></label>
-            <label>ตัวเลือก D <input type="text" id="mcChoiceD" /></label>
-            <label>คำตอบที่ถูก
-              <select id="mcAnswerIndex">
-                <option value="0">A</option>
-                <option value="1">B</option>
-                <option value="2">C</option>
-                <option value="3">D</option>
-              </select>
-            </label>
-          </div>
-
-          <div id="templateTrueFalse" class="question-template stack-form hidden">
-            <p class="muted">ระบบจะสร้างตัวเลือกให้อัตโนมัติ: จริง / เท็จ</p>
-            <label>คำตอบที่ถูก
-              <select id="tfAnswerIndex">
-                <option value="0">จริง</option>
-                <option value="1">เท็จ</option>
-              </select>
-            </label>
-          </div>
-
-          <div id="templateOrdering" class="question-template stack-form hidden">
-            <label>รายการที่ต้องเรียงลำดับ (1 บรรทัดต่อ 1 รายการ)
-              <textarea id="orderingItems" rows="5" placeholder="ขั้นที่ 1&#10;ขั้นที่ 2&#10;ขั้นที่ 3"></textarea>
-            </label>
-            <p class="muted">บรรทัดบนสุดคือคำตอบลำดับที่ 1</p>
-          </div>
-
           <div class="admin-actions">
-            <button type="button" id="addQuestionBtn" class="btn">เพิ่มข้อนี้</button>
-            <button type="button" id="seedMixedBtn" class="btn btn-secondary">ใส่ Template ตัวอย่าง 3 แบบ</button>
+            <button type="button" class="btn" id="copyLinkBtn">คัดลอกลิงก์</button>
+          </div>
+          <img id="qrOutput" alt="QR ลิงก์แบบทดสอบ" class="hidden" style="max-width:220px" />
+        </div>
+      </section>
+
+      <section class="card hidden" id="studentView">
+        <h1 id="studentQuizTitle"></h1>
+        <p id="studentQuizDescription" class="muted"></p>
+
+        <form id="studentNameForm" class="stack-form">
+          <label>ชื่อนักเรียน
+            <input id="studentName" type="text" required placeholder="กรอกชื่อก่อนเริ่ม" />
+          </label>
+          <button class="btn" type="submit">เริ่มทำข้อสอบ</button>
+        </form>
+
+        <div id="attemptView" class="hidden">
+          <div class="progress-wrap">
+            <div class="progress-label">
+              <strong id="progressText"></strong>
+              <span id="pointText"></span>
+            </div>
+            <div class="progress-bar"><div id="progressFill"></div></div>
+          </div>
+
+          <h2 id="attemptQuestionText"></h2>
+          <p id="attemptTimerText" class="pill"></p>
+          <div id="attemptAnswerArea"></div>
+
+          <div class="quiz-actions">
+            <button type="button" class="btn" id="nextBtn">ถัดไป</button>
+            <button type="button" class="btn hidden" id="finishBtn">ส่งคำตอบ (Finish)</button>
           </div>
         </div>
       </section>
 
-      <section class="card">
-        <h2>รายการคำถามในคอร์ส</h2>
-        <ol id="questionPreview" class="preview-list"></ol>
-        <p id="questionCounter" class="muted">ยังไม่มีข้อสอบ</p>
-        <div class="admin-actions">
-          <button type="button" id="saveCourseBtn" class="btn">บันทึกคอร์สและข้อสอบ</button>
-          <a class="btn btn-secondary" href="adminchamp.html">กลับหน้า Dashboard</a>
-        </div>
+      <section class="card hidden" id="resultView">
+        <h2>ผลการทำแบบทดสอบ</h2>
+        <p id="resultHeadline"></p>
+        <ul>
+          <li id="resultScore"></li>
+          <li id="resultPercentage"></li>
+          <li id="resultCorrectCount"></li>
+        </ul>
+
+        <h3>ทบทวนคำตอบ (10 ข้อที่ถูกสุ่ม)</h3>
+        <ol id="reviewList" class="preview-list"></ol>
       </section>
     </main>
+
     <script type="module" src="js/template.js"></script>
   </body>
 </html>
