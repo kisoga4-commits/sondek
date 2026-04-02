@@ -4,7 +4,6 @@ import {
   replaceQuestionsForCourse,
   saveCourse,
 } from './db.js';
-import { defaultMathQuestions } from './questionsSeed.js';
 
 const MIN_QUESTION_BANK = 10;
 
@@ -20,7 +19,6 @@ const sharePanel = document.getElementById('sharePanel');
 const quizLinkOutput = document.getElementById('quizLinkOutput');
 const qrOutput = document.getElementById('qrOutput');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
-const seedDefaultBtn = document.getElementById('seedDefaultBtn');
 const completeQuizBtn = document.getElementById('completeQuizBtn');
 const completionNotice = document.getElementById('completionNotice');
 
@@ -173,19 +171,6 @@ function buildQuizLink(courseId) {
   return `${window.location.origin}/index.html?id=${encodeURIComponent(courseId)}`;
 }
 
-function fillDefault20() {
-  bankQuestions = defaultMathQuestions.map((item) => ({
-    questionText: item.question,
-    questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
-    answerMode: 'multiple_choice',
-    options: [...item.choices],
-    correctAnswer: { key: ['A', 'B', 'C', 'D'][item.answerIndex] || 'A' },
-    points: 10,
-    timeLimitSeconds: 30,
-  }));
-  renderQuestionBank();
-}
-
 function getMetaPayload() {
   const rawCourseId = document.getElementById('quizCourseId').value.trim();
   const courseId = rawCourseId || `quiz_${Date.now()}`;
@@ -258,7 +243,7 @@ async function saveToFirebase() {
 
 async function loadCourseForEditing() {
   if (!editingCourseId) {
-    fillDefault20();
+    renderQuestionBank();
     return;
   }
 
@@ -272,7 +257,7 @@ async function loadCourseForEditing() {
     ]);
 
     if (!course) {
-      fillDefault20();
+      renderQuestionBank();
       return;
     }
 
@@ -294,12 +279,11 @@ async function loadCourseForEditing() {
       timeLimitSeconds: Number(q.timeLimitSeconds) || 30,
     }));
 
-    if (!bankQuestions.length) fillDefault20();
     renderQuestionBank();
   } catch (error) {
     console.error(error);
-    alert('โหลดคอร์สเดิมไม่สำเร็จ จะแสดงชุดคำถามมาตรฐานแทน');
-    fillDefault20();
+    alert('โหลดคอร์สเดิมไม่สำเร็จ');
+    renderQuestionBank();
   }
 }
 
@@ -323,10 +307,6 @@ questionEditor.addEventListener('submit', (event) => {
 });
 
 cancelEditBtn.addEventListener('click', () => resetEditor());
-seedDefaultBtn.addEventListener('click', () => {
-  fillDefault20();
-  alert('เติมโจทย์มาตรฐาน 20 ข้อแล้ว');
-});
 completeQuizBtn.addEventListener('click', () => {
   void saveToFirebase();
 });
