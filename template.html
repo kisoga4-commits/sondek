@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Template ทำแบบทดสอบ</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <section class="card">
+        <h1>Template ทำแบบทดสอบ</h1>
+        <p class="muted">สร้างคอร์สใหม่จากชุดโจทย์ 20 ข้อพื้นฐานได้ทันที</p>
+        <form id="templateForm" class="stack-form">
+          <label>Course ID
+            <input type="text" id="courseId" value="course_02" required />
+          </label>
+          <label>ชื่อคอร์ส
+            <input type="text" id="courseTitle" value="Course 2" required />
+          </label>
+          <label>ลิงก์สมัครเรียน (Optional)
+            <input type="url" id="enrollmentUrl" placeholder="https://..." />
+          </label>
+          <button type="submit" class="btn">สร้างคอร์สจาก Template</button>
+          <a class="btn btn-secondary" href="adminchamp.html">กลับหน้า Dashboard</a>
+        </form>
+      </section>
+    </main>
+    <script type="module" src="js/template.js"></script>
+  </body>
+</html>
