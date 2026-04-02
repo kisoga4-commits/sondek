@@ -3,56 +3,112 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Champ Dashboard</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <title>Dynamic Quiz Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
-    <main class="container adminchamp-container">
-      <header class="card">
-        <h1>Admin Champ Dashboard</h1>
-        <p class="muted">จัดการคอร์ส, รายชื่อนักเรียน และโปรไฟล์ครู แบบ Real-time</p>
+  <body class="min-h-screen bg-slate-100 text-slate-900">
+    <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+      <header class="rounded-3xl bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-cyan-500 p-6 text-white shadow-xl">
+        <h1 class="text-2xl font-bold md:text-3xl">Admin Quiz Builder</h1>
+        <p class="mt-2 text-sm md:text-base">สร้างควิซผสมคำถามหลายประเภท + จัดการโปรไฟล์ครู</p>
       </header>
 
-      <section class="admin-grid">
-        <article class="card">
-          <h2>สร้างบททดสอบ (Manage Quizzes)</h2>
-          <a class="btn" href="template.html">+ ไปหน้า Template ทำแบบทดสอบ</a>
-          <div class="table-wrap mt-12">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Course ID</th>
-                  <th>ชื่อคอร์ส</th>
-                  <th>สถานะ</th>
-                  <th>จัดการ</th>
-                </tr>
-              </thead>
-              <tbody id="courseTableBody"></tbody>
-            </table>
+      <section class="grid gap-6 lg:grid-cols-2">
+        <article class="rounded-2xl bg-white p-6 shadow">
+          <h2 class="text-xl font-bold">Quiz Builder</h2>
+          <p class="mt-1 text-sm text-slate-500">เลือกประเภทคำถามก่อนเพิ่มทุกครั้ง</p>
+
+          <form id="quizForm" class="mt-4 space-y-4">
+            <label class="block text-sm font-semibold">Quiz Title
+              <input id="quizTitle" type="text" required class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" placeholder="เช่น Midterm Science" />
+            </label>
+            <label class="block text-sm font-semibold">Description
+              <textarea id="quizDescription" rows="2" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" placeholder="คำอธิบายสั้น ๆ ก่อนเริ่มทำข้อสอบ"></textarea>
+            </label>
+            <label class="block text-sm font-semibold">Enrollment URL (CTA ปุ่มสมัครเรียน)
+              <input id="enrollmentUrl" type="url" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" placeholder="https://..." />
+            </label>
+
+            <div class="rounded-xl border border-slate-200 p-4">
+              <h3 class="font-semibold">Add Question</h3>
+              <label class="mt-3 block text-sm">Type
+                <select id="questionType" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2">
+                  <option value="true_false">True / False</option>
+                  <option value="multiple_choice">Multiple Choice</option>
+                  <option value="ordering">Ordering</option>
+                </select>
+              </label>
+              <label class="mt-3 block text-sm">Question
+                <textarea id="questionText" rows="2" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" required></textarea>
+              </label>
+
+              <div id="typeTrueFalse" class="mt-3 space-y-2 rounded-xl bg-slate-50 p-3">
+                <p class="text-sm text-slate-600">Choices: True / False</p>
+                <label class="text-sm">Correct answer
+                  <select id="tfAnswer" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2">
+                    <option value="0">True</option>
+                    <option value="1">False</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="typeMultipleChoice" class="mt-3 hidden space-y-2 rounded-xl bg-slate-50 p-3">
+                <div class="grid gap-2 md:grid-cols-2">
+                  <input id="mcA" type="text" placeholder="Choice A" class="rounded-xl border border-slate-300 px-4 py-2" />
+                  <input id="mcB" type="text" placeholder="Choice B" class="rounded-xl border border-slate-300 px-4 py-2" />
+                  <input id="mcC" type="text" placeholder="Choice C" class="rounded-xl border border-slate-300 px-4 py-2" />
+                  <input id="mcD" type="text" placeholder="Choice D" class="rounded-xl border border-slate-300 px-4 py-2" />
+                </div>
+                <label class="text-sm">Correct answer
+                  <select id="mcAnswer" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2">
+                    <option value="0">A</option>
+                    <option value="1">B</option>
+                    <option value="2">C</option>
+                    <option value="3">D</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="typeOrdering" class="mt-3 hidden rounded-xl bg-slate-50 p-3">
+                <label class="text-sm">Items in correct order (one per line)
+                  <textarea id="orderingItems" rows="4" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" placeholder="Step 1&#10;Step 2&#10;Step 3"></textarea>
+                </label>
+              </div>
+
+              <button id="addQuestionBtn" type="button" class="mt-3 rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white">+ Add question</button>
+            </div>
+
+            <div>
+              <p class="text-sm font-semibold">Draft questions</p>
+              <ol id="questionList" class="mt-2 list-decimal space-y-2 pl-5 text-sm"></ol>
+            </div>
+
+            <button type="submit" class="w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white">Save Quiz</button>
+          </form>
+
+          <div id="savedResult" class="mt-4 hidden rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <p class="font-semibold">Saved!</p>
+            <a id="quizLink" href="#" class="mt-2 block break-all text-indigo-700 underline"></a>
+            <img id="qrImage" alt="Quiz QR" class="mt-3 h-40 w-40 rounded-lg border border-slate-200 bg-white p-2" />
           </div>
         </article>
 
-        <article class="card">
-          <h2>คอร์สที่เปิดสอน & รายชื่อนักเรียน</h2>
-          <div id="activeCoursesWrap" class="stack-form"></div>
-        </article>
-
-        <article class="card">
-          <h2>หน้าแก้ไขโปรไฟล์</h2>
-          <form id="profileForm" class="stack-form">
-            <label>ชื่อ
-              <input type="text" id="profileName" required />
+        <article class="rounded-2xl bg-white p-6 shadow">
+          <h2 class="text-xl font-bold">Profile Editor</h2>
+          <form id="profileForm" class="mt-4 space-y-4">
+            <label class="block text-sm font-semibold">Name
+              <input id="profileName" type="text" required class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" />
             </label>
-            <label>ประวัติย่อ (Bio)
-              <textarea id="profileBio" rows="3" required></textarea>
+            <label class="block text-sm font-semibold">Bio
+              <textarea id="profileBio" rows="3" required class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2"></textarea>
             </label>
-            <label>Image URL
-              <input type="url" id="profileImageUrl" required />
+            <label class="block text-sm font-semibold">Photo URL
+              <input id="profileImageUrl" type="url" required class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" />
             </label>
-            <label>ลิงก์หน้าโปรไฟล์ครู (CTA ปุ่มเขียว)
-              <input type="url" id="profileUrl" required />
+            <label class="block text-sm font-semibold">Profile URL (CTA ปุ่มโปรไฟล์)
+              <input id="profileUrl" type="url" required class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2" />
             </label>
-            <button type="submit" class="btn btn-success">บันทึก</button>
+            <button class="w-full rounded-xl bg-fuchsia-600 px-4 py-3 font-bold text-white" type="submit">Save Profile</button>
           </form>
         </article>
       </section>
