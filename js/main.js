@@ -1,9 +1,17 @@
-import { getCourse, getLeaderboard, getProfile, getQuestionsByCourse, saveLead } from './db.js';
+import {
+  getCourse,
+  getLeaderboard,
+  getProfile,
+  getQuestionsByCourse,
+  getResultFeedbackConfig,
+  saveLead,
+} from './db.js';
 import {
   calculateScore,
   DEFAULT_DRAW_COUNT,
   getQuestionType,
   getResultFeedback,
+  getResultFeedbackWithConfig,
   normalizeQuestion,
   pickRandomQuestions,
   shuffleArray,
@@ -57,6 +65,7 @@ const state = {
   audioEnabled: true,
   lowTimeAlertPlayed: false,
   audioContext: null,
+  feedbackByBucket: null,
 };
 
 const LOW_TIME_ALERT_SECONDS = 5;
@@ -179,14 +188,16 @@ async function init() {
   }
 
   try {
-    const [course, questions, profile] = await Promise.all([
+    const [course, questions, profile, feedbackConfig] = await Promise.all([
       getCourse(courseId),
       getQuestionsByCourse(courseId),
       getProfile(),
+      getResultFeedbackConfig(),
     ]);
 
     state.course = course;
     state.profile = profile;
+    state.feedbackByBucket = feedbackConfig?.feedbackByBucket || null;
     state.allQuestions = (questions || []).map((question) => normalizeQuestion(question));
 
     if (!course || !questions.length) {
@@ -421,7 +432,9 @@ async function showResult() {
 
   const score = calculateScore(state.quizQuestions, state.answers);
   resultScore.textContent = `คะแนน ${score.percent}/100 (${score.percent}%) • ถูก ${score.correct}/${score.total} ข้อ`;
-  const feedback = getResultFeedback(score.percent);
+  const feedback = state.feedbackByBucket
+    ? getResultFeedbackWithConfig(score.percent, state.feedbackByBucket)
+    : getResultFeedback(score.percent);
   resultMessage.textContent = feedback.title;
   resultJokes.innerHTML = '';
   feedback.lines.forEach((line) => {

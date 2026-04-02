@@ -139,11 +139,17 @@ export async function deleteQuestionById(questionId) {
 export async function deleteCourseWithQuestions(courseId) {
   await ensureAuthReady();
   const existingQuestions = await getQuestionsByCourse(courseId);
-  const batch = writeBatch(db);
 
-  existingQuestions.forEach((item) => batch.delete(doc(db, 'questions', item.id)));
-  batch.delete(doc(db, 'courses', courseId));
-  await batch.commit();
+  try {
+    const batch = writeBatch(db);
+    existingQuestions.forEach((item) => batch.delete(doc(db, 'questions', item.id)));
+    batch.delete(doc(db, 'courses', courseId));
+    await batch.commit();
+  } catch (error) {
+    console.warn('Batch delete failed, fallback to sequential delete.', error);
+    await Promise.all(existingQuestions.map((item) => deleteDoc(doc(db, 'questions', item.id))));
+    await deleteDoc(doc(db, 'courses', courseId));
+  }
 }
 
 export async function getAllCourses() {
@@ -274,4 +280,20 @@ export function subscribeProfile(callback, onError) {
     });
 
   return () => unsubscribe();
+}
+
+const RESULT_FEEDBACK_DOC_ID = 'result_feedbacks';
+
+export async function getResultFeedbackConfig() {
+  await ensureAuthReady();
+  const snap = await getDoc(doc(db, 'settings', RESULT_FEEDBACK_DOC_ID));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveResultFeedbackConfig(feedbackByBucket) {
+  await ensureAuthReady();
+  await setDoc(doc(db, 'settings', RESULT_FEEDBACK_DOC_ID), {
+    feedbackByBucket,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }

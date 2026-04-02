@@ -1,9 +1,19 @@
 import {
   deleteCourseWithQuestions,
+  getResultFeedbackConfig,
+  saveResultFeedbackConfig,
   subscribeCourses,
 } from './db.js';
+import { getDefaultFeedbackMap } from './quiz.js';
 
 const quizLibrary = document.getElementById('quizLibrary');
+const feedbackModal = document.getElementById('feedbackModal');
+const feedbackGrid = document.getElementById('feedbackGrid');
+const openFeedbackEditorBtn = document.getElementById('openFeedbackEditorBtn');
+const closeFeedbackModalBtn = document.getElementById('closeFeedbackModalBtn');
+const saveFeedbackBtn = document.getElementById('saveFeedbackBtn');
+
+const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -51,7 +61,86 @@ async function onDeleteCourse(courseId) {
     alert('ลบแบบทดสอบสำเร็จ');
   } catch (error) {
     console.error(error);
-    alert('ลบไม่สำเร็จ กรุณาลองใหม่');
+    alert(`ลบไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+  }
+}
+
+function parseLinesFromTextarea(value) {
+  return String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function openFeedbackModal() {
+  feedbackModal?.classList.remove('hidden');
+}
+
+function closeFeedbackModal() {
+  feedbackModal?.classList.add('hidden');
+}
+
+function renderFeedbackForm(feedbackByBucket = {}) {
+  if (!feedbackGrid) return;
+
+  feedbackGrid.innerHTML = '';
+  SCORE_BUCKETS.forEach((bucket) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'feedback-item';
+
+    const title = document.createElement('span');
+    title.className = 'feedback-label';
+    title.textContent = `${bucket} คะแนน (${bucket}%)`;
+
+    const textarea = document.createElement('textarea');
+    textarea.dataset.bucket = String(bucket);
+    textarea.rows = 4;
+    textarea.placeholder = 'วางข้อความหลายบรรทัดได้';
+    const lines = Array.isArray(feedbackByBucket[bucket]) ? feedbackByBucket[bucket] : [];
+    textarea.value = lines.join('\n');
+
+    wrap.appendChild(title);
+    wrap.appendChild(textarea);
+    feedbackGrid.appendChild(wrap);
+  });
+}
+
+async function loadFeedbackConfig() {
+  const defaults = getDefaultFeedbackMap();
+  try {
+    const config = await getResultFeedbackConfig();
+    const fromDb = config?.feedbackByBucket || {};
+    const merged = {};
+    SCORE_BUCKETS.forEach((bucket) => {
+      merged[bucket] = Array.isArray(fromDb[bucket]) && fromDb[bucket].length
+        ? fromDb[bucket]
+        : (defaults[bucket] || []);
+    });
+    renderFeedbackForm(merged);
+  } catch (error) {
+    console.error(error);
+    renderFeedbackForm(defaults);
+  }
+}
+
+async function onSaveFeedbackConfig() {
+  if (!feedbackGrid) return;
+  const payload = {};
+  SCORE_BUCKETS.forEach((bucket) => {
+    const textarea = feedbackGrid.querySelector(`textarea[data-bucket="${bucket}"]`);
+    payload[bucket] = parseLinesFromTextarea(textarea?.value || '');
+  });
+
+  try {
+    saveFeedbackBtn.disabled = true;
+    await saveResultFeedbackConfig(payload);
+    alert('บันทึกข้อความผลคะแนนเรียบร้อย');
+    closeFeedbackModal();
+  } catch (error) {
+    console.error(error);
+    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+  } finally {
+    saveFeedbackBtn.disabled = false;
   }
 }
 
@@ -78,12 +167,15 @@ function renderCourses(courses) {
       </div>
       <div class="share-box">
         <input value="${escapeHtml(quizLink)}" readonly />
-        <img alt="QR ${title}" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(quizLink)}" />
+        <div class="qr-box hidden" data-role="qr-wrap">
+          <img alt="QR ${title}" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(quizLink)}" />
+        </div>
       </div>
       <div class="item-actions">
         <a class="btn" href="${editLink}">แก้ไข</a>
         <a class="btn btn-secondary" href="${quizLink}" target="_blank" rel="noopener noreferrer">เปิดแบบทดสอบ</a>
         <button class="btn btn-secondary" type="button" data-action="copy">คัดลอกลิงก์</button>
+        <button class="btn btn-secondary" type="button" data-action="toggle-qr">แสดง QR</button>
         <button class="btn btn-secondary" type="button" data-action="download-qr">บันทึก QR</button>
         <button class="btn btn-danger" type="button" data-action="delete">ลบ</button>
       </div>
@@ -91,6 +183,16 @@ function renderCourses(courses) {
 
     card.querySelector('[data-action="copy"]').addEventListener('click', () => {
       void copyLink(quizLink);
+    });
+
+    card.querySelector('[data-action="toggle-qr"]').addEventListener('click', (event) => {
+      const btn = event.currentTarget;
+      const qrWrap = card.querySelector('[data-role="qr-wrap"]');
+      if (!qrWrap) return;
+
+      const isHidden = qrWrap.classList.contains('hidden');
+      qrWrap.classList.toggle('hidden', !isHidden);
+      btn.textContent = isHidden ? 'ซ่อน QR' : 'แสดง QR';
     });
 
     card.querySelector('[data-action="download-qr"]').addEventListener('click', () => {
@@ -121,4 +223,31 @@ function initQuizLibrary() {
   });
 }
 
+if (openFeedbackEditorBtn) {
+  openFeedbackEditorBtn.addEventListener('click', () => {
+    openFeedbackModal();
+  });
+}
+
+if (closeFeedbackModalBtn) {
+  closeFeedbackModalBtn.addEventListener('click', () => {
+    closeFeedbackModal();
+  });
+}
+
+if (feedbackModal) {
+  feedbackModal.addEventListener('click', (event) => {
+    if (event.target === feedbackModal) {
+      closeFeedbackModal();
+    }
+  });
+}
+
+if (saveFeedbackBtn) {
+  saveFeedbackBtn.addEventListener('click', () => {
+    void onSaveFeedbackConfig();
+  });
+}
+
 initQuizLibrary();
+void loadFeedbackConfig();
