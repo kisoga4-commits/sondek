@@ -85,7 +85,10 @@ function refreshTimerUi(question) {
 }
 
 function jumpNextByTimeout() {
-  void goNextQuestion();
+  clearTimer();
+  timerText.textContent = 'หมดเวลา';
+  timerFill.style.width = '0%';
+  nextBtn.disabled = false;
 }
 
 function startQuestionTimer(question) {
@@ -101,6 +104,14 @@ function startQuestionTimer(question) {
       jumpNextByTimeout();
     }
   }, 1000);
+}
+
+function getQuestionTypeLabel(type) {
+  if (type === 'multiple_choice') return 'เลือกคำตอบ';
+  if (type === 'true_false') return 'จริง/เท็จ';
+  if (type === 'short_text') return 'พิมพ์คำตอบ';
+  if (type === 'ordering') return 'เรียงลำดับ';
+  return 'คำถาม';
 }
 
 async function init() {
@@ -231,7 +242,7 @@ function renderQuestion() {
   const question = currentQuestion();
   const questionNo = state.currentIndex + 1;
   questionTitle.textContent = `${questionNo}. ${question.question}`;
-  questionMeta.textContent = `${question.points} pts • ${question.timeLimitSeconds}s • ${question.type}`;
+  questionMeta.textContent = `${question.points} คะแนน • ${question.timeLimitSeconds} วินาที • ${getQuestionTypeLabel(question.type)}`;
 
   if (question.mediaUrl) {
     questionMedia.src = question.mediaUrl;

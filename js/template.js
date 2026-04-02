@@ -72,8 +72,8 @@ function showAnswerEditor(answerMode, question = null) {
     answerEditor.innerHTML = `
       <label>คำตอบที่ถูก
         <select id="tfCorrectAnswer">
-          <option value="true" ${selected === 'true' ? 'selected' : ''}>True</option>
-          <option value="false" ${selected === 'false' ? 'selected' : ''}>False</option>
+          <option value="true" ${selected === 'true' ? 'selected' : ''}>จริง</option>
+          <option value="false" ${selected === 'false' ? 'selected' : ''}>เท็จ</option>
         </select>
       </label>
     `;
@@ -286,7 +286,7 @@ function buildNormalizedQuestions() {
   return bankQuestions.map((question) => ({
     question: question.questionText,
     type: question.answerMode,
-    choices: question.answerMode === 'true_false' ? ['True', 'False'] : (question.options || []),
+    choices: question.answerMode === 'true_false' ? ['จริง', 'เท็จ'] : (question.options || []),
     acceptedAnswers: question.answerMode === 'short_text' ? (question.acceptedAnswers || []) : [],
     answerIndex: question.answerMode === 'true_false'
       ? (question.correctAnswer.value ? 0 : 1)

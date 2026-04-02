@@ -166,14 +166,21 @@ export async function getCourse(courseId) {
 
 export async function getQuestionsByCourse(courseId) {
   await ensureAuthReady();
-  const q = query(collection(db, 'questions'), where('courseId', '==', courseId), orderBy('order', 'asc'));
+  const q = query(collection(db, 'questions'), where('courseId', '==', courseId));
   const snap = await getDocs(q);
-  return snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }));
+  return snap.docs
+    .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
 }
 
 export function subscribeQuestionsByCourse(courseId, callback, onError) {
-  const q = query(collection(db, 'questions'), where('courseId', '==', courseId), orderBy('order', 'asc'));
-  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+  const q = query(collection(db, 'questions'), where('courseId', '==', courseId));
+  return onSnapshot(q, (snap) => {
+    const rows = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    callback(rows);
+  }, onError);
 }
 
 export async function saveLead(payload) {
