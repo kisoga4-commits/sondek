@@ -1,10 +1,12 @@
-const DRAW_COUNT = 10;
-const MIN_QUESTION_BANK = 10;
+import {
+  getCourse,
+  getQuestionsByCourse,
+  replaceQuestionsForCourse,
+  saveCourse,
+} from './db.js';
+import { defaultMathQuestions } from './questionsSeed.js';
 
-const builderView = document.getElementById('builderView');
-const questionBankView = document.getElementById('questionBankView');
-const studentView = document.getElementById('studentView');
-const resultView = document.getElementById('resultView');
+const MIN_QUESTION_BANK = 10;
 
 const questionAnswerModeEl = document.getElementById('questionAnswerMode');
 const questionTypeLabelEl = document.getElementById('questionTypeLabel');
@@ -14,39 +16,18 @@ const questionBankList = document.getElementById('questionBankList');
 const bankSummary = document.getElementById('bankSummary');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 const addOrUpdateBtn = document.getElementById('addOrUpdateBtn');
-const buildQuizLinkBtn = document.getElementById('buildQuizLinkBtn');
-const lessonDoneBtn = document.getElementById('lessonDoneBtn');
 const sharePanel = document.getElementById('sharePanel');
 const quizLinkOutput = document.getElementById('quizLinkOutput');
 const qrOutput = document.getElementById('qrOutput');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
+const seedDefaultBtn = document.getElementById('seedDefaultBtn');
+const saveCourseBtn = document.getElementById('saveCourseBtn');
 
-const studentQuizTitle = document.getElementById('studentQuizTitle');
-const studentQuizDescription = document.getElementById('studentQuizDescription');
-const studentNameForm = document.getElementById('studentNameForm');
-const attemptView = document.getElementById('attemptView');
-const progressText = document.getElementById('progressText');
-const pointText = document.getElementById('pointText');
-const progressFill = document.getElementById('progressFill');
-const attemptQuestionText = document.getElementById('attemptQuestionText');
-const attemptTimerText = document.getElementById('attemptTimerText');
-const attemptAnswerArea = document.getElementById('attemptAnswerArea');
-const nextBtn = document.getElementById('nextBtn');
-const finishBtn = document.getElementById('finishBtn');
-
-const resultHeadline = document.getElementById('resultHeadline');
-const resultScore = document.getElementById('resultScore');
-const resultPercentage = document.getElementById('resultPercentage');
-const resultCorrectCount = document.getElementById('resultCorrectCount');
-const reviewList = document.getElementById('reviewList');
+const params = new URLSearchParams(window.location.search);
+const editingCourseId = params.get('courseId') || '';
 
 let bankQuestions = [];
 let editingIndex = null;
-
-let currentQuizPayload = null;
-let selectedQuestions = [];
-let userAnswers = [];
-let currentQuestionIndex = 0;
 
 function showAnswerEditor(answerMode, question = null) {
   if (answerMode === 'true_false') {
@@ -88,13 +69,8 @@ function buildQuestionPayloadFromEditor() {
   const timeLimitSeconds = Math.max(5, Number(document.getElementById('questionTimeLimit').value) || 30);
   const points = Math.max(1, Number(document.getElementById('questionPoints').value) || 10);
 
-  if (!questionText) {
-    alert('กรุณาใส่โจทย์คำถาม');
-    return null;
-  }
-
-  if (!questionTypeLabel) {
-    alert('กรุณาใส่ประเภทคำถาม');
+  if (!questionText || !questionTypeLabel) {
+    alert('กรุณากรอกโจทย์และประเภทคำถาม');
     return null;
   }
 
@@ -103,6 +79,7 @@ function buildQuestionPayloadFromEditor() {
   if (answerMode === 'true_false') {
     return {
       ...base,
+      options: ['True', 'False'],
       correctAnswer: { value: document.getElementById('tfCorrectAnswer').value === 'true' },
     };
   }
@@ -130,10 +107,10 @@ function resetEditor() {
   editingIndex = null;
   addOrUpdateBtn.textContent = 'เพิ่มคำถาม';
   cancelEditBtn.classList.add('hidden');
-  document.getElementById('questionText').value = '';
+  questionEditor.reset();
+  questionTypeLabelEl.value = 'คณิตศาสตร์พื้นฐาน';
   document.getElementById('questionTimeLimit').value = '30';
   document.getElementById('questionPoints').value = '10';
-  questionTypeLabelEl.value = '';
   questionAnswerModeEl.value = 'multiple_choice';
   showAnswerEditor('multiple_choice');
 }
@@ -146,28 +123,31 @@ function renderQuestionBank() {
     return;
   }
 
-  bankSummary.textContent = `มีคำถามแล้ว ${bankQuestions.length} ข้อ (ขั้นต่ำ ${MIN_QUESTION_BANK} ข้อก่อนสร้างลิงก์)`;
+  bankSummary.textContent = `มีคำถามแล้ว ${bankQuestions.length} ข้อ (ขั้นต่ำ ${MIN_QUESTION_BANK} ข้อก่อนบันทึก)`;
 
   bankQuestions.forEach((question, index) => {
     const li = document.createElement('li');
-    li.innerHTML = `<strong>ข้อ ${index + 1}</strong> [${question.questionTypeLabel}] ${question.questionText} (${question.points} คะแนน / ${question.timeLimitSeconds} วิ)`;
+    const correctDisplay = question.answerMode === 'true_false'
+      ? String(question.correctAnswer.value)
+      : question.correctAnswer.key;
+
+    li.innerHTML = `<div class="preview-item-main"><strong>ข้อ ${index + 1}</strong> [${question.questionTypeLabel}] ${question.questionText}<div class="muted">เฉลย: ${correctDisplay} | ${question.points} คะแนน / ${question.timeLimitSeconds} วินาที</div></div>`;
 
     const actions = document.createElement('div');
-    actions.className = 'admin-actions';
+    actions.className = 'preview-item-actions';
 
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
-    editBtn.className = 'btn btn-secondary';
+    editBtn.className = 'btn btn-secondary btn-tiny';
     editBtn.textContent = 'แก้ไข';
     editBtn.addEventListener('click', () => {
       editingIndex = index;
       addOrUpdateBtn.textContent = 'อัปเดตคำถาม';
       cancelEditBtn.classList.remove('hidden');
-
       document.getElementById('questionText').value = question.questionText;
       document.getElementById('questionTimeLimit').value = String(question.timeLimitSeconds);
       document.getElementById('questionPoints').value = String(question.points);
-      questionTypeLabelEl.value = question.questionTypeLabel || '';
+      questionTypeLabelEl.value = question.questionTypeLabel || 'คณิตศาสตร์พื้นฐาน';
       questionAnswerModeEl.value = question.answerMode || 'multiple_choice';
       showAnswerEditor(question.answerMode || 'multiple_choice', question);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -175,7 +155,7 @@ function renderQuestionBank() {
 
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
-    deleteBtn.className = 'btn';
+    deleteBtn.className = 'btn btn-tiny';
     deleteBtn.textContent = 'ลบ';
     deleteBtn.addEventListener('click', () => {
       bankQuestions.splice(index, 1);
@@ -188,146 +168,135 @@ function renderQuestionBank() {
   });
 }
 
-function buildSharePayload() {
+function buildQuizLink(courseId) {
+  return `${window.location.origin}/index.html?id=${encodeURIComponent(courseId)}`;
+}
+
+function fillDefault20() {
+  bankQuestions = defaultMathQuestions.map((item) => ({
+    questionText: item.question,
+    questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
+    answerMode: 'multiple_choice',
+    options: [...item.choices],
+    correctAnswer: { key: ['A', 'B', 'C', 'D'][item.answerIndex] || 'A' },
+    points: 10,
+    timeLimitSeconds: 30,
+  }));
+  renderQuestionBank();
+}
+
+function getMetaPayload() {
+  const courseId = document.getElementById('quizCourseId').value.trim();
   const title = document.getElementById('quizTitle').value.trim();
-  if (!title) {
-    alert('กรุณาใส่ชื่อแบบทดสอบ');
+
+  if (!courseId || !title) {
+    alert('กรุณากรอก courseId และชื่อแบบทดสอบ');
     return null;
   }
 
   if (bankQuestions.length < MIN_QUESTION_BANK) {
-    alert(`ต้องมีคำถามอย่างน้อย ${MIN_QUESTION_BANK} ข้อ เพื่อให้สุ่ม ${DRAW_COUNT} ข้อได้`);
+    alert(`ต้องมีคำถามอย่างน้อย ${MIN_QUESTION_BANK} ข้อ`);
     return null;
   }
 
   return {
+    courseId,
     title,
     description: document.getElementById('quizDescription').value.trim(),
-    drawCount: DRAW_COUNT,
-    minQuestionBank: MIN_QUESTION_BANK,
-    questionBank: bankQuestions,
-    version: 2,
+    enrollmentUrl: document.getElementById('enrollmentUrl').value.trim(),
+    drawCount: Math.max(1, Number(document.getElementById('drawCount').value) || 10),
+    status: document.getElementById('courseStatus').value,
   };
 }
 
-function encodePayload(payload) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-}
+async function saveToFirebase() {
+  const meta = getMetaPayload();
+  if (!meta) return;
 
-function decodePayload(encoded) {
-  const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
-  const pad = normalized.length % 4;
-  const withPadding = normalized + (pad ? '='.repeat(4 - pad) : '');
-  return JSON.parse(decodeURIComponent(escape(atob(withPadding))));
-}
+  saveCourseBtn.disabled = true;
+  saveCourseBtn.textContent = 'กำลังบันทึก...';
 
-function shuffle(items) {
-  const clone = [...items];
-  for (let i = clone.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [clone[i], clone[j]] = [clone[j], clone[i]];
-  }
-  return clone;
-}
+  try {
+    const quizLink = buildQuizLink(meta.courseId);
 
-function drawQuestions(questionBank, amount) {
-  return shuffle(questionBank).slice(0, amount);
-}
-
-function renderAttemptQuestion() {
-  const question = selectedQuestions[currentQuestionIndex];
-  progressText.textContent = `ข้อ ${currentQuestionIndex + 1} / ${selectedQuestions.length}`;
-  pointText.textContent = `${question.points} คะแนน`;
-  progressFill.style.width = `${((currentQuestionIndex + 1) / selectedQuestions.length) * 100}%`;
-
-  attemptQuestionText.textContent = question.questionText;
-  attemptTimerText.textContent = `เวลาข้อนี้ ${question.timeLimitSeconds} วินาที | ประเภท: ${question.questionTypeLabel}`;
-
-  attemptAnswerArea.innerHTML = '';
-
-  if (question.answerMode === 'true_false') {
-    attemptAnswerArea.innerHTML = `
-      <div class="choices">
-        <label class="choice"><input type="radio" name="answer" value="true" /> True</label>
-        <label class="choice"><input type="radio" name="answer" value="false" /> False</label>
-      </div>
-    `;
-  } else {
-    const letters = ['A', 'B', 'C', 'D'];
-    const block = document.createElement('div');
-    block.className = 'choices';
-
-    question.options.forEach((option, index) => {
-      const label = document.createElement('label');
-      label.className = 'choice';
-      label.innerHTML = `<input type="radio" name="answer" value="${letters[index]}" /> ${letters[index]}. ${option}`;
-      block.appendChild(label);
+    await saveCourse({
+      ...meta,
+      quizLink,
     });
 
-    attemptAnswerArea.appendChild(block);
-  }
+    const normalized = bankQuestions.map((question) => ({
+      question: question.questionText,
+      type: question.answerMode,
+      choices: question.answerMode === 'true_false' ? ['True', 'False'] : question.options,
+      answerIndex: question.answerMode === 'true_false'
+        ? (question.correctAnswer.value ? 0 : 1)
+        : ['A', 'B', 'C', 'D'].indexOf(question.correctAnswer.key),
+      points: question.points,
+      timeLimitSeconds: question.timeLimitSeconds,
+    }));
 
-  const previousAnswer = userAnswers[currentQuestionIndex];
-  if (previousAnswer !== undefined) {
-    const answerInput = attemptAnswerArea.querySelector(`input[value="${String(previousAnswer)}"]`);
-    if (answerInput) answerInput.checked = true;
-  }
+    await replaceQuestionsForCourse(meta.courseId, normalized);
 
-  nextBtn.classList.toggle('hidden', currentQuestionIndex === selectedQuestions.length - 1);
-  finishBtn.classList.toggle('hidden', currentQuestionIndex !== selectedQuestions.length - 1);
+    quizLinkOutput.value = quizLink;
+    qrOutput.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(quizLink)}`;
+    qrOutput.classList.remove('hidden');
+    sharePanel.classList.remove('hidden');
+
+    alert('บันทึกคอร์สและคำถามเรียบร้อย');
+  } catch (error) {
+    console.error(error);
+    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+  } finally {
+    saveCourseBtn.disabled = false;
+    saveCourseBtn.textContent = 'บันทึกคอร์สขึ้น Firebase';
+  }
 }
 
-function collectCurrentAnswer() {
-  const selectedInput = attemptAnswerArea.querySelector('input[name="answer"]:checked');
-  return selectedInput ? selectedInput.value : null;
-}
-
-function isAnswerCorrect(question, answer) {
-  if (question.answerMode === 'true_false') {
-    return String(question.correctAnswer.value) === String(answer);
+async function loadCourseForEditing() {
+  if (!editingCourseId) {
+    fillDefault20();
+    return;
   }
 
-  return question.correctAnswer.key === answer;
-}
+  document.getElementById('quizCourseId').value = editingCourseId;
+  document.getElementById('quizCourseId').readOnly = true;
 
-function renderResults(studentName) {
-  let totalScore = 0;
-  let maxScore = 0;
-  let correctCount = 0;
+  try {
+    const [course, questions] = await Promise.all([
+      getCourse(editingCourseId),
+      getQuestionsByCourse(editingCourseId),
+    ]);
 
-  reviewList.innerHTML = '';
+    if (!course) {
+      fillDefault20();
+      return;
+    }
 
-  selectedQuestions.forEach((question, index) => {
-    const answer = userAnswers[index];
-    const correct = isAnswerCorrect(question, answer);
-    const earned = correct ? question.points : 0;
-    maxScore += question.points;
-    totalScore += earned;
-    if (correct) correctCount += 1;
+    document.getElementById('quizTitle').value = course.title || '';
+    document.getElementById('quizDescription').value = course.description || '';
+    document.getElementById('enrollmentUrl').value = course.enrollmentUrl || '';
+    document.getElementById('drawCount').value = String(Math.max(1, Number(course.drawCount) || 10));
+    document.getElementById('courseStatus').value = course.status || 'open';
 
-    const reviewItem = document.createElement('li');
-    reviewItem.innerHTML = `<strong>ข้อ ${index + 1}</strong> [${question.questionTypeLabel}] ${question.questionText}`;
+    bankQuestions = questions.map((q) => ({
+      questionText: q.question || '',
+      questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
+      answerMode: q.type === 'true_false' ? 'true_false' : 'multiple_choice',
+      options: q.choices || ['', '', '', ''],
+      correctAnswer: q.type === 'true_false'
+        ? { value: Number(q.answerIndex) === 0 }
+        : { key: ['A', 'B', 'C', 'D'][Number(q.answerIndex)] || 'A' },
+      points: Number(q.points) || 10,
+      timeLimitSeconds: Number(q.timeLimitSeconds) || 30,
+    }));
 
-    const answerText = document.createElement('p');
-    answerText.className = 'muted';
-    answerText.textContent = `คำตอบของผู้เรียน: ${answer ?? 'ไม่ตอบ'} | สถานะ: ${correct ? 'ถูก' : 'ผิด'} | ได้ ${earned}/${question.points}`;
-
-    reviewItem.appendChild(answerText);
-    reviewList.appendChild(reviewItem);
-  });
-
-  const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
-
-  resultHeadline.textContent = `${studentName} ส่งคำตอบเรียบร้อย`;
-  resultScore.textContent = `คะแนนที่ได้: ${totalScore} / ${maxScore}`;
-  resultPercentage.textContent = `เปอร์เซ็นต์: ${percentage.toFixed(2)}%`;
-  resultCorrectCount.textContent = `ตอบถูก: ${correctCount} / ${DRAW_COUNT}`;
-
-  resultView.classList.remove('hidden');
-  studentView.classList.add('hidden');
+    if (!bankQuestions.length) fillDefault20();
+    renderQuestionBank();
+  } catch (error) {
+    console.error(error);
+    alert('โหลดคอร์สเดิมไม่สำเร็จ จะแสดงชุดคำถามมาตรฐานแทน');
+    fillDefault20();
+  }
 }
 
 questionAnswerModeEl.addEventListener('change', () => {
@@ -349,93 +318,24 @@ questionEditor.addEventListener('submit', (event) => {
   resetEditor();
 });
 
-cancelEditBtn.addEventListener('click', () => {
-  resetEditor();
+cancelEditBtn.addEventListener('click', () => resetEditor());
+seedDefaultBtn.addEventListener('click', () => {
+  fillDefault20();
+  alert('เติมโจทย์มาตรฐาน 20 ข้อแล้ว');
 });
-
-lessonDoneBtn.addEventListener('click', () => {
-  alert('เสร็จบทนี้แล้ว สามารถกลับมาแก้ไขแต่ละข้อจากคลังคำถามได้ตลอด');
-  document.getElementById('questionBankView').scrollIntoView({ behavior: 'smooth' });
+saveCourseBtn.addEventListener('click', () => {
+  void saveToFirebase();
 });
-
-buildQuizLinkBtn.addEventListener('click', () => {
-  const payload = buildSharePayload();
-  if (!payload) return;
-
-  const encoded = encodePayload(payload);
-  const link = `${window.location.origin}${window.location.pathname}?play=1&data=${encoded}`;
-  quizLinkOutput.value = link;
-  sharePanel.classList.remove('hidden');
-  qrOutput.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`;
-  qrOutput.classList.remove('hidden');
-});
-
 copyLinkBtn.addEventListener('click', async () => {
   if (!quizLinkOutput.value) return;
-
   try {
     await navigator.clipboard.writeText(quizLinkOutput.value);
     alert('คัดลอกลิงก์แล้ว');
   } catch (error) {
-    alert('คัดลอกอัตโนมัติไม่สำเร็จ กรุณาคัดลอกด้วยตนเอง');
+    console.error(error);
+    alert('คัดลอกไม่สำเร็จ');
   }
 });
 
-studentNameForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const studentName = document.getElementById('studentName').value.trim();
-
-  if (!studentName) {
-    alert('กรุณากรอกชื่อก่อนเริ่ม');
-    return;
-  }
-
-  selectedQuestions = drawQuestions(currentQuizPayload.questionBank, DRAW_COUNT);
-  userAnswers = new Array(selectedQuestions.length).fill(null);
-  currentQuestionIndex = 0;
-
-  attemptView.classList.remove('hidden');
-  renderAttemptQuestion();
-  studentNameForm.dataset.studentName = studentName;
-});
-
-nextBtn.addEventListener('click', () => {
-  userAnswers[currentQuestionIndex] = collectCurrentAnswer();
-  currentQuestionIndex += 1;
-  renderAttemptQuestion();
-});
-
-finishBtn.addEventListener('click', () => {
-  userAnswers[currentQuestionIndex] = collectCurrentAnswer();
-  renderResults(studentNameForm.dataset.studentName || 'ผู้เรียน');
-});
-
-(function init() {
-  showAnswerEditor('multiple_choice');
-  renderQuestionBank();
-
-  const params = new URLSearchParams(window.location.search);
-  const encodedData = params.get('data');
-  const isPlayMode = params.get('play') === '1' && encodedData;
-
-  if (!isPlayMode) {
-    return;
-  }
-
-  try {
-    const payload = decodePayload(encodedData);
-    if (!payload || !Array.isArray(payload.questionBank) || payload.questionBank.length < MIN_QUESTION_BANK) {
-      throw new Error('invalid payload');
-    }
-
-    currentQuizPayload = payload;
-    builderView.classList.add('hidden');
-    questionBankView.classList.add('hidden');
-    studentView.classList.remove('hidden');
-
-    studentQuizTitle.textContent = payload.title || 'แบบทดสอบ';
-    studentQuizDescription.textContent = payload.description || '';
-  } catch (error) {
-    alert('ลิงก์แบบทดสอบไม่ถูกต้อง');
-  }
-})();
+showAnswerEditor('multiple_choice');
+void loadCourseForEditing();
