@@ -147,6 +147,7 @@ export async function deleteCourseWithQuestions(courseId) {
 }
 
 export async function getAllCourses() {
+  await ensureAuthReady();
   const snap = await getDocs(collection(db, 'courses'));
   return snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }))
     .sort((a, b) => String(a.courseId).localeCompare(String(b.courseId)));
@@ -158,11 +159,13 @@ export function subscribeCourses(callback, onError) {
 }
 
 export async function getCourse(courseId) {
+  await ensureAuthReady();
   const snap = await getDoc(doc(db, 'courses', courseId));
   return snap.exists() ? snap.data() : null;
 }
 
 export async function getQuestionsByCourse(courseId) {
+  await ensureAuthReady();
   const q = query(collection(db, 'questions'), where('courseId', '==', courseId), orderBy('order', 'asc'));
   const snap = await getDocs(q);
   return snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }));
