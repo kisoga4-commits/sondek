@@ -11,16 +11,23 @@
       <section class="rounded-3xl bg-white p-6 shadow-xl">
         <h1 class="text-3xl font-black text-orange-600">🏆 TOP 5 ของแบบทดสอบ</h1>
         <p id="topCourseTitle" class="mt-2 text-lg font-semibold text-slate-700">กำลังโหลด...</p>
-        <p class="mt-1 text-sm text-slate-500">แสดงผู้ที่คะแนนดีที่สุด 5 อันดับของแบบทดสอบนี้</p>
-      </section>
-
-      <section class="rounded-3xl bg-white p-6 shadow-xl">
-        <ol id="topList" class="space-y-3"></ol>
-        <p id="emptyTop" class="hidden text-slate-500">ยังไม่มีผู้ทำแบบทดสอบ</p>
+        <p class="mt-1 text-sm text-slate-500">กดปุ่มด้านล่างเพื่อเปิดหน้าต่างจัดอันดับแบบไอคอน</p>
+        <button id="openRankModal" class="mt-4 w-full rounded-2xl bg-amber-500 px-4 py-4 text-lg font-black text-white">เปิดหน้าต่างจัดอันดับ</button>
       </section>
 
       <a id="retryLink" href="#" class="block rounded-2xl bg-indigo-600 px-4 py-4 text-center text-lg font-black text-white">ทำแบบทดสอบอีกครั้ง</a>
     </main>
+
+    <div id="rankModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+      <div class="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-2xl font-black text-orange-600">อันดับนักเรียน</h2>
+          <button id="closeRankModal" class="rounded-lg bg-slate-100 px-3 py-1 text-sm font-semibold">ปิด</button>
+        </div>
+        <ol id="topList" class="space-y-3"></ol>
+        <p id="emptyTop" class="hidden text-slate-500">ยังไม่มีผู้ทำแบบทดสอบ</p>
+      </div>
+    </div>
 
     <script type="module" src="js/top.js"></script>
   </body>
