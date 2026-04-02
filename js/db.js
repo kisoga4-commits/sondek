@@ -32,12 +32,18 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 export async function saveCourse(course) {
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  const defaultQuizLink = `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(course.courseId)}`;
+
   await setDoc(doc(db, 'courses', course.courseId), {
     courseId: course.courseId,
     title: course.title,
     description: course.description || '',
     status: course.status || 'open',
-    quizLink: course.quizLink || `${window.location.origin}/quiz.html?id=${course.courseId}`,
+    quizLink: course.quizLink || defaultQuizLink,
     enrollmentUrl: course.enrollmentUrl || '',
     drawCount: Math.max(1, Number(course.drawCount) || 10),
     updatedAt: serverTimestamp(),
@@ -66,8 +72,30 @@ export async function saveQuestionsBatch(courseId, questions) {
 
 export async function replaceQuestionsForCourse(courseId, questions) {
   const existingQuestions = await getQuestionsByCourse(courseId);
-  await Promise.all(existingQuestions.map((item) => deleteDoc(doc(db, 'questions', item.id))));
-  await saveQuestionsBatch(courseId, questions);
+  const batch = writeBatch(db);
+
+  existingQuestions.forEach((item) => {
+    batch.delete(doc(db, 'questions', item.id));
+  });
+
+  questions.forEach((question, idx) => {
+    const ref = doc(collection(db, 'questions'));
+    batch.set(ref, {
+      courseId,
+      question: question.question,
+      type: question.type || 'multiple_choice',
+      choices: question.choices || [],
+      answerIndex: Number(question.answerIndex ?? 0),
+      orderingItems: question.orderingItems || [],
+      timeLimitSeconds: Math.max(5, Number(question.timeLimitSeconds) || 30),
+      points: Math.max(1, Number(question.points) || 1000),
+      mediaUrl: question.mediaUrl || '',
+      order: idx + 1,
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
 }
 
 export async function updateQuestion(questionId, question) {

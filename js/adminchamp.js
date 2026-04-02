@@ -16,7 +16,20 @@ function escapeHtml(value) {
 
 function buildQuizLink(course) {
   if (course?.quizLink) return course.quizLink;
-  return `${window.location.origin}/quiz.html?id=${encodeURIComponent(course.courseId)}`;
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(course.courseId)}`;
+}
+
+function downloadQrFromImage(qrSrc, courseId) {
+  const link = document.createElement('a');
+  link.href = qrSrc;
+  link.download = `qr-${courseId}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 async function copyLink(link) {
@@ -72,12 +85,22 @@ function renderCourses(courses) {
         <a class="btn" href="${editLink}">แก้ไข</a>
         <a class="btn btn-secondary" href="${quizLink}" target="_blank" rel="noopener noreferrer">เปิดแบบทดสอบ</a>
         <button class="btn btn-secondary" type="button" data-action="copy">คัดลอกลิงก์</button>
+        <button class="btn btn-secondary" type="button" data-action="download-qr">บันทึก QR</button>
         <button class="btn btn-danger" type="button" data-action="delete">ลบ</button>
       </div>
     `;
 
     card.querySelector('[data-action="copy"]').addEventListener('click', () => {
       void copyLink(quizLink);
+    });
+
+    card.querySelector('[data-action="download-qr"]').addEventListener('click', () => {
+      const qr = card.querySelector('img');
+      if (!qr?.src) {
+        alert('ไม่พบรูป QR');
+        return;
+      }
+      downloadQrFromImage(qr.src, course.courseId);
     });
 
     card.querySelector('[data-action="delete"]').addEventListener('click', () => {
