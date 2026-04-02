@@ -39,6 +39,8 @@ export async function saveCourse(course) {
     status: course.status || 'open',
     quizLink: course.quizLink || `${window.location.origin}/quiz.html?id=${course.courseId}`,
     enrollmentUrl: course.enrollmentUrl || '',
+    questionCount: Number(course.questionCount) === 20 ? 20 : 10,
+    timedMode: Boolean(course.timedMode),
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }

@@ -1,4 +1,10 @@
-import { replaceQuestionsForCourse, saveCourse, saveProfile, subscribeProfile } from './db.js';
+import {
+  getAllCourses,
+  replaceQuestionsForCourse,
+  saveCourse,
+  saveProfile,
+  subscribeProfile,
+} from './db.js';
 
 const quizForm = document.getElementById('quizForm');
 const questionType = document.getElementById('questionType');
@@ -9,6 +15,7 @@ const savedResult = document.getElementById('savedResult');
 const quizLink = document.getElementById('quizLink');
 const qrImage = document.getElementById('qrImage');
 const profileForm = document.getElementById('profileForm');
+const quizLibrary = document.getElementById('quizLibrary');
 
 const typeBlocks = {
   true_false: document.getElementById('typeTrueFalse'),
@@ -21,6 +28,118 @@ const draftQuestions = [];
 function switchQuestionTemplate(type) {
   Object.entries(typeBlocks).forEach(([key, node]) => {
     node.classList.toggle('hidden', key !== type);
+  });
+}
+
+function getQuizLink(courseId) {
+  return `${window.location.origin}/quiz.html?id=${encodeURIComponent(courseId)}`;
+}
+
+async function copyLink(link) {
+  try {
+    await navigator.clipboard.writeText(link);
+    alert('คัดลอกลิงก์บททดสอบแล้ว');
+  } catch (error) {
+    console.error(error);
+    alert('คัดลอกไม่สำเร็จ กรุณาคัดลอกจากช่องลิงก์');
+  }
+}
+
+async function refreshQuizLibrary() {
+  const courses = await getAllCourses();
+  quizLibrary.innerHTML = '';
+
+  if (!courses.length) {
+    quizLibrary.innerHTML = '<p class="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">ยังไม่มีบททดสอบในระบบ</p>';
+    return;
+  }
+
+  courses.forEach((course) => {
+    const card = document.createElement('article');
+    card.className = 'rounded-2xl border-2 border-slate-200 bg-gradient-to-r from-white to-fuchsia-50 p-4';
+
+    const heading = document.createElement('h3');
+    heading.className = 'text-lg font-bold text-indigo-700';
+    heading.textContent = course.title || course.courseId;
+
+    const sub = document.createElement('p');
+    sub.className = 'text-xs text-slate-500';
+    sub.textContent = course.courseId;
+
+    const controls = document.createElement('div');
+    controls.className = 'mt-3 grid gap-3 md:grid-cols-2';
+
+    const amountWrap = document.createElement('div');
+    amountWrap.className = 'rounded-xl bg-white p-3';
+    amountWrap.innerHTML = `
+      <p class="text-sm font-semibold">จำนวนข้อ</p>
+      <label class="mt-2 flex items-center gap-2 text-sm"><input type="radio" name="count-${course.courseId}" value="10"> 10 ข้อ</label>
+      <label class="mt-1 flex items-center gap-2 text-sm"><input type="radio" name="count-${course.courseId}" value="20"> 20 ข้อ</label>
+    `;
+
+    const defaultCount = Number(course.questionCount) === 20 ? 20 : 10;
+    amountWrap.querySelector(`input[value="${defaultCount}"]`).checked = true;
+
+    const timedWrap = document.createElement('div');
+    timedWrap.className = 'rounded-xl bg-white p-3';
+    timedWrap.innerHTML = `
+      <p class="text-sm font-semibold">โหมดจับเวลา</p>
+      <label class="mt-2 flex items-center gap-2 text-sm">
+        <input type="checkbox" class="timed-toggle"> จำกัดเวลา 30 วินาที/ข้อ
+      </label>
+    `;
+    const timedToggle = timedWrap.querySelector('.timed-toggle');
+    timedToggle.checked = Boolean(course.timedMode);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'mt-3 grid gap-2 md:grid-cols-3';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white';
+    saveBtn.textContent = 'บันทึกการตั้งค่า';
+    saveBtn.addEventListener('click', async () => {
+      const chosenCount = Number(
+        amountWrap.querySelector(`input[name="count-${course.courseId}"]:checked`)?.value || 10,
+      );
+
+      await saveCourse({
+        courseId: course.courseId,
+        title: course.title,
+        description: course.description || '',
+        status: course.status || 'open',
+        enrollmentUrl: course.enrollmentUrl || '',
+        quizLink: getQuizLink(course.courseId),
+        questionCount: chosenCount,
+        timedMode: timedToggle.checked,
+      });
+      alert('บันทึกการตั้งค่าบททดสอบแล้ว');
+    });
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'rounded-xl bg-fuchsia-600 px-4 py-3 text-sm font-bold text-white';
+    copyBtn.textContent = 'คัดลอกลิงก์บททดสอบ';
+    copyBtn.addEventListener('click', () => copyLink(getQuizLink(course.courseId)));
+
+    const openBtn = document.createElement('a');
+    openBtn.className = 'rounded-xl bg-cyan-500 px-4 py-3 text-center text-sm font-bold text-white';
+    openBtn.href = getQuizLink(course.courseId);
+    openBtn.target = '_blank';
+    openBtn.rel = 'noopener noreferrer';
+    openBtn.textContent = 'เปิดหน้า Quiz';
+
+    btnRow.appendChild(saveBtn);
+    btnRow.appendChild(copyBtn);
+    btnRow.appendChild(openBtn);
+
+    card.appendChild(heading);
+    card.appendChild(sub);
+    controls.appendChild(amountWrap);
+    controls.appendChild(timedWrap);
+    card.appendChild(controls);
+    card.appendChild(btnRow);
+    quizLibrary.appendChild(card);
   });
 }
 
@@ -138,7 +257,7 @@ quizForm.addEventListener('submit', async (event) => {
   const title = document.getElementById('quizTitle').value.trim();
   const description = document.getElementById('quizDescription').value.trim();
   const enrollmentUrl = document.getElementById('enrollmentUrl').value.trim();
-  const link = `${window.location.origin}/quiz.html?id=${courseId}`;
+  const link = getQuizLink(courseId);
 
   await saveCourse({
     courseId,
@@ -147,6 +266,8 @@ quizForm.addEventListener('submit', async (event) => {
     status: 'open',
     enrollmentUrl,
     quizLink: link,
+    questionCount: 10,
+    timedMode: false,
   });
 
   await replaceQuestionsForCourse(courseId, draftQuestions);
@@ -160,6 +281,7 @@ quizForm.addEventListener('submit', async (event) => {
   renderQuestions();
   quizForm.reset();
   switchQuestionTemplate('true_false');
+  await refreshQuizLibrary();
 });
 
 profileForm.addEventListener('submit', async (event) => {
@@ -185,3 +307,7 @@ subscribeProfile((profile) => {
 
 switchQuestionTemplate('true_false');
 renderQuestions();
+refreshQuizLibrary().catch((error) => {
+  console.error(error);
+  quizLibrary.innerHTML = '<p class="rounded-xl bg-rose-50 p-3 text-sm text-rose-600">โหลดรายการควิซไม่สำเร็จ</p>';
+});
