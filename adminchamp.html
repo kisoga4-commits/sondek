@@ -10,29 +10,37 @@
     <main class="container admin-layout">
       <section class="card">
         <h1>Adminchamp Quiz Builder</h1>
-        <p class="muted">สร้างคอร์สและจัดการคลังข้อสอบ 20-40 ข้อ</p>
+        <p class="muted">สร้างแบบทดสอบแบบเทมเพลต จัดการคอร์สเดิม และแชร์ลิงก์ให้เด็กทำได้ทันที</p>
+        <p id="adminNotice" class="pill">พร้อมสร้างคอร์สใหม่</p>
 
         <form id="courseForm" class="stack-form">
           <label>Course ID
-            <input type="text" id="courseId" placeholder="course_01" required />
+            <input type="text" id="courseId" name="courseId" placeholder="course_01" required />
           </label>
           <label>ชื่อคอร์ส
-            <input type="text" id="courseTitle" required />
+            <input type="text" id="courseTitle" name="courseTitle" required />
           </label>
           <label>ชื่อครู
-            <input type="text" id="tutorNameInput" required />
+            <input type="text" id="tutorNameInput" name="tutorNameInput" required />
           </label>
           <label>URL รูปโปรไฟล์ครู
-            <input type="url" id="tutorPhotoInput" required />
+            <input type="url" id="tutorPhotoInput" name="tutorPhotoInput" required />
           </label>
           <label>คำแนะนำตัวครู
-            <textarea id="tutorBioInput" rows="3" required></textarea>
+            <textarea id="tutorBioInput" name="tutorBioInput" rows="3" required></textarea>
           </label>
         </form>
+
+        <div class="share-wrap">
+          <label>ลิงก์สำหรับแชร์ให้เด็กทำแบบทดสอบ
+            <input id="shareLinkInput" type="text" readonly placeholder="บันทึกคอร์สแล้วลิงก์จะแสดงที่นี่" />
+          </label>
+          <button id="copyLinkBtn" type="button" class="btn">คัดลอกลิงก์</button>
+        </div>
       </section>
 
       <section class="card">
-        <h2>เพิ่มข้อสอบ</h2>
+        <h2>เพิ่ม/แก้ไขข้อสอบ</h2>
         <p class="muted" id="questionCounter">ยังไม่มีข้อสอบ</p>
 
         <form id="questionForm" class="stack-form">
@@ -62,14 +70,20 @@
         </form>
 
         <div class="admin-actions">
-          <button id="nextQuestionBtn" class="btn">Next</button>
-          <button id="finishBtn" class="btn btn-secondary">Finish</button>
+          <button id="nextQuestionBtn" class="btn" type="button">เพิ่มข้อนี้</button>
+          <button id="finishBtn" class="btn btn-secondary" type="button">บันทึกทั้งคอร์ส</button>
         </div>
       </section>
 
       <section class="card">
-        <h2>Preview Questions</h2>
+        <h2>คลังข้อสอบของคอร์สที่กำลังแก้ไข</h2>
         <ul id="previewList" class="preview-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>คลังคอร์สทั้งหมด</h2>
+        <p class="muted">คลิก “เปิดแก้ไข” เพื่อดึงคอร์สเดิมกลับมาแก้ไขในฟอร์มด้านบน</p>
+        <ul id="courseLibrary" class="preview-list"></ul>
       </section>
     </main>
 

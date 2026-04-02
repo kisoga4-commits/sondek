@@ -219,3 +219,38 @@ select {
   gap: 0.75rem;
   margin: 1rem 0;
 }
+
+.preview-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.preview-item-main {
+  flex: 1;
+}
+
+.preview-item-actions,
+.library-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-tiny {
+  padding: 0.38rem 0.65rem;
+  font-size: 0.82rem;
+  border-radius: 0.55rem;
+}
+
+.library-item {
+  border: 1px solid #d1fae5;
+  border-radius: 0.75rem;
+  padding: 0.55rem;
+}
+
+.share-wrap {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.5rem;
+}
