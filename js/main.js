@@ -44,8 +44,9 @@ const timerText = document.getElementById('timerText');
 const questionMeta = document.getElementById('questionMeta');
 const questionMedia = document.getElementById('questionMedia');
 const answerReview = document.getElementById('answerReview');
-const resultJokes = document.getElementById('resultJokes');
 const openTopWindow = document.getElementById('openTopWindow');
+const top5Modal = document.getElementById('top5Modal');
+const closeTop5Modal = document.getElementById('closeTop5Modal');
 const soundToggle = document.getElementById('soundToggle');
 
 const state = {
@@ -214,9 +215,6 @@ async function init() {
     const baseUrl = getBasePathUrl(window.location.pathname);
     profileCta.href = profile?.profileUrl || `${baseUrl}adminchamp.html#profile-destination`;
     enrollCta.href = course.enrollmentUrl || `${baseUrl}adminchamp.html#course-destination`;
-    if (openTopWindow) {
-      openTopWindow.href = `${baseUrl}top.html?id=${encodeURIComponent(courseId || '')}`;
-    }
     startBtn.disabled = false;
   } catch (error) {
     console.error(error);
@@ -435,13 +433,7 @@ async function showResult() {
   const feedback = state.feedbackByBucket
     ? getResultFeedbackWithConfig(score.percent, state.feedbackByBucket)
     : getResultFeedback(score.percent);
-  resultMessage.textContent = feedback.title;
-  resultJokes.innerHTML = '';
-  feedback.lines.forEach((line) => {
-    const li = document.createElement('li');
-    li.textContent = line;
-    resultJokes.appendChild(li);
-  });
+  resultMessage.textContent = feedback.lines?.[0] || feedback.title;
   renderAnswerReview(score);
 
   const durationSeconds = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
@@ -502,6 +494,29 @@ entryForm.addEventListener('submit', (event) => {
 });
 
 nextBtn.addEventListener('click', onNext);
+
+if (openTopWindow && top5Modal) {
+  openTopWindow.addEventListener('click', () => {
+    top5Modal.classList.remove('hidden');
+    top5Modal.classList.add('flex');
+  });
+}
+
+if (closeTop5Modal && top5Modal) {
+  closeTop5Modal.addEventListener('click', () => {
+    top5Modal.classList.add('hidden');
+    top5Modal.classList.remove('flex');
+  });
+}
+
+if (top5Modal) {
+  top5Modal.addEventListener('click', (event) => {
+    if (event.target === top5Modal) {
+      top5Modal.classList.add('hidden');
+      top5Modal.classList.remove('flex');
+    }
+  });
+}
 
 if (soundToggle) {
   soundToggle.addEventListener('change', () => {

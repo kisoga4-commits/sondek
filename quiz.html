@@ -55,8 +55,7 @@
       <section id="resultSection" class="hidden rounded-3xl bg-white p-6 shadow-xl">
         <h2 class="text-3xl font-black text-emerald-600">สรุปผล</h2>
         <p id="resultScore" class="mt-2 text-xl font-bold"></p>
-        <p id="resultMessage" class="mt-1 text-slate-700"></p>
-        <ul id="resultJokes" class="mt-3 list-disc space-y-1 pl-6 text-sm text-slate-600"></ul>
+        <p id="resultMessage" class="mt-1 rounded-xl bg-emerald-50 px-3 py-2 text-slate-700"></p>
 
         <div class="mt-4">
           <h3 class="font-bold">ตรวจคำตอบ</h3>
@@ -66,9 +65,10 @@
         <div class="mt-4 rounded-xl bg-slate-50 p-4">
           <div class="flex items-center justify-between gap-3">
             <h3 class="font-bold">อันดับคะแนน TOP 5</h3>
-            <a id="openTopWindow" href="#" target="_blank" rel="noreferrer" class="rounded-xl bg-amber-500 px-3 py-2 text-sm font-black text-white">เปิดหน้าต่างจัดอันดับ</a>
+            <button id="openTopWindow" type="button" class="rounded-xl bg-amber-500 px-3 py-2 text-sm font-black text-white" title="เปิดหน้าต่างอันดับ TOP 5">
+              🏆 ดู TOP 5
+            </button>
           </div>
-          <ol id="leaderboardList" class="mt-2 space-y-2"></ol>
         </div>
 
         <div class="mt-5 grid gap-3 md:grid-cols-2">
@@ -77,6 +77,16 @@
         </div>
       </section>
     </main>
+
+    <div id="top5Modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4">
+      <section class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-3xl bg-white p-5 shadow-2xl">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-2xl font-black text-amber-600">🏆 อันดับคะแนน TOP 5</h3>
+          <button id="closeTop5Modal" type="button" class="rounded-xl bg-slate-200 px-3 py-2 text-sm font-bold">ปิด</button>
+        </div>
+        <ol id="leaderboardList" class="mt-4 space-y-2"></ol>
+      </section>
+    </div>
 
     <script type="module" src="js/main.js"></script>
   </body>
