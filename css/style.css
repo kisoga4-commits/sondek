@@ -346,3 +346,121 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.admin-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 980px) {
+  .admin-grid {
+    grid-template-columns: 1.2fr 1fr;
+  }
+
+  .admin-grid .card:last-child {
+    grid-column: 1;
+  }
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.55rem;
+  text-align: left;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-success { background: #059669; }
+.btn-primary { background: #0891b2; }
+.btn-danger { background: #dc2626; }
+.mt-12 { margin-top: 0.75rem; }
+
+.course-block {
+  border: 1px solid #d1fae5;
+  border-radius: 0.75rem;
+  padding: 0.7rem;
+}
+
+.course-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.course-inline-actions {
+  display: grid;
+  grid-template-columns: 120px 1fr auto auto;
+  gap: 0.45rem;
+}
+
+.lead-list {
+  margin: 0.6rem 0 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.lead-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.score-ring-wrap {
+  position: relative;
+  width: 140px;
+  margin: 0 auto 0.8rem;
+}
+
+.ring-bg,
+.ring-progress {
+  fill: none;
+  stroke-width: 10;
+}
+
+.ring-bg { stroke: #d1fae5; }
+.ring-progress {
+  stroke: #0d9488;
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.score-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.cta-row {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.cta-btn {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}

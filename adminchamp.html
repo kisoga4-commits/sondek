@@ -3,128 +3,58 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Champ - Quiz Control</title>
+    <title>Admin Champ Dashboard</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <main class="container adminchamp-container">
-      <section id="gateCard" class="card gate-card">
-        <h1>Admin Champ - Quiz Control</h1>
-        <p class="muted">ใส่รหัสผ่านเพื่อเข้าใช้งานหลังบ้าน</p>
-        <div class="gate-row">
-          <input id="adminPassword" type="password" placeholder="รหัสผ่านแอดมิน" />
-          <button id="unlockBtn" type="button" class="btn btn-success">เข้าใช้งาน</button>
-        </div>
-        <p id="gateMessage" class="muted"></p>
-      </section>
+      <header class="card">
+        <h1>Admin Champ Dashboard</h1>
+        <p class="muted">จัดการคอร์ส, รายชื่อนักเรียน และโปรไฟล์ครู แบบ Real-time</p>
+      </header>
 
-      <section id="dashboardCard" class="card hidden">
-        <header class="dashboard-header">
-          <h1>Admin Champ - Quiz Control</h1>
-          <p id="adminNotice" class="pill">พร้อมใช้งาน</p>
-        </header>
-
-        <nav class="tabs" aria-label="Admin Sections">
-          <button type="button" class="tab-btn active" data-tab="quizzesTab">Manage Quizzes</button>
-          <button type="button" class="tab-btn" data-tab="leadsTab">View Leads</button>
-        </nav>
-
-        <section id="quizzesTab" class="tab-pane active">
-          <div class="grid-two">
-            <article class="card card-inner">
-              <h2>เพิ่ม/แก้ไขคอร์ส</h2>
-              <form id="courseForm" class="stack-form">
-                <label>Course ID
-                  <input type="text" id="courseId" name="courseId" placeholder="course_01" required />
-                </label>
-                <label>ชื่อคอร์ส
-                  <input type="text" id="courseTitle" name="courseTitle" required />
-                </label>
-                <label>ชื่อครู
-                  <input type="text" id="tutorNameInput" name="tutorNameInput" required />
-                </label>
-                <label>URL รูปโปรไฟล์ครู
-                  <input type="url" id="tutorPhotoInput" name="tutorPhotoInput" required />
-                </label>
-                <label>คำแนะนำตัวครู
-                  <textarea id="tutorBioInput" name="tutorBioInput" rows="3" required></textarea>
-                </label>
-              </form>
-
-              <div class="admin-actions">
-                <button id="saveCourseBtn" type="button" class="btn btn-success">บันทึกคอร์ส</button>
-                <button id="deleteCourseBtn" type="button" class="btn btn-danger">ลบคอร์สนี้</button>
-              </div>
-            </article>
-
-            <article class="card card-inner">
-              <h2>Question Editor</h2>
-              <p class="muted" id="questionCounter">ยังไม่มีข้อสอบ</p>
-              <form id="questionForm" class="stack-form">
-                <label>โจทย์
-                  <textarea id="qText" rows="3" required></textarea>
-                </label>
-                <label>ตัวเลือก ก
-                  <input type="text" id="choiceA" required />
-                </label>
-                <label>ตัวเลือก ข
-                  <input type="text" id="choiceB" required />
-                </label>
-                <label>ตัวเลือก ค
-                  <input type="text" id="choiceC" required />
-                </label>
-                <label>ตัวเลือก ง
-                  <input type="text" id="choiceD" required />
-                </label>
-                <label>เฉลย
-                  <select id="answer" required>
-                    <option value="0">ก</option>
-                    <option value="1">ข</option>
-                    <option value="2">ค</option>
-                    <option value="3">ง</option>
-                  </select>
-                </label>
-              </form>
-
-              <div class="admin-actions">
-                <button id="saveQuestionBtn" class="btn btn-success" type="button">เพิ่มข้อ</button>
-                <button id="cancelEditBtn" class="btn" type="button">ยกเลิกแก้ไข</button>
-              </div>
-            </article>
+      <section class="admin-grid">
+        <article class="card">
+          <h2>สร้างบททดสอบ (Manage Quizzes)</h2>
+          <a class="btn" href="template.html">+ ไปหน้า Template ทำแบบทดสอบ</a>
+          <div class="table-wrap mt-12">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Course ID</th>
+                  <th>ชื่อคอร์ส</th>
+                  <th>สถานะ</th>
+                  <th>จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="courseTableBody"></tbody>
+            </table>
           </div>
+        </article>
 
-          <div class="grid-two">
-            <article class="card card-inner">
-              <h2>Course List</h2>
-              <ul id="courseLibrary" class="preview-list"></ul>
-            </article>
-            <article class="card card-inner">
-              <h2>รายการโจทย์คอร์สนี้</h2>
-              <ul id="previewList" class="preview-list"></ul>
-            </article>
-          </div>
-        </section>
+        <article class="card">
+          <h2>คอร์สที่เปิดสอน & รายชื่อนักเรียน</h2>
+          <div id="activeCoursesWrap" class="stack-form"></div>
+        </article>
 
-        <section id="leadsTab" class="tab-pane">
-          <article class="card card-inner">
-            <h2>Leads Table</h2>
-            <div class="table-wrap">
-              <table class="admin-table">
-                <thead>
-                  <tr>
-                    <th>ชื่อ</th>
-                    <th>เบอร์โทร</th>
-                    <th>คะแนน</th>
-                    <th>เวลาที่ใช้</th>
-                    <th>คอร์ส</th>
-                    <th>จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody id="leadsTableBody"></tbody>
-              </table>
-            </div>
-          </article>
-        </section>
+        <article class="card">
+          <h2>หน้าแก้ไขโปรไฟล์</h2>
+          <form id="profileForm" class="stack-form">
+            <label>ชื่อ
+              <input type="text" id="profileName" required />
+            </label>
+            <label>ประวัติย่อ (Bio)
+              <textarea id="profileBio" rows="3" required></textarea>
+            </label>
+            <label>Image URL
+              <input type="url" id="profileImageUrl" required />
+            </label>
+            <label>ลิงก์หน้าโปรไฟล์ครู (CTA ปุ่มเขียว)
+              <input type="url" id="profileUrl" required />
+            </label>
+            <button type="submit" class="btn btn-success">บันทึก</button>
+          </form>
+        </article>
       </section>
     </main>
 

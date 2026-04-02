@@ -3,30 +3,60 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>หน้าแรกระบบควิซ</title>
+    <title>Pakdu Quiz Funnel</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <main class="container home-layout">
-      <section class="card home-hero">
-        <h1>หน้าหลักระบบควิซ</h1>
-        <p class="muted">
-          ใช้หน้านี้เป็นจุดเริ่มต้น: เลือกทำข้อสอบสำหรับนักเรียน หรือเข้าโหมดผู้ดูแลผ่านหน้า
-          <code>adminchamp.html</code>
-        </p>
+    <main class="container">
+      <section class="card" id="introSection">
+        <h1>แบบทดสอบก่อนเรียน</h1>
+        <div id="courseInfo" class="pill">กำลังโหลดคอร์ส...</div>
+        <form id="entryForm" class="stack-form">
+          <label>ชื่อ
+            <input type="text" id="leadName" required minlength="2" />
+          </label>
+          <label>เบอร์โทร
+            <input type="tel" id="leadPhone" required pattern="[0-9]{9,10}" />
+          </label>
+          <button id="startBtn" class="btn" type="submit" disabled>เริ่มทำข้อสอบ</button>
+        </form>
       </section>
 
-      <section class="card home-links">
-        <h2>เมนูทางลัด</h2>
-        <div class="home-actions">
-          <a class="btn" href="quiz.html?id=course_01">เข้าหน้าแบบทดสอบ</a>
-          <a class="btn btn-secondary" href="adminchamp.html">เข้าหน้า Admin</a>
+      <section class="card hidden" id="quizSection">
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span id="progressText">ข้อ 1/10</span>
+            <span id="scoreText">ตอบแล้ว 0/10</span>
+          </div>
+          <div class="progress-bar"><div id="progressFill"></div></div>
         </div>
-        <p class="muted">
-          ต้องการเปิดคอร์สอื่นให้แก้พารามิเตอร์ลิงก์เป็นรูปแบบ
-          <code>quiz.html?id=course_01</code>
-        </p>
+        <h2 id="questionTitle">คำถาม</h2>
+        <div id="choices" class="choices"></div>
+        <div class="quiz-actions"><button id="nextBtn" class="btn" disabled>ข้อต่อไป</button></div>
+      </section>
+
+      <section class="card hidden" id="resultSection">
+        <div class="score-ring-wrap">
+          <svg class="score-ring" width="140" height="140" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" class="ring-bg"></circle>
+            <circle cx="60" cy="60" r="52" class="ring-progress" id="ringProgress"></circle>
+          </svg>
+          <div class="score-center" id="resultScore">0/10</div>
+        </div>
+        <p id="resultMessage" class="result-message"></p>
+
+        <div class="leaderboard">
+          <h3>Top Rankings</h3>
+          <ol id="leaderboardList"></ol>
+        </div>
+
+        <div class="cta-row">
+          <a id="profileCta" class="btn btn-success cta-btn" href="#">👤 ลิงก์ดูโปรไฟล์ของฉัน</a>
+          <a id="enrollCta" class="btn btn-danger cta-btn" href="#">📅 ลิงก์ดูว่าเปิดคอร์สอะไร / สมัครคอร์สไหน</a>
+        </div>
       </section>
     </main>
+
+    <script type="module" src="js/main.js"></script>
   </body>
 </html>
