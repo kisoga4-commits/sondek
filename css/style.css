@@ -954,3 +954,25 @@ select:focus {
     gap: 0.75rem;
   }
 }
+
+
+.share-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+.item-actions .btn {
+  flex: 1 1 140px;
+}
+
+@media (max-width: 720px) {
+  .share-inline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .share-inline .btn,
+  .item-actions .btn {
+    width: 100%;
+  }
+}

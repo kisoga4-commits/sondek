@@ -35,6 +35,15 @@ const auth = getAuth(app);
 
 let authInitPromise = null;
 
+
+function isPermissionDeniedError(error) {
+  const errorCode = String(error?.code || '');
+  const errorMessage = String(error?.message || '');
+  return errorCode.includes('permission-denied')
+    || errorMessage.includes('Missing or insufficient permissions');
+}
+
+
 async function ensureAuthReady() {
   if (!authInitPromise) {
     authInitPromise = signInAnonymously(auth).catch((error) => {
@@ -145,17 +154,35 @@ export async function deleteCourseWithQuestions(courseId) {
     existingQuestions.forEach((item) => batch.delete(doc(db, 'questions', item.id)));
     batch.delete(doc(db, 'courses', courseId));
     await batch.commit();
+    return { mode: 'hard_delete' };
   } catch (error) {
     console.warn('Batch delete failed, fallback to sequential delete.', error);
-    await Promise.all(existingQuestions.map((item) => deleteDoc(doc(db, 'questions', item.id))));
-    await deleteDoc(doc(db, 'courses', courseId));
+
+    try {
+      await Promise.all(existingQuestions.map((item) => deleteDoc(doc(db, 'questions', item.id))));
+      await deleteDoc(doc(db, 'courses', courseId));
+      return { mode: 'hard_delete' };
+    } catch (sequentialError) {
+      if (!isPermissionDeniedError(sequentialError)) {
+        throw sequentialError;
+      }
+
+      await setDoc(doc(db, 'courses', courseId), {
+        status: 'deleted',
+        deletedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      return { mode: 'soft_delete' };
+    }
   }
 }
 
 export async function getAllCourses() {
   await ensureAuthReady();
   const snap = await getDocs(collection(db, 'courses'));
-  return snap.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }))
+  return snap.docs
+    .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
+    .filter((course) => course.status !== 'deleted')
     .sort((a, b) => String(a.courseId).localeCompare(String(b.courseId)));
 }
 
@@ -165,7 +192,11 @@ export function subscribeCourses(callback, onError) {
 
   ensureAuthReady()
     .then(() => {
-      unsubscribe = onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+      unsubscribe = onSnapshot(q, (snap) => callback(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((course) => course.status !== 'deleted'),
+      ), onError);
     })
     .catch((error) => {
       if (onError) onError(error);

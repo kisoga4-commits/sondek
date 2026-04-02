@@ -57,7 +57,11 @@ async function onDeleteCourse(courseId) {
   }
 
   try {
-    await deleteCourseWithQuestions(courseId);
+    const result = await deleteCourseWithQuestions(courseId);
+    if (result?.mode === 'soft_delete') {
+      alert(`ลบแบบทดสอบแบบถาวรไม่ได้ เพราะสิทธิ์ลบยังไม่เปิดใน Firestore\n\nระบบซ่อนคอร์สนี้ออกจากหน้า Admin ให้แล้ว (soft delete)`);
+      return;
+    }
     alert('ลบแบบทดสอบสำเร็จ');
   } catch (error) {
     console.error(error);
