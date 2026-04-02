@@ -330,6 +330,10 @@ select:focus {
   z-index: 30;
 }
 
+.modal-backdrop.hidden {
+  display: none;
+}
+
 .feedback-modal-card {
   width: min(1050px, 100%);
   max-height: calc(100vh - 2rem);
