@@ -78,10 +78,23 @@
         </form>
         <hr />
         <h2>จำนวนข้อที่จะแสดงตอนทำข้อสอบ</h2>
-        <div class="stack-form">
-          <label><input type="radio" name="drawCountPreset" value="10" checked /> 10 ข้อ</label>
-          <label><input type="radio" name="drawCountPreset" value="20" /> 20 ข้อ</label>
+        <p class="muted">เลือกจำนวนข้อที่ต้องการให้เด็กเห็นต่อ 1 รอบการทำข้อสอบ (ระบบจะสุ่มจากคลังข้อสอบให้อัตโนมัติ)</p>
+        <div class="draw-count-grid">
+          <label class="draw-count-option">
+            <input type="radio" name="drawCountPreset" value="10" checked />
+            <span class="draw-count-title">ชุดสั้น</span>
+            <span class="draw-count-value">10 ข้อ</span>
+            <span class="draw-count-desc">เหมาะกับควิซสั้น / ทบทวนก่อนเรียน</span>
+          </label>
+          <label class="draw-count-option">
+            <input type="radio" name="drawCountPreset" value="20" />
+            <span class="draw-count-title">ชุดเต็ม</span>
+            <span class="draw-count-value">20 ข้อ</span>
+            <span class="draw-count-desc">เหมาะกับวัดผลจริงหรือสอบเก็บคะแนน</span>
+          </label>
         </div>
+        <p id="drawCountHint" class="muted">ตอนนี้ตั้งไว้ 10 ข้อ</p>
+        <p id="templateHealth" class="template-health">Template status: กำลังตรวจสอบระบบ...</p>
 
         <hr />
         <h2>รายการคำถามที่เพิ่ม</h2>
