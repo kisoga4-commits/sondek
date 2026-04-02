@@ -19,6 +19,7 @@ const sharePanel = document.getElementById('sharePanel');
 const quizLinkOutput = document.getElementById('quizLinkOutput');
 const qrOutput = document.getElementById('qrOutput');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
+const downloadQrBtn = document.getElementById('downloadQrBtn');
 const completeQuizBtn = document.getElementById('completeQuizBtn');
 const completionNotice = document.getElementById('completionNotice');
 const quizMetaForm = document.getElementById('quizMetaForm');
@@ -172,7 +173,25 @@ function renderQuestionBank() {
 }
 
 function buildQuizLink(courseId) {
-  return `${window.location.origin}/quiz.html?id=${encodeURIComponent(courseId)}`;
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(courseId)}`;
+}
+
+function downloadQrImage() {
+  if (!qrOutput?.src) {
+    alert('ยังไม่มี QR ให้บันทึก');
+    return;
+  }
+  const courseId = document.getElementById('quizCourseId').value.trim() || 'quiz';
+  const link = document.createElement('a');
+  link.href = qrOutput.src;
+  link.download = `qr-${courseId}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function getMetaPayload() {
@@ -356,6 +375,9 @@ copyLinkBtn.addEventListener('click', async () => {
     console.error(error);
     alert('คัดลอกไม่สำเร็จ');
   }
+});
+downloadQrBtn.addEventListener('click', () => {
+  downloadQrImage();
 });
 
 quizMetaForm.addEventListener('input', () => {
