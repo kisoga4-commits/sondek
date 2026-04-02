@@ -9,20 +9,35 @@
   <body>
     <main class="container">
       <section class="card" id="builderView">
-        <h1>ตัวสร้างข้อสอบแบบรวมคลังคำถาม</h1>
-        <p class="muted">สร้างอย่างน้อย 10 ข้อ แล้วระบบจะสุ่ม 10 ข้อให้ผู้เรียนต่อครั้ง (ไม่ซ้ำกันในครั้งเดียว)</p>
+        <h1>Template ทำแบบทดสอบ</h1>
+        <p class="muted">สร้าง/แก้ไขคอร์สแล้วบันทึกขึ้น Firebase ทันที จากนั้นนำลิงก์ไปใช้ที่ Funnel นักเรียน</p>
 
         <form id="quizMetaForm" class="stack-form">
+          <label>รหัสคอร์ส (courseId)
+            <input id="quizCourseId" type="text" placeholder="เช่น course-math-basic" required />
+          </label>
           <label>ชื่อแบบทดสอบ
-            <input id="quizTitle" type="text" placeholder="เช่น Pre-test วิทยาศาสตร์" required />
+            <input id="quizTitle" type="text" placeholder="เช่น Pre-test คณิตศาสตร์" required />
           </label>
           <label>คำอธิบาย
             <textarea id="quizDescription" rows="2" placeholder="ข้อความก่อนเริ่มทำข้อสอบ"></textarea>
           </label>
+          <label>ลิงก์สมัครคอร์ส / คอร์สที่เปิดสอน
+            <input id="enrollmentUrl" type="url" placeholder="เช่น https://..." />
+          </label>
+          <label>จำนวนข้อที่สุ่มต่อครั้ง
+            <input id="drawCount" type="number" min="1" value="10" required />
+          </label>
+          <label>สถานะคอร์ส
+            <select id="courseStatus">
+              <option value="open">เปิดอยู่</option>
+              <option value="closed">ปิดแล้ว</option>
+            </select>
+          </label>
         </form>
 
         <hr />
-        <h2>แก้ไขคำถาม</h2>
+        <h2>แก้ไขคำถาม (ฐาน 20 ข้อ)</h2>
         <form id="questionEditor" class="editor-layout">
           <div class="editor-main stack-form">
             <label>โจทย์คำถาม
@@ -33,8 +48,8 @@
 
           <aside class="editor-side stack-form">
             <h3>ตั้งค่าคำถาม</h3>
-            <label>ประเภทคำถาม (พิมพ์ข้อความ)
-              <input id="questionTypeLabel" type="text" required placeholder="เช่น ปรนัย / จริงเท็จ" />
+            <label>ประเภทคำถาม
+              <input id="questionTypeLabel" type="text" required value="คณิตศาสตร์พื้นฐาน" />
             </label>
             <label>รูปแบบคำตอบ
               <select id="questionAnswerMode" required>
@@ -52,18 +67,18 @@
               <button type="submit" class="btn" id="addOrUpdateBtn">เพิ่มคำถาม</button>
               <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">ยกเลิกแก้ไข</button>
             </div>
-            <button type="button" class="btn btn-secondary" id="lessonDoneBtn">เสร็จบทนี้</button>
           </aside>
         </form>
       </section>
 
       <section class="card" id="questionBankView">
         <h2>คลังคำถาม</h2>
-        <p id="bankSummary" class="muted">ยังไม่มีคำถาม (ขั้นต่ำ 10 ข้อ)</p>
+        <p id="bankSummary" class="muted">กำลังโหลด...</p>
         <ol id="questionBankList" class="preview-list"></ol>
 
         <div class="admin-actions">
-          <button type="button" id="buildQuizLinkBtn" class="btn">สร้างลิงก์ให้เด็กทำข้อสอบ</button>
+          <button type="button" id="seedDefaultBtn" class="btn btn-secondary">เติมโจทย์มาตรฐาน 20 ข้อ</button>
+          <button type="button" id="saveCourseBtn" class="btn">บันทึกคอร์สขึ้น Firebase</button>
           <a href="adminchamp.html" class="btn btn-secondary">กลับหน้าแอดมิน</a>
         </div>
 
@@ -76,50 +91,6 @@
           </div>
           <img id="qrOutput" alt="QR ลิงก์แบบทดสอบ" class="hidden" style="max-width:220px" />
         </div>
-      </section>
-
-      <section class="card hidden" id="studentView">
-        <h1 id="studentQuizTitle"></h1>
-        <p id="studentQuizDescription" class="muted"></p>
-
-        <form id="studentNameForm" class="stack-form">
-          <label>ชื่อนักเรียน
-            <input id="studentName" type="text" required placeholder="กรอกชื่อก่อนเริ่ม" />
-          </label>
-          <button class="btn" type="submit">เริ่มทำข้อสอบ</button>
-        </form>
-
-        <div id="attemptView" class="hidden">
-          <div class="progress-wrap">
-            <div class="progress-label">
-              <strong id="progressText"></strong>
-              <span id="pointText"></span>
-            </div>
-            <div class="progress-bar"><div id="progressFill"></div></div>
-          </div>
-
-          <h2 id="attemptQuestionText"></h2>
-          <p id="attemptTimerText" class="pill"></p>
-          <div id="attemptAnswerArea"></div>
-
-          <div class="quiz-actions">
-            <button type="button" class="btn" id="nextBtn">ถัดไป</button>
-            <button type="button" class="btn hidden" id="finishBtn">ส่งคำตอบ (Finish)</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="card hidden" id="resultView">
-        <h2>ผลการทำแบบทดสอบ</h2>
-        <p id="resultHeadline"></p>
-        <ul>
-          <li id="resultScore"></li>
-          <li id="resultPercentage"></li>
-          <li id="resultCorrectCount"></li>
-        </ul>
-
-        <h3>ทบทวนคำตอบ (10 ข้อที่ถูกสุ่ม)</h3>
-        <ol id="reviewList" class="preview-list"></ol>
       </section>
     </main>
 
