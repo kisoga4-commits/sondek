@@ -1,3 +1,7 @@
+export const DEFAULT_DRAW_COUNT = 10;
+export const DEFAULT_POINTS = 1000;
+export const DEFAULT_TIME_LIMIT_SECONDS = 30;
+
 export function shuffleArray(items) {
   const cloned = [...items];
   for (let i = cloned.length - 1; i > 0; i -= 1) {
@@ -7,7 +11,7 @@ export function shuffleArray(items) {
   return cloned;
 }
 
-export function pickRandomQuestions(allQuestions, amount = 10) {
+export function pickRandomQuestions(allQuestions, amount = DEFAULT_DRAW_COUNT) {
   if (!Array.isArray(allQuestions)) {
     return [];
   }
@@ -15,8 +19,48 @@ export function pickRandomQuestions(allQuestions, amount = 10) {
   return shuffleArray(allQuestions).slice(0, Math.min(amount, allQuestions.length));
 }
 
-function getQuestionType(question) {
+export function getQuestionType(question) {
   return question?.type || 'multiple_choice';
+}
+
+export function normalizeQuestion(rawQuestion = {}) {
+  const type = getQuestionType(rawQuestion);
+  const base = {
+    type,
+    question: String(rawQuestion.question || '').trim(),
+    timeLimitSeconds: Math.max(5, Number(rawQuestion.timeLimitSeconds) || DEFAULT_TIME_LIMIT_SECONDS),
+    points: Math.max(1, Number(rawQuestion.points) || DEFAULT_POINTS),
+    mediaUrl: String(rawQuestion.mediaUrl || '').trim(),
+  };
+
+  if (type === 'ordering') {
+    return {
+      ...base,
+      orderingItems: Array.isArray(rawQuestion.orderingItems)
+        ? rawQuestion.orderingItems.map((item) => String(item).trim()).filter(Boolean)
+        : [],
+    };
+  }
+
+  if (type === 'true_false') {
+    return {
+      ...base,
+      choices: ['True', 'False'],
+      answerIndex: Number(rawQuestion.answerIndex) === 1 ? 1 : 0,
+    };
+  }
+
+  const normalizedChoices = Array.isArray(rawQuestion.choices)
+    ? rawQuestion.choices.map((choice) => String(choice || '').trim())
+    : [];
+
+  const mcChoices = [0, 1, 2, 3].map((index) => normalizedChoices[index] || '');
+
+  return {
+    ...base,
+    choices: mcChoices,
+    answerIndex: Math.min(3, Math.max(0, Number(rawQuestion.answerIndex) || 0)),
+  };
 }
 
 function isOrderingAnswerCorrect(question, answer) {
@@ -31,39 +75,63 @@ function isOrderingAnswerCorrect(question, answer) {
   return question.orderingItems.every((item, index) => item === answer[index]);
 }
 
+export function isQuestionCorrect(question, answer) {
+  if (getQuestionType(question) === 'ordering') {
+    return isOrderingAnswerCorrect(question, answer);
+  }
+
+  return Number(question.answerIndex) === Number(answer);
+}
+
 export function calculateScore(quizQuestions, answersMap) {
   let correct = 0;
+  let totalScore = 0;
+  let maxScore = 0;
+  const review = [];
 
-  quizQuestions.forEach((question, index) => {
-    const type = getQuestionType(question);
+  quizQuestions.forEach((rawQuestion, index) => {
+    const question = normalizeQuestion(rawQuestion);
+    const isCorrect = isQuestionCorrect(question, answersMap[index]);
+    const earnedPoints = isCorrect ? question.points : 0;
 
-    if (type === 'ordering') {
-      if (isOrderingAnswerCorrect(question, answersMap[index])) {
-        correct += 1;
-      }
-      return;
-    }
-
-    if (Number(question.answerIndex) === Number(answersMap[index])) {
+    if (isCorrect) {
       correct += 1;
+      totalScore += earnedPoints;
     }
+
+    maxScore += question.points;
+
+    review.push({
+      index,
+      question,
+      userAnswer: answersMap[index],
+      isCorrect,
+      earnedPoints,
+    });
   });
 
   const total = quizQuestions.length;
-  const percent = total === 0 ? 0 : Math.round((correct / total) * 100);
-  return { correct, total, percent };
+  const percent = maxScore === 0 ? 0 : Math.round((totalScore / maxScore) * 100);
+  return {
+    correct,
+    total,
+    totalScore,
+    maxScore,
+    percent,
+    review,
+  };
 }
 
 export function getResultMessage(percent) {
   if (percent === 100) {
-    return 'โคตรเทพ! เต็มสิบไม่หัก มาเป็นผู้ช่วยครูเลยไหม?';
+    return 'Perfect run!';
   }
 
   if (percent >= 70) {
-    return 'ฝีมือไม่ธรรมดา! อีกนิดจะท็อปประเทศแล้ว มาเติมส่วนที่พลาดกับครูรับรองกริบ';
+    return 'Great job! You are close to mastery.';
   }
 
-  return 'สู้เขาหน่อยลูก! พื้นฐานยังมีรูพรุนนะ มาให้ครูช่วยอุดรูรั่วให้มา';
+  return 'Nice try—review the answers and try again.';
 }
 
 export function maskPhone(phoneRaw) {
