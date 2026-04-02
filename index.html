@@ -7,16 +7,34 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <main class="container">
+    <main class="container home-layout">
       <section class="card" id="introSection">
+        <div class="hero-badge">PAKDU QUIZ</div>
         <h1>แบบทดสอบก่อนเรียน</h1>
+        <p class="muted hero-subtitle">ประเมินพื้นฐานก่อนเริ่มเรียน เพื่อแนะนำคอร์สที่เหมาะกับคุณที่สุด</p>
         <div id="courseInfo" class="pill">กำลังโหลดคอร์ส...</div>
+
+        <div class="hero-grid">
+          <article class="hero-item">
+            <h3>⏱️ ใช้เวลาไม่นาน</h3>
+            <p>สุ่มคำถาม 10 ข้อ ใช้เวลาประมาณ 3-5 นาที</p>
+          </article>
+          <article class="hero-item">
+            <h3>🎯 วัดผลชัดเจน</h3>
+            <p>ดูคะแนนและคำแนะนำทันทีหลังทำเสร็จ</p>
+          </article>
+          <article class="hero-item">
+            <h3>🏆 มีอันดับผู้ทำคะแนน</h3>
+            <p>เทียบผลลัพธ์กับผู้เรียนคนอื่นแบบเรียลไทม์</p>
+          </article>
+        </div>
+
         <form id="entryForm" class="stack-form">
           <label>ชื่อ
-            <input type="text" id="leadName" required minlength="2" />
+            <input type="text" id="leadName" required minlength="2" placeholder="เช่น ปกรณ์" />
           </label>
           <label>เบอร์โทร
-            <input type="tel" id="leadPhone" required pattern="[0-9]{9,10}" />
+            <input type="tel" id="leadPhone" required pattern="[0-9]{9,10}" placeholder="0812345678" />
           </label>
           <button id="startBtn" class="btn" type="submit" disabled>เริ่มทำข้อสอบ</button>
         </form>
