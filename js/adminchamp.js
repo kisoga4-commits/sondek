@@ -15,12 +15,11 @@ function escapeHtml(value) {
 }
 
 function buildQuizLink(course) {
-  if (course?.quizLink) return course.quizLink;
   const currentPath = String(window.location.pathname || '/');
   const basePath = currentPath.includes('/')
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
     : '/';
-  return `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(course.courseId)}`;
+  return `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(course?.courseId || '')}`;
 }
 
 function downloadQrFromImage(qrSrc, courseId) {
