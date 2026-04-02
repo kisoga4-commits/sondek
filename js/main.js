@@ -18,7 +18,7 @@ import {
 } from './quiz.js';
 
 const params = new URLSearchParams(window.location.search);
-const courseId = params.get('id');
+const courseId = params.get('id') || params.get('courseId') || params.get('course') || '';
 
 const startBtn = document.getElementById('startBtn');
 const entryForm = document.getElementById('entryForm');
@@ -189,19 +189,32 @@ async function init() {
   }
 
   try {
-    const [course, questions, profile, feedbackConfig] = await Promise.all([
+    const [course, questions] = await Promise.all([
       getCourse(courseId),
       getQuestionsByCourse(courseId),
+    ]);
+
+    const optionalResults = await Promise.allSettled([
       getProfile(),
       getResultFeedbackConfig(),
     ]);
+
+    const profile = optionalResults[0].status === 'fulfilled' ? optionalResults[0].value : null;
+    const feedbackConfig = optionalResults[1].status === 'fulfilled' ? optionalResults[1].value : null;
+
+    if (optionalResults[0].status === 'rejected') {
+      console.warn('โหลดโปรไฟล์ไม่สำเร็จ ใช้ค่าเริ่มต้นแทน', optionalResults[0].reason);
+    }
+    if (optionalResults[1].status === 'rejected') {
+      console.warn('โหลด config ข้อความผลคะแนนไม่สำเร็จ ใช้ค่าเริ่มต้นแทน', optionalResults[1].reason);
+    }
 
     state.course = course;
     state.profile = profile;
     state.feedbackByBucket = feedbackConfig?.feedbackByBucket || null;
     state.allQuestions = (questions || []).map((question) => normalizeQuestion(question));
 
-    if (!course || !questions.length) {
+    if (!course || course.status === 'deleted' || !questions.length) {
       courseInfo.textContent = `ไม่พบแบบทดสอบ: ${courseId}`;
       return;
     }
