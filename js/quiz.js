@@ -146,14 +146,14 @@ export function calculateScore(quizQuestions, answersMap) {
 
 export function getResultMessage(percent) {
   if (percent === 100) {
-    return 'Perfect run!';
+    return 'ยอดเยี่ยม! คุณตอบถูกครบทุกข้อ';
   }
 
   if (percent >= 70) {
-    return 'Great job! You are close to mastery.';
+    return 'เก่งมาก! ใกล้เต็มแล้ว';
   }
 
-  return 'Nice try—review the answers and try again.';
+  return 'ลองอีกครั้งได้เลย คุณทำได้แน่นอน';
 }
 
 export function maskPhone(phoneRaw) {
