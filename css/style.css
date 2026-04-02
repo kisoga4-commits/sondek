@@ -694,6 +694,25 @@ select:focus {
   margin-top: 0.75rem;
 }
 
+.library-item-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.share-box {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 240px;
+}
+
+.share-box img {
+  width: 180px;
+  height: 180px;
+  border-radius: 0.7rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+
 .status-pill {
   display: inline-block;
   margin-top: 0.4rem;

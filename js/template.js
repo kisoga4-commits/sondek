@@ -21,12 +21,15 @@ const qrOutput = document.getElementById('qrOutput');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 const completeQuizBtn = document.getElementById('completeQuizBtn');
 const completionNotice = document.getElementById('completionNotice');
+const quizMetaForm = document.getElementById('quizMetaForm');
 
 const params = new URLSearchParams(window.location.search);
 const editingCourseId = params.get('courseId') || '';
+const draftCourseId = editingCourseId || `quiz_${Date.now()}`;
 
 let bankQuestions = [];
 let editingIndex = null;
+let autoSaveTimer = null;
 
 function showAnswerEditor(answerMode, question = null) {
   if (answerMode === 'true_false') {
@@ -159,6 +162,7 @@ function renderQuestionBank() {
     deleteBtn.addEventListener('click', () => {
       bankQuestions.splice(index, 1);
       renderQuestionBank();
+      queueAutoSave();
     });
 
     actions.append(editBtn, deleteBtn);
@@ -168,12 +172,12 @@ function renderQuestionBank() {
 }
 
 function buildQuizLink(courseId) {
-  return `${window.location.origin}/index.html?id=${encodeURIComponent(courseId)}`;
+  return `${window.location.origin}/quiz.html?id=${encodeURIComponent(courseId)}`;
 }
 
 function getMetaPayload() {
   const rawCourseId = document.getElementById('quizCourseId').value.trim();
-  const courseId = rawCourseId || `quiz_${Date.now()}`;
+  const courseId = rawCourseId || draftCourseId;
   const title = document.getElementById('quizTitle').value.trim();
 
   if (!courseId || !title) {
@@ -192,8 +196,50 @@ function getMetaPayload() {
     description: document.getElementById('quizDescription').value.trim(),
     enrollmentUrl: document.getElementById('enrollmentUrl').value.trim(),
     drawCount: Math.max(1, Number(document.getElementById('drawCount').value) || 10),
-    status: document.getElementById('courseStatus').value,
   };
+}
+
+function buildNormalizedQuestions() {
+  return bankQuestions.map((question) => ({
+    question: question.questionText,
+    type: question.answerMode,
+    choices: question.answerMode === 'true_false' ? ['True', 'False'] : question.options,
+    answerIndex: question.answerMode === 'true_false'
+      ? (question.correctAnswer.value ? 0 : 1)
+      : ['A', 'B', 'C', 'D'].indexOf(question.correctAnswer.key),
+    points: question.points,
+    timeLimitSeconds: question.timeLimitSeconds,
+  }));
+}
+
+async function autoSaveDraft() {
+  const title = document.getElementById('quizTitle').value.trim();
+  if (!title || !bankQuestions.length) return;
+
+  const courseId = document.getElementById('quizCourseId').value.trim() || draftCourseId;
+  document.getElementById('quizCourseId').value = courseId;
+
+  await saveCourse({
+    courseId,
+    title,
+    description: document.getElementById('quizDescription').value.trim(),
+    enrollmentUrl: document.getElementById('enrollmentUrl').value.trim(),
+    drawCount: Math.max(1, Number(document.getElementById('drawCount').value) || 10),
+    status: 'draft',
+    quizLink: buildQuizLink(courseId),
+  });
+
+  await replaceQuestionsForCourse(courseId, buildNormalizedQuestions());
+}
+
+function queueAutoSave() {
+  if (autoSaveTimer) {
+    window.clearTimeout(autoSaveTimer);
+  }
+
+  autoSaveTimer = window.setTimeout(() => {
+    void autoSaveDraft().catch((error) => console.error('autosave failed', error));
+  }, 600);
 }
 
 async function saveToFirebase() {
@@ -209,21 +255,11 @@ async function saveToFirebase() {
 
     await saveCourse({
       ...meta,
+      status: 'open',
       quizLink,
     });
 
-    const normalized = bankQuestions.map((question) => ({
-      question: question.questionText,
-      type: question.answerMode,
-      choices: question.answerMode === 'true_false' ? ['True', 'False'] : question.options,
-      answerIndex: question.answerMode === 'true_false'
-        ? (question.correctAnswer.value ? 0 : 1)
-        : ['A', 'B', 'C', 'D'].indexOf(question.correctAnswer.key),
-      points: question.points,
-      timeLimitSeconds: question.timeLimitSeconds,
-    }));
-
-    await replaceQuestionsForCourse(meta.courseId, normalized);
+    await replaceQuestionsForCourse(meta.courseId, buildNormalizedQuestions());
 
     quizLinkOutput.value = quizLink;
     qrOutput.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(quizLink)}`;
@@ -234,7 +270,7 @@ async function saveToFirebase() {
     alert('ระบบอนุญาตให้นายทำควิซให้แล้ว และบันทึกขึ้น Firebase เรียบร้อย');
   } catch (error) {
     console.error(error);
-    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    alert(`บันทึกไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
   } finally {
     completeQuizBtn.disabled = false;
     completeQuizBtn.textContent = 'เสร็จ';
@@ -243,6 +279,7 @@ async function saveToFirebase() {
 
 async function loadCourseForEditing() {
   if (!editingCourseId) {
+    document.getElementById('quizCourseId').value = draftCourseId;
     renderQuestionBank();
     return;
   }
@@ -265,7 +302,6 @@ async function loadCourseForEditing() {
     document.getElementById('quizDescription').value = course.description || '';
     document.getElementById('enrollmentUrl').value = course.enrollmentUrl || '';
     document.getElementById('drawCount').value = String(Math.max(1, Number(course.drawCount) || 10));
-    document.getElementById('courseStatus').value = course.status || 'open';
 
     bankQuestions = questions.map((q) => ({
       questionText: q.question || '',
@@ -304,6 +340,7 @@ questionEditor.addEventListener('submit', (event) => {
 
   renderQuestionBank();
   resetEditor();
+  queueAutoSave();
 });
 
 cancelEditBtn.addEventListener('click', () => resetEditor());
@@ -319,6 +356,10 @@ copyLinkBtn.addEventListener('click', async () => {
     console.error(error);
     alert('คัดลอกไม่สำเร็จ');
   }
+});
+
+quizMetaForm.addEventListener('input', () => {
+  queueAutoSave();
 });
 
 showAnswerEditor('multiple_choice');
