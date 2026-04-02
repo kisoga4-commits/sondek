@@ -3,148 +3,121 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>แอดมินส่วนตัว</title>
+    <title>Admin Champion</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <main class="container home-layout">
-      <section class="card">
-        <h1>แผงแอดมิน (ใช้งานคนเดียว)</h1>
-        <p class="muted">หน้าเรียบ ๆ ใช้งานคนเดียว รวม 4 โหมดหลักที่ต้องใช้ทุกวัน</p>
+    <main class="container adminchamp-layout">
+      <section class="card adminchamp-hero">
+        <h1>Admin Champion Dashboard</h1>
+        <p class="muted">
+          หน้าศูนย์กลางสำหรับจัดการบททดสอบ ดูคอร์ดที่เปิดสอน และเตรียมจุดเชื่อมปลายทางหลังนักเรียนทำข้อสอบเสร็จ
+        </p>
+        <div class="route-chip-row">
+          <span class="route-chip">ปลายทางปุ่ม: โปรไฟล์ของฉัน</span>
+          <span class="route-chip">ปลายทางปุ่ม: ดูคอร์ดที่เปิด / สมัครคอร์ดใหม่</span>
+        </div>
       </section>
 
-      <section class="card">
-        <div class="mode-tabs" id="modeTabs">
-          <button type="button" class="btn tab-btn is-active" data-mode="template">1) Template ข้อสอบ</button>
-          <button type="button" class="btn btn-secondary tab-btn" data-mode="profile">2) แก้โปรไฟล์</button>
-          <button type="button" class="btn btn-secondary tab-btn" data-mode="course">3) เปิด / ปิด คอร์ส</button>
-          <button type="button" class="btn btn-secondary tab-btn" data-mode="qr">4) แปลงลิงก์เป็น QR</button>
+      <section class="card adminchamp-section" id="test-manager">
+        <div class="section-head">
+          <h2>สร้างบททดสอบ</h2>
+          <span class="section-note">ส่วนที่ 1</span>
         </div>
 
-        <article class="mode-panel" data-panel="template">
-          <h2>Template ทำข้อสอบ</h2>
-          <p class="muted">ไปหน้าสร้างข้อสอบใหม่ (สุ่ม 10 ข้อจากคลังข้อสอบได้)</p>
-          <a class="btn" href="template.html">ไปหน้า Template</a>
-        </article>
+        <a class="adminchamp-cta" href="template.html">
+          <strong>ไปหน้า Template ทำแบบทดสอบ</strong>
+          <span>สร้างคอร์ส/บททดสอบใหม่ หรือแก้ไขคลังข้อสอบเดิม</span>
+        </a>
 
-        <article class="mode-panel hidden" data-panel="profile">
-          <h2>แก้โปรไฟล์</h2>
-          <form id="profileForm" class="stack-form">
-            <label>ชื่อที่แสดง
-              <input type="text" id="displayName" placeholder="เช่น ครูต้น" />
-            </label>
-            <label>คำอธิบายสั้น
-              <textarea id="displayBio" rows="2" placeholder="สอนคอร์สออนไลน์"></textarea>
-            </label>
-            <button type="submit" class="btn">บันทึกโปรไฟล์ในเครื่องนี้</button>
-          </form>
-          <p id="profileStatus" class="muted"></p>
-        </article>
+        <div class="subsection-head">
+          <h3>คลังบททดสอบ / คลังคอร์สทั้งหมด</h3>
+        </div>
 
-        <article class="mode-panel hidden" data-panel="course">
-          <h2>หน้าเปิด / ปิด คอร์ส</h2>
-          <form id="courseToggleForm" class="stack-form">
-            <label>ชื่อคอร์ส
-              <input type="text" id="courseName" placeholder="เช่น ฟิสิกส์ ม.5" />
-            </label>
-            <label>สถานะ
-              <select id="courseStatus">
-                <option value="open">เปิดรับสมัคร</option>
-                <option value="closed">ปิดรับสมัคร</option>
-              </select>
-            </label>
-            <label>จำนวนคนสมัครล่าสุด (ใส่เอง)
-              <input type="number" id="courseApplicants" min="0" value="0" />
-            </label>
-            <button type="submit" class="btn">บันทึกสถานะ</button>
-          </form>
-          <p id="courseStatusText" class="muted"></p>
-        </article>
+        <div class="quiz-library">
+          <article class="library-item">
+            <div>
+              <p class="item-title">Pre-test คณิตศาสตร์พื้นฐาน</p>
+              <p class="muted item-sub">course-math-basic</p>
+            </div>
+            <div class="item-actions">
+              <a class="btn" href="template.html">เปิดแก้ไข</a>
+              <button class="btn btn-secondary" type="button">ลบ/ปิดการใช้งาน</button>
+            </div>
+          </article>
 
-        <article class="mode-panel hidden" data-panel="qr">
-          <h2>หน้าต่างแปลงลิงก์เป็น QR</h2>
-          <div class="stack-form">
-            <label>วางลิงก์
-              <input type="url" id="qrLinkInput" placeholder="https://example.com/quiz" />
-            </label>
-            <button type="button" id="createQrBtn" class="btn">สร้าง QR</button>
-            <img id="qrPreview" class="hidden" alt="QR Code" style="max-width:220px" />
+          <article class="library-item">
+            <div>
+              <p class="item-title">Pre-test ภาษาอังกฤษ</p>
+              <p class="muted item-sub">course-eng-prep</p>
+            </div>
+            <div class="item-actions">
+              <a class="btn" href="template.html">เปิดแก้ไข</a>
+              <button class="btn btn-secondary" type="button">ลบ/ปิดการใช้งาน</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="card adminchamp-section" id="course-destination">
+        <div class="section-head">
+          <h2>คอร์ดที่เปิดสอน</h2>
+          <span class="section-note">ส่วนที่ 2</span>
+        </div>
+        <p class="muted">
+          ปลายทางสำหรับปุ่ม <strong>“ดูคอร์ดที่เปิด / สมัครคอร์ดใหม่”</strong> หลังนักเรียนทำข้อสอบเสร็จ
+        </p>
+
+        <div class="course-list">
+          <article class="course-card is-open">
+            <header>
+              <h3>คอร์ด: คณิตฯ พื้นฐาน ม.ต้น</h3>
+              <p class="muted">รหัสคอร์ด: MATH-101</p>
+              <span class="status-pill">เปิดรับสมัคร</span>
+            </header>
+            <div>
+              <p class="student-title">รายชื่อนักเรียนในคอร์ด</p>
+              <ul>
+                <li>ธนภัทร จันทร์ดี</li>
+                <li>ภัทรวดี ศรีทอง</li>
+                <li>ณัฐวุฒิ วงศ์งาม</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="course-card is-closed">
+            <header>
+              <h3>คอร์ด: วิทย์เร่งรัด ม.ปลาย</h3>
+              <p class="muted">รหัสคอร์ด: SCI-220</p>
+              <span class="status-pill status-closed">ปิดแล้ว</span>
+            </header>
+            <div>
+              <p class="student-title">รายชื่อนักเรียนในคอร์ด</p>
+              <ul>
+                <li>อภิชาติ รุ่งเรือง</li>
+                <li>มลฤดี สุขใจ</li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="card adminchamp-section adminchamp-profile" id="profile-destination">
+        <div class="section-head">
+          <h2>หน้าแก้ไขโปรไฟล์</h2>
+          <span class="section-note">ส่วนที่ 3</span>
+        </div>
+        <p class="muted">ปลายทางสำหรับปุ่ม <strong>“โปรไฟล์ของฉัน”</strong> หลังนักเรียนทำข้อสอบเสร็จ</p>
+
+        <article class="profile-card">
+          <p><strong>ชื่อ:</strong> ครูต้น ตัวอย่าง</p>
+          <p><strong>ข้อมูลทั่วไป:</strong> สอนคณิตศาสตร์และวิทยาศาสตร์ เตรียมสอบเข้า ม.ปลาย</p>
+          <div class="profile-actions">
+            <button class="btn" type="button">แก้ไขโปรไฟล์</button>
+            <a class="btn btn-secondary" href="index.html">ดูหน้าฝั่งนักเรียน</a>
           </div>
         </article>
       </section>
     </main>
-
-    <script>
-      const tabs = document.querySelectorAll('.tab-btn');
-      const panels = document.querySelectorAll('.mode-panel');
-
-      tabs.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const selectedMode = btn.dataset.mode;
-          tabs.forEach((item) => {
-            item.classList.remove('is-active');
-            item.classList.add('btn-secondary');
-          });
-          btn.classList.add('is-active');
-          btn.classList.remove('btn-secondary');
-
-          panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.panel !== selectedMode));
-        });
-      });
-
-      const profileForm = document.getElementById('profileForm');
-      const profileStatus = document.getElementById('profileStatus');
-      profileForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const profile = {
-          name: document.getElementById('displayName').value.trim(),
-          bio: document.getElementById('displayBio').value.trim(),
-        };
-        localStorage.setItem('solo_admin_profile', JSON.stringify(profile));
-        profileStatus.textContent = 'บันทึกโปรไฟล์แล้ว';
-      });
-
-      const savedProfile = localStorage.getItem('solo_admin_profile');
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        document.getElementById('displayName').value = parsed.name || '';
-        document.getElementById('displayBio').value = parsed.bio || '';
-      }
-
-      const courseToggleForm = document.getElementById('courseToggleForm');
-      const courseStatusText = document.getElementById('courseStatusText');
-      courseToggleForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const payload = {
-          name: document.getElementById('courseName').value.trim(),
-          status: document.getElementById('courseStatus').value,
-          applicants: Math.max(0, Number(document.getElementById('courseApplicants').value) || 0),
-          updatedAt: new Date().toLocaleString('th-TH'),
-        };
-        localStorage.setItem('solo_course_status', JSON.stringify(payload));
-        courseStatusText.textContent = `คอร์ส "${payload.name || '-'}" ถูกตั้งเป็น ${payload.status === 'open' ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'} | คนสมัคร ${payload.applicants} คน (${payload.updatedAt})`;
-      });
-
-      const savedCourse = localStorage.getItem('solo_course_status');
-      if (savedCourse) {
-        const parsed = JSON.parse(savedCourse);
-        document.getElementById('courseName').value = parsed.name || '';
-        document.getElementById('courseStatus').value = parsed.status || 'open';
-        document.getElementById('courseApplicants').value = parsed.applicants ?? 0;
-        courseStatusText.textContent = `สถานะล่าสุด: ${parsed.status === 'open' ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'} | คนสมัคร ${parsed.applicants ?? 0} คน (${parsed.updatedAt || '-'})`;
-      }
-
-      document.getElementById('createQrBtn').addEventListener('click', () => {
-        const link = document.getElementById('qrLinkInput').value.trim();
-        if (!link) {
-          alert('กรุณาใส่ลิงก์ก่อน');
-          return;
-        }
-
-        const qrPreview = document.getElementById('qrPreview');
-        qrPreview.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`;
-        qrPreview.classList.remove('hidden');
-      });
-    </script>
   </body>
 </html>

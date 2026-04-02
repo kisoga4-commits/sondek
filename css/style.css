@@ -596,3 +596,152 @@ select:focus {
 .tab-btn.is-active {
   background: var(--teal-600);
 }
+
+.adminchamp-layout {
+  max-width: 1120px;
+}
+
+.adminchamp-hero {
+  grid-column: 1 / -1;
+}
+
+.route-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.route-chip {
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.adminchamp-section {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-note {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+}
+
+.adminchamp-cta {
+  border: 1px solid #99f6e4;
+  background: linear-gradient(180deg, #ecfeff 0%, #ffffff 100%);
+  border-radius: 0.85rem;
+  padding: 1rem;
+  display: grid;
+  gap: 0.3rem;
+  text-decoration: none;
+  color: var(--slate-900);
+}
+
+.adminchamp-cta strong {
+  color: #0f766e;
+}
+
+.subsection-head h3 {
+  margin-bottom: 0;
+}
+
+.quiz-library,
+.course-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.library-item,
+.course-card,
+.profile-card {
+  border: 1px solid #dbeafe;
+  border-radius: 0.85rem;
+  padding: 0.85rem;
+  background: #fff;
+}
+
+.item-title {
+  font-weight: 700;
+  margin: 0;
+}
+
+.item-sub {
+  margin: 0.1rem 0 0;
+}
+
+.item-actions,
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.status-pill {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.status-closed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.course-card h3,
+.course-card p,
+.course-card li {
+  margin-top: 0;
+}
+
+.student-title {
+  font-weight: 700;
+  margin: 0.7rem 0 0.4rem;
+}
+
+.course-card ul {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.course-card.is-closed {
+  opacity: 0.65;
+}
+
+.course-card.is-closed h3 {
+  text-decoration: line-through;
+}
+
+@media (min-width: 980px) {
+  .adminchamp-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .adminchamp-profile {
+    grid-column: 1 / -1;
+  }
+}
