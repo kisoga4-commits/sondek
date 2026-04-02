@@ -1,5 +1,13 @@
 import { getCourse, getLeaderboard, getProfile, getQuestionsByCourse, saveLead } from './db.js';
-import { calculateScore, getResultMessage, pickRandomQuestions, shuffleArray } from './quiz.js';
+import {
+  calculateScore,
+  DEFAULT_DRAW_COUNT,
+  getQuestionType,
+  getResultMessage,
+  normalizeQuestion,
+  pickRandomQuestions,
+  shuffleArray,
+} from './quiz.js';
 
 const params = new URLSearchParams(window.location.search);
 const courseId = params.get('id');
@@ -23,11 +31,11 @@ const profileCta = document.getElementById('profileCta');
 const enrollCta = document.getElementById('enrollCta');
 const quizTitle = document.getElementById('quizTitle');
 const quizDescription = document.getElementById('quizDescription');
-const timerWrap = document.getElementById('timerWrap');
 const timerFill = document.getElementById('timerFill');
 const timerText = document.getElementById('timerText');
-
-const TIME_PER_QUESTION_SECONDS = 30;
+const questionMeta = document.getElementById('questionMeta');
+const questionMedia = document.getElementById('questionMedia');
+const answerReview = document.getElementById('answerReview');
 
 const state = {
   course: null,
@@ -39,15 +47,10 @@ const state = {
   orderingView: {},
   startedAt: null,
   studentName: '',
-  questionCount: 10,
-  timedMode: false,
-  timeLeft: TIME_PER_QUESTION_SECONDS,
+  drawCount: DEFAULT_DRAW_COUNT,
+  timeLeft: 30,
   timerId: null,
 };
-
-function getQuestionType(question) {
-  return question?.type || 'multiple_choice';
-}
 
 function clearTimer() {
   if (state.timerId) {
@@ -56,8 +59,12 @@ function clearTimer() {
   }
 }
 
+function currentQuestion() {
+  return state.quizQuestions[state.currentIndex];
+}
+
 function isCurrentQuestionAnswered() {
-  const question = state.quizQuestions[state.currentIndex];
+  const question = currentQuestion();
   const answer = state.answers[state.currentIndex];
   if (!question) return false;
   if (getQuestionType(question) === 'ordering') {
@@ -66,9 +73,10 @@ function isCurrentQuestionAnswered() {
   return answer !== undefined;
 }
 
-function refreshTimerUi() {
+function refreshTimerUi(question) {
   timerText.textContent = `${state.timeLeft}s`;
-  const widthPercent = (state.timeLeft / TIME_PER_QUESTION_SECONDS) * 100;
+  const limit = question.timeLimitSeconds || 30;
+  const widthPercent = (state.timeLeft / limit) * 100;
   timerFill.style.width = `${Math.max(0, widthPercent)}%`;
 }
 
@@ -84,21 +92,14 @@ function jumpNextByTimeout() {
   renderQuestion();
 }
 
-function startQuestionTimer() {
+function startQuestionTimer(question) {
   clearTimer();
-
-  if (!state.timedMode) {
-    timerWrap.classList.add('hidden');
-    return;
-  }
-
-  state.timeLeft = TIME_PER_QUESTION_SECONDS;
-  timerWrap.classList.remove('hidden');
-  refreshTimerUi();
+  state.timeLeft = question.timeLimitSeconds;
+  refreshTimerUi(question);
 
   state.timerId = window.setInterval(() => {
     state.timeLeft -= 1;
-    refreshTimerUi();
+    refreshTimerUi(question);
 
     if (state.timeLeft <= 0) {
       jumpNextByTimeout();
@@ -121,19 +122,18 @@ async function init() {
 
     state.course = course;
     state.profile = profile;
-    state.allQuestions = questions;
+    state.allQuestions = (questions || []).map((question) => normalizeQuestion(question));
 
     if (!course || !questions.length) {
       courseInfo.textContent = `Quiz not found: ${courseId}`;
       return;
     }
 
-    state.questionCount = Number(course.questionCount) === 20 ? 20 : 10;
-    state.timedMode = Boolean(course.timedMode);
+    state.drawCount = Math.max(1, Number(course.drawCount || course.questionCount || DEFAULT_DRAW_COUNT));
 
     quizTitle.textContent = course.title || 'Dynamic Quiz';
     quizDescription.textContent = course.description || 'Answer random questions and climb leaderboard.';
-    courseInfo.textContent = `คลังโจทย์ ${questions.length} ข้อ | เล่นจริง ${state.questionCount} ข้อ | ${state.timedMode ? 'จับเวลา 30 วินาที/ข้อ' : 'ไม่จำกัดเวลา'}`;
+    courseInfo.textContent = `Question bank: ${state.allQuestions.length} | Draw per attempt: ${Math.min(state.drawCount, state.allQuestions.length)}`;
 
     profileCta.href = profile?.profileUrl || '#';
     enrollCta.href = course.enrollmentUrl || '#';
@@ -145,9 +145,7 @@ async function init() {
 }
 
 function renderChoiceQuestion(question, questionIndex) {
-  const shuffledChoices = question.choices || [];
-
-  shuffledChoices.forEach((choiceText, idx) => {
+  question.choices.forEach((choiceText, idx) => {
     const label = document.createElement('label');
     label.className = 'flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-4 text-lg font-semibold transition hover:border-indigo-300';
 
@@ -215,9 +213,18 @@ function renderOrderingQuestion(question, questionIndex) {
 }
 
 function renderQuestion() {
-  const question = state.quizQuestions[state.currentIndex];
+  const question = currentQuestion();
   const questionNo = state.currentIndex + 1;
   questionTitle.textContent = `${questionNo}. ${question.question}`;
+  questionMeta.textContent = `${question.points} pts • ${question.timeLimitSeconds}s • ${question.type}`;
+
+  if (question.mediaUrl) {
+    questionMedia.src = question.mediaUrl;
+    questionMedia.classList.remove('hidden');
+  } else {
+    questionMedia.classList.add('hidden');
+    questionMedia.removeAttribute('src');
+  }
 
   choicesWrap.innerHTML = '';
 
@@ -233,11 +240,12 @@ function renderQuestion() {
   scoreText.textContent = `Answered ${Object.keys(state.answers).length}`;
   progressFill.style.width = `${(questionNo / state.quizQuestions.length) * 100}%`;
 
-  startQuestionTimer();
+  startQuestionTimer(question);
 }
 
 function startQuiz() {
-  state.quizQuestions = pickRandomQuestions(state.allQuestions, state.questionCount);
+  const drawCount = Math.min(state.drawCount, state.allQuestions.length);
+  state.quizQuestions = pickRandomQuestions(state.allQuestions, drawCount);
   state.currentIndex = 0;
   state.answers = {};
   state.orderingView = {};
@@ -264,14 +272,48 @@ async function renderLeaderboard() {
   });
 }
 
+function formatCorrectAnswer(reviewItem) {
+  const { question } = reviewItem;
+  if (question.type === 'ordering') {
+    return question.orderingItems.join(' → ');
+  }
+
+  return question.choices?.[question.answerIndex] || '-';
+}
+
+function formatUserAnswer(reviewItem) {
+  const { question, userAnswer } = reviewItem;
+  if (question.type === 'ordering') {
+    return Array.isArray(userAnswer) && userAnswer.length ? userAnswer.join(' → ') : 'No answer';
+  }
+
+  return question.choices?.[Number(userAnswer)] || 'No answer';
+}
+
+function renderAnswerReview(score) {
+  answerReview.innerHTML = '';
+  score.review.forEach((item, index) => {
+    const card = document.createElement('article');
+    card.className = `rounded-xl border p-3 ${item.isCorrect ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'}`;
+    card.innerHTML = `
+      <p class="font-semibold">Q${index + 1}. ${item.question.question}</p>
+      <p class="text-sm">Your answer: ${formatUserAnswer(item)}</p>
+      <p class="text-sm">Correct answer: ${formatCorrectAnswer(item)}</p>
+      <p class="text-sm font-semibold">${item.isCorrect ? '✅ Correct' : '❌ Incorrect'} • +${item.earnedPoints}/${item.question.points} pts</p>
+    `;
+    answerReview.appendChild(card);
+  });
+}
+
 async function showResult() {
   clearTimer();
   quizSection.classList.add('hidden');
   resultSection.classList.remove('hidden');
 
   const score = calculateScore(state.quizQuestions, state.answers);
-  resultScore.textContent = `${score.correct}/${score.total} (${score.percent}%)`;
+  resultScore.textContent = `Score ${score.totalScore}/${score.maxScore} • ${score.percent}% • Correct ${score.correct}/${score.total}`;
   resultMessage.textContent = getResultMessage(score.percent);
+  renderAnswerReview(score);
 
   const durationSeconds = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
 
@@ -281,6 +323,8 @@ async function showResult() {
     scorePercent: score.percent,
     correct: score.correct,
     total: score.total,
+    totalScore: score.totalScore,
+    maxScore: score.maxScore,
     durationSeconds,
   });
 
@@ -299,12 +343,25 @@ function onNext() {
   renderQuestion();
 }
 
+entryForm.addEventListener('input', () => {
+  const value = document.getElementById('studentName').value.trim();
+  startBtn.disabled = value.length < 2;
+});
+
 entryForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  state.studentName = document.getElementById('studentName').value.trim();
+  const name = document.getElementById('studentName').value.trim();
+  if (name.length < 2) {
+    return;
+  }
+
+  state.studentName = name;
   startQuiz();
 });
 
 nextBtn.addEventListener('click', onNext);
 
-init();
+init().catch((error) => {
+  console.error(error);
+  courseInfo.textContent = 'Initialization failed.';
+});

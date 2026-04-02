@@ -39,8 +39,7 @@ export async function saveCourse(course) {
     status: course.status || 'open',
     quizLink: course.quizLink || `${window.location.origin}/quiz.html?id=${course.courseId}`,
     enrollmentUrl: course.enrollmentUrl || '',
-    questionCount: Number(course.questionCount) === 20 ? 20 : 10,
-    timedMode: Boolean(course.timedMode),
+    drawCount: Math.max(1, Number(course.drawCount) || 10),
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }
@@ -53,6 +52,9 @@ export async function addQuestion(courseId, question, order) {
     choices: question.choices || [],
     answerIndex: Number(question.answerIndex ?? 0),
     orderingItems: question.orderingItems || [],
+    timeLimitSeconds: Math.max(5, Number(question.timeLimitSeconds) || 30),
+    points: Math.max(1, Number(question.points) || 1000),
+    mediaUrl: question.mediaUrl || '',
     order,
     createdAt: serverTimestamp(),
   });
@@ -75,6 +77,9 @@ export async function updateQuestion(questionId, question) {
     choices: question.choices || [],
     answerIndex: Number(question.answerIndex ?? 0),
     orderingItems: question.orderingItems || [],
+    timeLimitSeconds: Math.max(5, Number(question.timeLimitSeconds) || 30),
+    points: Math.max(1, Number(question.points) || 1000),
+    mediaUrl: question.mediaUrl || '',
   });
 }
 

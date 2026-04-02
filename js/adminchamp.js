@@ -5,6 +5,7 @@ import {
   saveProfile,
   subscribeProfile,
 } from './db.js';
+import { DEFAULT_DRAW_COUNT, normalizeQuestion } from './quiz.js';
 
 const quizForm = document.getElementById('quizForm');
 const questionType = document.getElementById('questionType');
@@ -16,6 +17,7 @@ const quizLink = document.getElementById('quizLink');
 const qrImage = document.getElementById('qrImage');
 const profileForm = document.getElementById('profileForm');
 const quizLibrary = document.getElementById('quizLibrary');
+const drawCountInput = document.getElementById('drawCount');
 
 const typeBlocks = {
   true_false: document.getElementById('typeTrueFalse'),
@@ -67,29 +69,16 @@ async function refreshQuizLibrary() {
     sub.textContent = course.courseId;
 
     const controls = document.createElement('div');
-    controls.className = 'mt-3 grid gap-3 md:grid-cols-2';
+    controls.className = 'mt-3 rounded-xl bg-white p-3';
 
-    const amountWrap = document.createElement('div');
-    amountWrap.className = 'rounded-xl bg-white p-3';
-    amountWrap.innerHTML = `
-      <p class="text-sm font-semibold">จำนวนข้อ</p>
-      <label class="mt-2 flex items-center gap-2 text-sm"><input type="radio" name="count-${course.courseId}" value="10"> 10 ข้อ</label>
-      <label class="mt-1 flex items-center gap-2 text-sm"><input type="radio" name="count-${course.courseId}" value="20"> 20 ข้อ</label>
-    `;
-
-    const defaultCount = Number(course.questionCount) === 20 ? 20 : 10;
-    amountWrap.querySelector(`input[value="${defaultCount}"]`).checked = true;
-
-    const timedWrap = document.createElement('div');
-    timedWrap.className = 'rounded-xl bg-white p-3';
-    timedWrap.innerHTML = `
-      <p class="text-sm font-semibold">โหมดจับเวลา</p>
-      <label class="mt-2 flex items-center gap-2 text-sm">
-        <input type="checkbox" class="timed-toggle"> จำกัดเวลา 30 วินาที/ข้อ
+    const drawCount = Math.max(1, Number(course.drawCount || DEFAULT_DRAW_COUNT));
+    controls.innerHTML = `
+      <label class="text-sm font-semibold">Questions to draw per attempt
+        <input type="number" min="1" value="${drawCount}" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2 draw-count-input" />
       </label>
     `;
-    const timedToggle = timedWrap.querySelector('.timed-toggle');
-    timedToggle.checked = Boolean(course.timedMode);
+
+    const drawCountField = controls.querySelector('.draw-count-input');
 
     const btnRow = document.createElement('div');
     btnRow.className = 'mt-3 grid gap-2 md:grid-cols-3';
@@ -99,10 +88,6 @@ async function refreshQuizLibrary() {
     saveBtn.className = 'rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white';
     saveBtn.textContent = 'บันทึกการตั้งค่า';
     saveBtn.addEventListener('click', async () => {
-      const chosenCount = Number(
-        amountWrap.querySelector(`input[name="count-${course.courseId}"]:checked`)?.value || 10,
-      );
-
       await saveCourse({
         courseId: course.courseId,
         title: course.title,
@@ -110,10 +95,9 @@ async function refreshQuizLibrary() {
         status: course.status || 'open',
         enrollmentUrl: course.enrollmentUrl || '',
         quizLink: getQuizLink(course.courseId),
-        questionCount: chosenCount,
-        timedMode: timedToggle.checked,
+        drawCount: Math.max(1, Number(drawCountField.value) || DEFAULT_DRAW_COUNT),
       });
-      alert('บันทึกการตั้งค่าบททดสอบแล้ว');
+      alert('บันทึกการตั้งค่าเรียบร้อย');
     });
 
     const copyBtn = document.createElement('button');
@@ -135,8 +119,6 @@ async function refreshQuizLibrary() {
 
     card.appendChild(heading);
     card.appendChild(sub);
-    controls.appendChild(amountWrap);
-    controls.appendChild(timedWrap);
     card.appendChild(controls);
     card.appendChild(btnRow);
     quizLibrary.appendChild(card);
@@ -153,7 +135,7 @@ function renderQuestions() {
   draftQuestions.forEach((item, index) => {
     const li = document.createElement('li');
     li.className = 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-2';
-    li.textContent = `[${item.type}] ${item.question}`;
+    li.textContent = `[${item.type}] ${item.question} • ${item.timeLimitSeconds}s • ${item.points} pts`;
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -171,19 +153,24 @@ function renderQuestions() {
 
 function buildQuestionPayload() {
   const type = questionType.value;
-  const question = questionText.value.trim();
-  if (!question) {
+  const base = {
+    type,
+    question: questionText.value.trim(),
+    timeLimitSeconds: Number(document.getElementById('questionTimeLimit').value),
+    points: Number(document.getElementById('questionPoints').value),
+    mediaUrl: document.getElementById('questionMediaUrl').value.trim(),
+  };
+
+  if (!base.question) {
     alert('Please enter question text.');
     return null;
   }
 
   if (type === 'true_false') {
-    return {
-      type,
-      question,
-      choices: ['True', 'False'],
+    return normalizeQuestion({
+      ...base,
       answerIndex: Number(document.getElementById('tfAnswer').value),
-    };
+    });
   }
 
   if (type === 'multiple_choice') {
@@ -192,12 +179,12 @@ function buildQuestionPayload() {
       alert('Please fill all 4 choices.');
       return null;
     }
-    return {
-      type,
-      question,
+
+    return normalizeQuestion({
+      ...base,
       choices,
       answerIndex: Number(document.getElementById('mcAnswer').value),
-    };
+    });
   }
 
   const orderingItems = document
@@ -206,23 +193,24 @@ function buildQuestionPayload() {
     .map((item) => item.trim())
     .filter(Boolean);
 
-  if (orderingItems.length < 3) {
-    alert('Ordering question needs at least 3 lines.');
+  if (orderingItems.length < 2) {
+    alert('Ordering question needs at least 2 items.');
     return null;
   }
 
-  return {
-    type,
-    question,
+  return normalizeQuestion({
+    ...base,
     orderingItems,
-  };
+  });
 }
 
 function resetQuestionForm() {
   questionText.value = '';
-  ['mcA', 'mcB', 'mcC', 'mcD', 'orderingItems'].forEach((id) => {
+  ['mcA', 'mcB', 'mcC', 'mcD', 'orderingItems', 'questionMediaUrl'].forEach((id) => {
     document.getElementById(id).value = '';
   });
+  document.getElementById('questionTimeLimit').value = '30';
+  document.getElementById('questionPoints').value = '1000';
   document.getElementById('mcAnswer').value = '0';
   document.getElementById('tfAnswer').value = '0';
 }
@@ -266,8 +254,7 @@ quizForm.addEventListener('submit', async (event) => {
     status: 'open',
     enrollmentUrl,
     quizLink: link,
-    questionCount: 10,
-    timedMode: false,
+    drawCount: Math.max(1, Number(drawCountInput.value) || DEFAULT_DRAW_COUNT),
   });
 
   await replaceQuestionsForCourse(courseId, draftQuestions);
@@ -280,7 +267,8 @@ quizForm.addEventListener('submit', async (event) => {
   draftQuestions.splice(0, draftQuestions.length);
   renderQuestions();
   quizForm.reset();
-  switchQuestionTemplate('true_false');
+  drawCountInput.value = String(DEFAULT_DRAW_COUNT);
+  switchQuestionTemplate('multiple_choice');
   await refreshQuizLibrary();
 });
 
@@ -305,7 +293,7 @@ subscribeProfile((profile) => {
   document.getElementById('profileUrl').value = profile.profileUrl || '';
 });
 
-switchQuestionTemplate('true_false');
+switchQuestionTemplate('multiple_choice');
 renderQuestions();
 refreshQuizLibrary().catch((error) => {
   console.error(error);
