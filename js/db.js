@@ -709,6 +709,46 @@ function sanitizeDuelName(name, fallback = 'ผู้เล่น') {
   return cleaned || fallback;
 }
 
+function getLocalDuelUid() {
+  try {
+    const key = 'duel_local_uid';
+    const existing = window.localStorage.getItem(key);
+    if (existing) return existing;
+    const next = `guest_${Math.random().toString(36).slice(2, 10)}`;
+    window.localStorage.setItem(key, next);
+    return next;
+  } catch (_error) {
+    return `guest_${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+function getDuelActorUid() {
+  return auth.currentUser?.uid || getLocalDuelUid();
+}
+
+function normalizeDuelRoomId(value = '') {
+  const digits = String(value || '').replace(/\D+/g, '').slice(0, 4);
+  return digits;
+}
+
+async function ensureAvailableDuelRoomId(preferredRoomId = '') {
+  const preferred = normalizeDuelRoomId(preferredRoomId);
+  if (preferred.length === 4) {
+    const snap = await getDoc(doc(db, 'duel_rooms', preferred));
+    if (!snap.exists()) return preferred;
+    throw new Error('รหัสห้องนี้ถูกใช้งานแล้ว กรุณาลองใหม่');
+  }
+
+  for (let attempts = 0; attempts < 30; attempts += 1) {
+    const generated = String(Math.floor(1000 + Math.random() * 9000));
+    // eslint-disable-next-line no-await-in-loop
+    const snap = await getDoc(doc(db, 'duel_rooms', generated));
+    if (!snap.exists()) return generated;
+  }
+
+  throw new Error('สร้างรหัสห้องไม่สำเร็จ กรุณาลองอีกครั้ง');
+}
+
 function buildDuelPlayerPayload(name) {
   return {
     name: sanitizeDuelName(name),
@@ -749,11 +789,13 @@ function pickDuelWinner(playersByUid = {}) {
 }
 
 export async function createDuelRoom(payload) {
-  await ensureWriteAccess();
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('ไม่สามารถยืนยันตัวตนผู้เล่นได้');
-
-  const roomId = `duel_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await ensureAuthReady();
+  } catch (_error) {
+    // fallback: allow unauthenticated users when firestore rules permit
+  }
+  const uid = getDuelActorUid();
+  const roomId = await ensureAvailableDuelRoomId(payload?.roomId);
   const durationSeconds = Number(payload?.durationSeconds) === 180 ? 180 : 120;
 
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
@@ -782,11 +824,17 @@ export async function createDuelRoom(payload) {
 }
 
 export async function joinDuelRoom(roomId, playerName) {
-  await ensureWriteAccess();
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('ไม่สามารถยืนยันตัวตนผู้เล่นได้');
+  try {
+    await ensureAuthReady();
+  } catch (_error) {
+    // fallback: allow unauthenticated users when firestore rules permit
+  }
+  const uid = getDuelActorUid();
 
-  const ref = doc(db, 'duel_rooms', roomId);
+  const safeRoomId = normalizeDuelRoomId(roomId);
+  if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
+
+  const ref = doc(db, 'duel_rooms', safeRoomId);
 
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -811,19 +859,52 @@ export async function joinDuelRoom(roomId, playerName) {
       } : buildDuelPlayerPayload(playerName),
     };
 
-    const playerCount = Object.keys(nextPlayers).length;
-    const becomeActive = playerCount === 2 && data.status !== 'active';
-
     tx.update(ref, {
       players: nextPlayers,
-      status: becomeActive ? 'active' : data.status || 'waiting',
-      startedAtMs: becomeActive ? Date.now() : data.startedAtMs || null,
+      status: data.status || 'waiting',
+      startedAtMs: data.startedAtMs || null,
       updatedAtMs: Date.now(),
       updatedAt: serverTimestamp(),
     });
   });
 
-  return { roomId, uid };
+  return { roomId: safeRoomId, uid };
+}
+
+export async function startDuelRoom(roomId) {
+  try {
+    await ensureAuthReady();
+  } catch (_error) {
+    // fallback: allow unauthenticated users when firestore rules permit
+  }
+  const uid = getDuelActorUid();
+  const safeRoomId = normalizeDuelRoomId(roomId);
+  if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
+
+  const ref = doc(db, 'duel_rooms', safeRoomId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
+
+    const data = snap.data() || {};
+    if (String(data.hostUid || '') !== uid) throw new Error('เฉพาะ Host เท่านั้นที่เริ่มดวลได้');
+    if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
+    if (data.status === 'active') return;
+
+    const players = data.players || {};
+    if (Object.keys(players).length < 2) {
+      throw new Error('ต้องมีผู้เล่นครบ 2 คนก่อนเริ่มดวล');
+    }
+
+    tx.update(ref, {
+      status: 'active',
+      startedAtMs: Date.now(),
+      updatedAtMs: Date.now(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  return { roomId: safeRoomId, uid };
 }
 
 export function subscribeDuelRoom(roomId, callback, onError) {
@@ -842,11 +923,16 @@ export function subscribeDuelRoom(roomId, callback, onError) {
 }
 
 export async function submitDuelAnswer(roomId, payload) {
-  await ensureWriteAccess();
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('ไม่สามารถยืนยันตัวตนผู้เล่นได้');
+  try {
+    await ensureAuthReady();
+  } catch (_error) {
+    // fallback: allow unauthenticated users when firestore rules permit
+  }
+  const uid = getDuelActorUid();
+  const safeRoomId = normalizeDuelRoomId(roomId);
+  if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
 
-  const ref = doc(db, 'duel_rooms', roomId);
+  const ref = doc(db, 'duel_rooms', safeRoomId);
 
   return runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);

@@ -29,13 +29,14 @@
             </select>
           </label>
           <label>Room ID
-            <input id="duelRoomId" type="text" placeholder="กรอกรหัสห้องเพื่อ Join" />
+            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="4" placeholder="รหัสห้อง 4 หลัก" />
           </label>
         </div>
 
         <div class="quiz-actions">
           <button id="createRoomBtn" class="btn" type="button">สร้างห้องดวล</button>
           <button id="joinRoomBtn" class="btn btn-secondary" type="button">เข้าห้องดวล</button>
+          <button id="startDuelBtn" class="btn hidden" type="button">เริ่มดวล</button>
           <a class="btn" href="index.html">กลับหน้า Home</a>
         </div>
 
