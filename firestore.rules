@@ -1,38 +1,50 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // เช็กว่ามีการยืนยันตัวตนแล้ว
+    // รวมถึง Anonymous Auth ด้วย
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // สำหรับระบบนี้: อนุญาตอ่านคอร์ส/ข้อสอบแบบสาธารณะ
-    // และให้ผู้ใช้ที่ล็อกอินแล้ว (รวม anonymous) จัดการข้อมูลได้
+    // -----------------------------
+    // 1) คอร์ส / ข้อสอบ / ตั้งค่า / โปรไฟล์
+    // อ่านได้สาธารณะ
+    // เขียนได้เฉพาะคนที่ login แล้ว
+    // -----------------------------
     match /courses/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
     match /questions/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
     match /settings/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
     match /profile/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
-    // ผลสอบ/รายชื่อผู้เข้าสอบ: ต้อง login ก่อน
+    // -----------------------------
+    // 2) leads = รายชื่อผู้เข้าสอบ / คะแนน / leaderboard
+    // ตามโหมดง่าย: ต้อง login ก่อน ถึงจะอ่าน/เขียนได้
+    // -----------------------------
     match /leads/{document=**} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
-    // ปิดทุก collection อื่น
+    // -----------------------------
+    // 3) ปิดทุก collection อื่นที่ไม่ได้ระบุ
+    // -----------------------------
     match /{document=**} {
       allow read, write: if false;
     }

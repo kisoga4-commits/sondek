@@ -1,26 +1,33 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    // เช็กว่ามีการยืนยันตัวตนแล้ว
+    // รวมถึง Anonymous Auth ด้วย
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isImageUpload() {
+    // จำกัดให้อัปโหลดเฉพาะรูปภาพ และขนาดไม่เกิน 5 MB
+    function isValidImageUpload() {
       return request.resource != null
         && request.resource.contentType.matches('image/.*')
         && request.resource.size < 5 * 1024 * 1024;
     }
 
-    // รูปโปรไฟล์ที่อัปจากเครื่อง
+    // -----------------------------
+    // ระบบอัปโหลดรูปให้สอดคล้องกับ Firestore Rules
+    // อ่านรูปได้สาธารณะ, เขียนได้เฉพาะคนที่ login แล้ว
+    // และต้องอัปโหลดในโฟลเดอร์ UID ของตัวเอง
+    // -----------------------------
     match /profile-images/{uid}/{fileName} {
       allow read: if true;
-      allow write: if isAuthenticated() && request.auth.uid == uid && isImageUpload();
+      allow write: if isAuthenticated() && request.auth.uid == uid && isValidImageUpload();
     }
 
-    // รูปการสอนเพิ่มเติมที่อัปจากเครื่อง
     match /teaching-images/{uid}/{fileName} {
       allow read: if true;
-      allow write: if isAuthenticated() && request.auth.uid == uid && isImageUpload();
+      allow write: if isAuthenticated() && request.auth.uid == uid && isValidImageUpload();
     }
 
     // ปิด path อื่นทั้งหมด
