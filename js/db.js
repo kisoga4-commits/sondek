@@ -35,6 +35,7 @@ import {
   PROFILE_IMAGE_QUALITY,
   validateProfileImageConstraints,
 } from './profileImagePolicy.js';
+import { normalizePublicImageUrl } from './imageUrl.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -495,10 +496,10 @@ export async function saveProfile(profile) {
   await ensureWriteAccess();
   const normalizedName = String(profile?.name || '').trim();
   const normalizedBio = String(profile?.bio || '').trim();
-  const normalizedProfileImageUrl = String(profile?.profile_image_url || profile?.imageUrl || '').trim();
+  const normalizedProfileImageUrl = normalizePublicImageUrl(profile?.profile_image_url || profile?.imageUrl || '');
   const normalizedProfileUrl = String(profile?.profileUrl || '').trim();
   const normalizedTeachingImages = Array.isArray(profile?.teachingImages)
-    ? profile.teachingImages.map((url) => String(url || '').trim()).filter(Boolean)
+    ? profile.teachingImages.map((url) => normalizePublicImageUrl(url)).filter(Boolean)
     : [];
 
   await setDoc(doc(db, 'profile', 'tutor_profile'), {

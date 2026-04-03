@@ -1,4 +1,5 @@
 import { getCourse, getProfile } from './db.js';
+import { normalizePublicImageUrl, optimizePublicImageUrl } from './imageUrl.js';
 
 const params = new URLSearchParams(window.location.search);
 const courseId = params.get('id') || params.get('courseId') || params.get('course') || '';
@@ -21,15 +22,11 @@ function getBasePathUrl(pathname) {
 }
 
 function optimizeTeachingImageUrl(rawUrl) {
-  const url = String(rawUrl || '').trim();
-  if (!url) return '';
+  return optimizePublicImageUrl(rawUrl, { maxWidth: 960 });
+}
 
-  if (url.includes('images.unsplash.com')) {
-    const [base] = url.split('?');
-    return `${base}?auto=format&fit=crop&w=720&h=540&q=70`;
-  }
-
-  return url;
+function optimizeProfileImageUrl(rawUrl) {
+  return optimizePublicImageUrl(rawUrl, { maxWidth: 640 });
 }
 
 function renderTeachingGallery(images = []) {
@@ -63,7 +60,7 @@ function renderTeachingGallery(images = []) {
 }
 
 function resolveProfileImageUrl(profile) {
-  return String(profile?.profile_image_url || profile?.imageUrl || '').trim();
+  return normalizePublicImageUrl(profile?.profile_image_url || profile?.imageUrl || '');
 }
 
 async function init() {
@@ -74,7 +71,9 @@ async function init() {
     ]);
 
     const resolvedProfileImage = resolveProfileImageUrl(profile);
-    profileImage.src = resolvedProfileImage || DEFAULT_PROFILE_IMAGE;
+    profileImage.src = resolvedProfileImage
+      ? optimizeProfileImageUrl(resolvedProfileImage)
+      : DEFAULT_PROFILE_IMAGE;
     profileName.textContent = profile?.name || 'ครูผู้สอน';
     profileBio.textContent = profile?.bio || '';
     profileBio.style.display = profile?.bio ? 'block' : 'none';
