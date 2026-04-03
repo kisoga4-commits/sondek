@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // TODO: เปลี่ยนค่า UID ให้เป็นบัญชีแอดมินจริงของคุณ
+    function isAdmin() {
+      return signedIn()
+        && request.auth.uid in [
+          "REPLACE_WITH_ADMIN_UID_1",
+          "REPLACE_WITH_ADMIN_UID_2"
+        ];
+    }
+
+    // Public read data
+    match /courses/{courseId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || signedIn();
+    }
+
+    match /questions/{questionId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || signedIn();
+    }
+
+    match /profile/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || signedIn();
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || signedIn();
+    }
+
+    // Quiz submitter + admin
+    match /leads/{leadId} {
+      allow create: if signedIn();
+      allow read, update, delete: if isAdmin() || signedIn();
+    }
+  }
+}
