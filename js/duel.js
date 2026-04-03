@@ -315,6 +315,9 @@ function handleRoomUpdate(room) {
 
   state.room = room;
   state.questionSequence = Array.isArray(room.questionSequence) ? room.questionSequence : [];
+  if (!state.questionSequence.length || state.currentIndex >= state.questionSequence.length) {
+    state.currentIndex = 0;
+  }
 
   const roomCourseId = String(room.courseId || '').trim();
   if (roomCourseId && roomCourseId !== state.loadedCourseId) {
@@ -335,7 +338,12 @@ function handleRoomUpdate(room) {
   handleFinalResult(room);
 
   if (room.status === 'active') {
-    renderQuestion();
+    if (state.questionBank.length) {
+      renderQuestion();
+    } else {
+      questionTitle.textContent = 'กำลังโหลดคำถาม...';
+      choicesWrap.innerHTML = '';
+    }
   }
 
   const { me } = getPlayerEntries(room);
@@ -368,6 +376,10 @@ function buildQuestionLoop(questionBank) {
 async function startSubscribeRoom(roomId) {
   if (state.unsubRoom) state.unsubRoom();
   state.hasShownFinalResult = false;
+  state.currentIndex = 0;
+  state.selectedAnswer = null;
+  state.isSubmitting = false;
+  state.hasRequestedFinalize = false;
   if (state.finalResultTimerId) {
     window.clearTimeout(state.finalResultTimerId);
     state.finalResultTimerId = null;
@@ -530,7 +542,9 @@ function init() {
   });
 
   subscribeAuthStatus((authState) => {
-    state.uid = authState.uid || '';
+    if (authState.uid) {
+      state.uid = authState.uid;
+    }
   });
 
   subscribeCourses(renderCourseIdOptions, (error) => {
