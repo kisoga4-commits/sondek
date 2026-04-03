@@ -1010,8 +1010,17 @@ export async function submitDuelAnswer(roomId, payload) {
       me.correctCount = Number(me.correctCount || 0) + 1;
       me.correctStreak = Number(me.correctStreak || 0) + 1;
       me.wrongStreak = 0;
+      const totalPlayers = Object.keys(players).length;
+      const opponentRank = opponentUids
+        .map((opponentUid) => ({
+          uid: opponentUid,
+          hp: Number(players[opponentUid]?.hp || 0),
+        }))
+        .sort((a, b) => b.hp - a.hp);
+      const targetCount = totalPlayers <= 2 ? 1 : totalPlayers === 3 ? 1 : 2;
+      const targetUids = opponentRank.slice(0, targetCount).map((item) => item.uid);
       let damagedCount = 0;
-      opponentUids.forEach((opponentUid) => {
+      targetUids.forEach((opponentUid) => {
         const opponent = { ...(players[opponentUid] || {}) };
         const lastDamageAtMs = Number(opponent.lastDamageAtMs || 0);
         const canTakeDamage = (nowMs - lastDamageAtMs) >= DUEL_DAMAGE_COOLDOWN_MS;
