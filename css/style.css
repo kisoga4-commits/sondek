@@ -1322,6 +1322,61 @@ select:focus {
   gap: 0.6rem;
 }
 
+.day-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.day-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+
+.time-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.course-detail-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.enrollment-admin-box {
+  margin-top: 0.6rem;
+}
+
+.enrollment-item {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.65rem;
+  padding: 0.5rem 0.6rem;
+  background: #f8fafc;
+}
+
+.enrollment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.btn-danger-soft {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
 .form-split {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

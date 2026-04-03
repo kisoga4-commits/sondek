@@ -80,10 +80,25 @@
             </label>
             <div class="form-split">
               <label>วันเรียน
-                <input type="text" id="offerDayInput" placeholder="เช่น เสาร์-อาทิตย์" required />
+                <div class="day-picker" id="offerDaysPicker">
+                  <label><input type="checkbox" value="mon" /> จ</label>
+                  <label><input type="checkbox" value="tue" /> อ</label>
+                  <label><input type="checkbox" value="wed" /> พ</label>
+                  <label><input type="checkbox" value="thu" /> พฤ</label>
+                  <label><input type="checkbox" value="fri" /> ศ</label>
+                  <label><input type="checkbox" value="sat" /> ส</label>
+                  <label><input type="checkbox" value="sun" /> อา</label>
+                </div>
+                <input type="text" id="offerCustomDayInput" placeholder="หรือพิมพ์เพิ่ม เช่น เสาร์เว้นเสาร์" />
+                <input type="text" id="offerDayInput" placeholder="สรุปวันเรียนอัตโนมัติ" required readonly />
               </label>
               <label>เวลาเรียน
-                <input type="text" id="offerTimeInput" placeholder="เช่น 09:00 - 11:00" required />
+                <div class="time-picker-row">
+                  <input type="time" id="offerStartTimeInput" />
+                  <span>ถึง</span>
+                  <input type="time" id="offerEndTimeInput" />
+                </div>
+                <input type="text" id="offerTimeInput" placeholder="สรุปเวลาอัตโนมัติ" required readonly />
               </label>
             </div>
             <label>ราคา

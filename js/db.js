@@ -426,6 +426,18 @@ export async function saveCourseOffering(courseOffer) {
   });
 }
 
+export async function updateCourseOffering(courseId, payload) {
+  await ensureWriteAccess();
+  await updateDoc(doc(db, 'course_offerings', courseId), {
+    title: String(payload?.title || '').trim(),
+    day: String(payload?.day || '').trim(),
+    time: String(payload?.time || '').trim(),
+    price: String(payload?.price || '').trim(),
+    content: String(payload?.content || '').trim(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export function subscribeCourseOfferings(callback, onError) {
   const q = query(collection(db, 'course_offerings'), orderBy('createdAt', 'desc'));
   let unsubscribe = () => {};
@@ -464,8 +476,10 @@ export async function saveCourseEnrollment(courseId, payload) {
   const enrollments = Array.isArray(data.enrollments) ? data.enrollments : [];
   const nextEnrollments = [
     {
+      enrollmentId: `enroll_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       studentName: String(payload?.studentName || '').trim(),
       studentPhone: String(payload?.studentPhone || '').trim(),
+      status: 'pending',
       createdAt: new Date().toISOString(),
     },
     ...enrollments,
@@ -475,6 +489,60 @@ export async function saveCourseEnrollment(courseId, payload) {
     enrollments: nextEnrollments,
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function updateCourseEnrollment(courseId, enrollmentId, payload) {
+  await ensureWriteAccess();
+  const ref = doc(db, 'course_offerings', courseId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    throw new Error('ไม่พบคอร์สที่เลือก');
+  }
+
+  const data = snap.data() || {};
+  const enrollments = Array.isArray(data.enrollments) ? data.enrollments : [];
+  const nextEnrollments = enrollments.map((item) => {
+    const itemId = String(item?.enrollmentId || '');
+    if (itemId !== String(enrollmentId || '')) return item;
+
+    return {
+      ...item,
+      studentName: String(payload?.studentName ?? item.studentName ?? '').trim(),
+      studentPhone: String(payload?.studentPhone ?? item.studentPhone ?? '').trim(),
+      status: String(payload?.status ?? item.status ?? 'pending').trim() || 'pending',
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  await updateDoc(ref, {
+    enrollments: nextEnrollments,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteCourseEnrollment(courseId, enrollmentId) {
+  await ensureWriteAccess();
+  const ref = doc(db, 'course_offerings', courseId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    throw new Error('ไม่พบคอร์สที่เลือก');
+  }
+
+  const data = snap.data() || {};
+  const enrollments = Array.isArray(data.enrollments) ? data.enrollments : [];
+  const nextEnrollments = enrollments.filter(
+    (item) => String(item?.enrollmentId || '') !== String(enrollmentId || ''),
+  );
+
+  await updateDoc(ref, {
+    enrollments: nextEnrollments,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteCourseOffering(courseId) {
+  await ensureWriteAccess();
+  await deleteDoc(doc(db, 'course_offerings', courseId));
 }
 
 export async function getCourse(courseId) {
