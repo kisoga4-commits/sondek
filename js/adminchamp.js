@@ -7,8 +7,6 @@ import {
   saveProfile,
   subscribeAuthStatus,
   subscribeCourses,
-  uploadProfileImageAndSaveUrl,
-  uploadImageFile,
 } from './db.js';
 import { getDefaultFeedbackMap } from './quiz.js';
 
@@ -23,18 +21,13 @@ const profileForm = document.getElementById('profileForm');
 const profileNameInput = document.getElementById('profileNameInput');
 const profileImageInput = document.getElementById('profileImageInput');
 const profileImagePreviewStatus = document.getElementById('profileImagePreviewStatus');
-const profileImageFileInput = document.getElementById('profileImageFileInput');
-const uploadProfileImageBtn = document.getElementById('uploadProfileImageBtn');
 const profileBioInput = document.getElementById('profileBioInput');
-const teachingImagesEditor = document.getElementById('teachingImagesEditor');
-const profileTeachingImagesFileInput = document.getElementById('profileTeachingImagesFileInput');
-const uploadTeachingImagesBtn = document.getElementById('uploadTeachingImagesBtn');
+const profileTeachingImagesInput = document.getElementById('profileTeachingImagesInput');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const profileFormStatus = document.getElementById('profileFormStatus');
 const openProfilePageBtn = document.getElementById('openProfilePageBtn');
 const openMyProfileBtn = document.getElementById('openMyProfileBtn');
 const openCourseDestinationBtn = document.getElementById('openCourseDestinationBtn');
-let teachingImagesState = [];
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
@@ -103,177 +96,19 @@ function updateProfileImagePreviewStatus() {
   if (!profileImagePreviewStatus) return;
   const value = String(profileImageInput?.value || '').trim();
   profileImagePreviewStatus.textContent = value
-    ? 'อัปโหลดรูปโปรไฟล์แล้ว พร้อมบันทึก'
-    : 'ยังไม่มีรูปโปรไฟล์ที่อัปโหลด';
+    ? 'ตั้งค่าลิงก์รูปโปรไฟล์แล้ว พร้อมบันทึก'
+    : 'ยังไม่ได้ใส่ลิงก์รูปโปรไฟล์';
 }
 
 function resolveProfileImageUrl(profile) {
   return String(profile?.profile_image_url || profile?.imageUrl || '').trim();
 }
 
-function getFriendlyStorageUploadError(error) {
-  const errorCode = String(error?.code || '');
-  const errorMessage = String(error?.message || '');
-
-  if (errorCode.includes('auth/not-authenticated')) {
-    return 'อัปโหลดไม่สำเร็จ เพราะระบบยังล็อกอินไม่ได้\n\nกรุณาเปิด Firebase Authentication > Sign-in method > Anonymous แล้วลองใหม่';
-  }
-
-  if (errorCode.includes('storage/unauthorized') || errorCode.includes('permission-denied') || errorMessage.includes('permission')) {
-    return 'อัปโหลดไม่สำเร็จ เพราะยังไม่มีสิทธิ์เขียนไฟล์ใน Storage\n\nตรวจสอบ Storage Rules ให้อนุญาต write เมื่อ request.auth != null และ path ตรงกับ /profile-images/{uid}/{fileName} หรือ /teaching-images/{uid}/{fileName}';
-  }
-
-  if (errorCode.includes('timeout') || errorMessage.includes('timeout')) {
-    return 'อัปโหลดไม่สำเร็จ เพราะใช้เวลานานเกินกำหนด (45 วินาที) กรุณาลองใหม่อีกครั้ง';
-  }
-
-  return `อัปโหลดรูปไม่สำเร็จ${errorMessage ? `: ${errorMessage}` : ''}`;
-}
-
-function renderTeachingImagesEditor() {
-  if (!teachingImagesEditor) return;
-  teachingImagesEditor.innerHTML = '';
-
-  const images = Array.isArray(teachingImagesState)
-    ? teachingImagesState.map((url) => String(url || '').trim()).filter(Boolean)
-    : [];
-  if (!images.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'ยังไม่มีรูปรายการสอนเพิ่มเติม';
-    teachingImagesEditor.appendChild(empty);
-    return;
-  }
-
-  images.forEach((url, index) => {
-    const row = document.createElement('div');
-    row.className = 'admin-actions';
-
-    const text = document.createElement('span');
-    text.className = 'muted';
-    text.textContent = `${index + 1}. ${url}`;
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-secondary btn-compact';
-    removeBtn.textContent = 'ลบรูปนี้';
-    removeBtn.addEventListener('click', () => {
-      const current = Array.isArray(teachingImagesState)
-        ? [...teachingImagesState]
-        : [];
-      current.splice(index, 1);
-      teachingImagesState = current;
-      renderTeachingImagesEditor();
-    });
-
-    row.append(text, removeBtn);
-    teachingImagesEditor.appendChild(row);
-  });
-}
-
-async function compressImageFile(file, options = {}) {
-  const maxWidth = Math.max(480, Number(options.maxWidth) || 1280);
-  const quality = Math.min(0.92, Math.max(0.45, Number(options.quality) || 0.76));
-
-  if (!file?.type?.startsWith('image/')) {
-    throw new Error('ไฟล์ที่เลือกไม่ใช่รูปภาพ');
-  }
-
-  const imageBitmap = await createImageBitmap(file);
-  const ratio = imageBitmap.width > maxWidth ? maxWidth / imageBitmap.width : 1;
-  const width = Math.max(1, Math.round(imageBitmap.width * ratio));
-  const height = Math.max(1, Math.round(imageBitmap.height * ratio));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('ไม่สามารถเตรียมตัวบีบรูปได้');
-  }
-
-  ctx.drawImage(imageBitmap, 0, 0, width, height);
-
-  const outputType = 'image/webp';
-  const compressedBlob = await new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('บีบรูปไม่สำเร็จ'));
-        return;
-      }
-      resolve(blob);
-    }, outputType, quality);
-  });
-
-  const baseName = String(file.name || 'upload').replace(/\.[^.]+$/, '');
-  return new File([compressedBlob], `${baseName}.webp`, { type: outputType });
-}
-
-async function onUploadProfileImage() {
-  const file = profileImageFileInput?.files?.[0];
-  if (!file) {
-    alert('กรุณาเลือกไฟล์รูปโปรไฟล์ก่อน');
-    return;
-  }
-
-  try {
-    if (uploadProfileImageBtn) uploadProfileImageBtn.disabled = true;
-    if (profileFormStatus) profileFormStatus.textContent = 'กำลังอัปโหลดรูปโปรไฟล์ (หมดเวลาใน 45 วินาที)...';
-
-    const uploadResult = await uploadProfileImageAndSaveUrl(file, { timeoutMs: 45000 });
-    if (profileImageInput) profileImageInput.value = uploadResult.profileImageUrl;
-    updateProfileImagePreviewStatus();
-
-    if (profileFormStatus) profileFormStatus.textContent = `อัปโหลดรูปโปรไฟล์สำเร็จแล้ว (request id: ${uploadResult.requestId})`;
-  } catch (error) {
-    console.error(error);
-    const isTimeout = String(error?.code || '').includes('timeout') || String(error?.message || '').includes('timeout');
-    if (isTimeout && profileFormStatus) {
-      profileFormStatus.textContent = 'อัปโหลดใช้เวลานานเกินกำหนด (45 วินาที) กรุณาลองใหม่';
-    } else if (profileFormStatus) {
-      profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์ไม่สำเร็จ';
-    }
-    alert(getFriendlyStorageUploadError(error));
-  } finally {
-    if (uploadProfileImageBtn) uploadProfileImageBtn.disabled = false;
-    if (profileImageFileInput) profileImageFileInput.value = '';
-  }
-}
-
-async function onUploadTeachingImages() {
-  const files = Array.from(profileTeachingImagesFileInput?.files || []);
-  if (!files.length) {
-    alert('กรุณาเลือกรูปการสอนก่อน');
-    return;
-  }
-
-  try {
-    if (uploadTeachingImagesBtn) uploadTeachingImagesBtn.disabled = true;
-    if (profileFormStatus) profileFormStatus.textContent = `กำลังบีบและอัปโหลดรูปการสอน ${files.length} รูป...`;
-
-    const uploadedUrls = [];
-    for (const [index, file] of files.entries()) {
-      if (profileFormStatus) profileFormStatus.textContent = `กำลังอัปโหลดรูปการสอน ${index + 1}/${files.length}...`;
-      const compressedFile = await compressImageFile(file, { maxWidth: 1280, quality: 0.76 });
-      const uploadResult = await uploadImageFile(compressedFile, { folder: 'teaching-images' });
-      uploadedUrls.push(uploadResult.downloadUrl);
-    }
-
-    const existing = Array.isArray(teachingImagesState) ? teachingImagesState : [];
-    const merged = [...existing, ...uploadedUrls];
-    teachingImagesState = merged;
-    renderTeachingImagesEditor();
-
-    if (profileFormStatus) profileFormStatus.textContent = `อัปโหลดรูปการสอนสำเร็จ ${uploadedUrls.length} รูป`;
-  } catch (error) {
-    console.error(error);
-    if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปการสอนไม่สำเร็จ';
-    alert(getFriendlyStorageUploadError(error));
-  } finally {
-    if (uploadTeachingImagesBtn) uploadTeachingImagesBtn.disabled = false;
-    if (profileTeachingImagesFileInput) profileTeachingImagesFileInput.value = '';
-  }
+function parseMultilineUrls(value) {
+  return String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 async function loadProfileForm() {
@@ -285,8 +120,11 @@ async function loadProfileForm() {
     if (profileImageInput) profileImageInput.value = resolveProfileImageUrl(profile);
     updateProfileImagePreviewStatus();
     if (profileBioInput) profileBioInput.value = profile?.bio || '';
-    teachingImagesState = Array.isArray(profile?.teachingImages) ? profile.teachingImages : [];
-    renderTeachingImagesEditor();
+    if (profileTeachingImagesInput) {
+      profileTeachingImagesInput.value = Array.isArray(profile?.teachingImages)
+        ? profile.teachingImages.map((url) => String(url || '').trim()).filter(Boolean).join('\n')
+        : '';
+    }
     if (profileFormStatus) {
       profileFormStatus.textContent = 'โหลดข้อมูลโปรไฟล์แล้ว พร้อมแก้ไข';
     }
@@ -306,13 +144,11 @@ async function onSaveProfile(event) {
     name: String(profileNameInput?.value || '').trim(),
     profile_image_url: String(profileImageInput?.value || '').trim(),
     bio: String(profileBioInput?.value || '').trim(),
-    teachingImages: Array.isArray(teachingImagesState)
-      ? teachingImagesState.map((url) => String(url || '').trim()).filter(Boolean)
-      : [],
+    teachingImages: parseMultilineUrls(profileTeachingImagesInput?.value || ''),
   };
 
   if (!payload.name || !payload.profile_image_url) {
-    alert('กรุณากรอกชื่อครู และอัปโหลดรูปโปรไฟล์');
+    alert('กรุณากรอกชื่อครู และลิงก์รูปโปรไฟล์');
     return;
   }
 
@@ -637,24 +473,17 @@ if (profileForm) {
   });
 }
 
-if (uploadProfileImageBtn) {
-  uploadProfileImageBtn.addEventListener('click', () => {
-    void onUploadProfileImage();
-  });
-}
-
-if (uploadTeachingImagesBtn) {
-  uploadTeachingImagesBtn.addEventListener('click', () => {
-    void onUploadTeachingImages();
-  });
-}
-
 initQuizLibrary();
 void loadFeedbackConfig();
 void loadProfileForm();
 subscribeAuthStatus(renderAuthStatus);
 updateProfileImagePreviewStatus();
-renderTeachingImagesEditor();
+
+if (profileImageInput) {
+  profileImageInput.addEventListener('input', () => {
+    updateProfileImagePreviewStatus();
+  });
+}
 
 if (openProfilePageBtn) {
   openProfilePageBtn.href = buildProfileLink();

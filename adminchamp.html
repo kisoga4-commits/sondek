@@ -47,20 +47,16 @@
             <label>ชื่อครู
               <input type="text" id="profileNameInput" placeholder="เช่น ครูออย" required />
             </label>
-            <input type="hidden" id="profileImageInput" />
-            <div class="muted" id="profileImagePreviewStatus">ยังไม่มีรูปโปรไฟล์ที่อัปโหลด</div>
-            <label>อัปโหลดรูปโปรไฟล์จากเครื่อง
-              <input type="file" id="profileImageFileInput" accept="image/*" />
+            <label>ลิงก์รูปโปรไฟล์
+              <input type="url" id="profileImageInput" placeholder="https://..." required />
             </label>
-            <button class="btn btn-secondary" id="uploadProfileImageBtn" type="button">อัปโหลดรูปโปรไฟล์</button>
+            <div class="muted" id="profileImagePreviewStatus">ยังไม่ได้ใส่ลิงก์รูปโปรไฟล์</div>
             <label>ข้อความแนะนำครู (ถ้ามี)
               <textarea id="profileBioInput" rows="3" placeholder="ข้อความแนะนำที่ต้องการให้แสดงบนหน้าโปรไฟล์"></textarea>
             </label>
-            <div id="teachingImagesEditor" class="stack-form"></div>
-            <label>อัปโหลดรูปการสอนจากเครื่อง (เลือกได้หลายรูป)
-              <input type="file" id="profileTeachingImagesFileInput" accept="image/*" multiple />
+            <label>ลิงก์รูปการสอน (ถ้ามี, 1 บรรทัดต่อ 1 ลิงก์)
+              <textarea id="profileTeachingImagesInput" rows="4" placeholder="https://...\nhttps://..."></textarea>
             </label>
-            <button class="btn btn-secondary" id="uploadTeachingImagesBtn" type="button">อัปโหลดรูปการสอน</button>
             <div class="admin-actions">
               <button class="btn" id="saveProfileBtn" type="submit">บันทึกโปรไฟล์</button>
               <a class="btn btn-secondary" id="openProfilePageBtn" href="profile.html" target="_blank" rel="noopener noreferrer">เปิดหน้าโปรไฟล์</a>
