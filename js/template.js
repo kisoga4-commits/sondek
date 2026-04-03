@@ -1,4 +1,5 @@
 import {
+  deleteCourseWithQuestions,
   getCourse,
   getQuestionsByCourse,
   replaceQuestionsForCourse,
@@ -21,6 +22,7 @@ const qrOutput = document.getElementById('qrOutput');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 const downloadQrBtn = document.getElementById('downloadQrBtn');
 const completeQuizBtn = document.getElementById('completeQuizBtn');
+const deleteQuizBtn = document.getElementById('deleteQuizBtn');
 const completionNotice = document.getElementById('completionNotice');
 const quizMetaForm = document.getElementById('quizMetaForm');
 const drawCountPresetEls = Array.from(document.querySelectorAll('input[name="drawCountPreset"]'));
@@ -332,6 +334,32 @@ function getMetaPayload() {
   };
 }
 
+
+async function deleteCurrentQuiz() {
+  const courseId = document.getElementById('quizCourseId').value.trim();
+  if (!courseId) {
+    alert('ไม่พบรหัสบททดสอบที่จะลบ');
+    return;
+  }
+
+  if (!window.confirm(`ยืนยันลบบททดสอบ ${courseId} และคำถามทั้งหมด?`)) {
+    return;
+  }
+
+  try {
+    deleteQuizBtn.disabled = true;
+    await deleteCourseWithQuestions(courseId);
+    localStorage.removeItem(LOCAL_SNAPSHOT_KEY);
+    alert('ลบบททดสอบเรียบร้อยแล้ว');
+    window.location.href = 'adminchamp.html';
+  } catch (error) {
+    console.error(error);
+    alert(`ลบบททดสอบไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+  } finally {
+    deleteQuizBtn.disabled = false;
+  }
+}
+
 function buildNormalizedQuestions() {
   return bankQuestions.map((question) => ({
     question: question.questionText,
@@ -425,6 +453,7 @@ async function loadCourseForEditing() {
 
   document.getElementById('quizCourseId').value = editingCourseId;
   document.getElementById('quizCourseId').readOnly = true;
+  deleteQuizBtn?.classList.remove('hidden');
 
   try {
     const [course, questions] = await Promise.all([
@@ -496,6 +525,10 @@ questionEditor.addEventListener('submit', (event) => {
 cancelEditBtn.addEventListener('click', () => resetEditor());
 completeQuizBtn.addEventListener('click', () => {
   void saveToFirebase();
+});
+
+deleteQuizBtn?.addEventListener('click', () => {
+  void deleteCurrentQuiz();
 });
 copyLinkBtn.addEventListener('click', async () => {
   if (!quizLinkOutput.value) return;
