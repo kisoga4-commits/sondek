@@ -67,6 +67,45 @@
       </section>
 
       <section class="adminchamp-col adminchamp-col-right">
+        <section class="card adminchamp-section" id="duel-admin-section">
+          <div class="section-head">
+            <h2>ควบคุมระบบดวล</h2>
+            <span class="section-note">Duel Admin</span>
+          </div>
+          <p class="muted">สร้างห้องดวลจากหน้าแอดมิน, เปิดลิงก์ให้ผู้เล่นเข้าห้อง, และสั่งจบเกมได้ทันที</p>
+
+          <form id="duelAdminForm" class="stack-form course-offer-form">
+            <label>ชื่อ Host
+              <input type="text" id="duelAdminHostNameInput" placeholder="เช่น Admin Champ" required />
+            </label>
+            <label>Course ID
+              <input type="text" id="duelAdminCourseIdInput" placeholder="เช่น math01" required />
+            </label>
+            <label>เวลาแข่ง
+              <select id="duelAdminDurationInput">
+                <option value="120">2 นาที</option>
+                <option value="180">3 นาที</option>
+              </select>
+            </label>
+            <div class="admin-actions">
+              <button class="btn" id="duelAdminCreateRoomBtn" type="submit">สร้างห้องดวลจากแอดมิน</button>
+              <button class="btn btn-secondary" id="duelAdminOpenPageBtn" type="button">เปิดหน้า Duel</button>
+            </div>
+            <p class="muted" id="duelAdminStatus">ยังไม่ได้สร้างห้องดวล</p>
+          </form>
+
+          <label>ลิงก์ห้องล่าสุด
+            <input type="text" id="duelAdminRoomLinkInput" readonly />
+          </label>
+          <div class="admin-actions">
+            <button class="btn btn-secondary btn-compact" id="duelAdminCopyRoomLinkBtn" type="button">คัดลอกลิงก์</button>
+          </div>
+
+          <div class="course-list scroll-list" id="duelAdminRoomList" aria-label="รายการห้องดวลล่าสุด">
+            <p class="muted">กำลังโหลดห้องดวล...</p>
+          </div>
+        </section>
+
         <section class="card adminchamp-section" id="course-destination">
           <div class="section-head">
             <h2>คอร์สที่เปิดสอน</h2>

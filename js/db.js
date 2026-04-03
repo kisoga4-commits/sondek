@@ -837,6 +837,23 @@ export function subscribeDuelRoom(roomId, callback, onError) {
   return () => unsubscribe();
 }
 
+export function subscribeRecentDuelRooms(callback, onError) {
+  let unsubscribe = () => {};
+  ensureAuthReady()
+    .then(() => {
+      const roomQuery = query(collection(db, 'duel_rooms'), orderBy('updatedAtMs', 'desc'), limit(20));
+      unsubscribe = onSnapshot(roomQuery, (snap) => {
+        const rooms = snap.docs.map((item) => ({ id: item.id, ...item.data() }));
+        callback(rooms);
+      }, onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+
+  return () => unsubscribe();
+}
+
 export async function submitDuelAnswer(roomId, payload) {
   await ensureWriteAccess();
   const uid = auth.currentUser?.uid;
@@ -968,6 +985,44 @@ export async function finalizeDuelByTimeout(roomId) {
         id: `${eventCounter}_${nowMs}`,
         type: 'timeout',
         message: 'หมดเวลาแล้ว! ระบบกำลังตัดสินผล',
+        actorUid: '',
+        targetUid: '',
+        atMs: nowMs,
+      },
+      endedAtMs: nowMs,
+      updatedAtMs: nowMs,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { accepted: true, ...result };
+  });
+}
+
+export async function forceFinishDuelRoom(roomId) {
+  await ensureWriteAccess();
+  const ref = doc(db, 'duel_rooms', roomId);
+
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
+    const data = snap.data() || {};
+    if (data.status === 'finished') {
+      return { accepted: false, reason: 'already_finished' };
+    }
+
+    const nowMs = Date.now();
+    const result = pickDuelWinner(data.players || {});
+    const eventCounter = Number(data.eventCounter || 0) + 1;
+
+    tx.update(ref, {
+      status: 'finished',
+      winnerUid: result.winnerUid,
+      winReason: `admin_force_${result.reason}`,
+      eventCounter,
+      lastEvent: {
+        id: `${eventCounter}_${nowMs}`,
+        type: 'admin_force_finish',
+        message: 'ผู้ดูแลสั่งจบดวล',
         actorUid: '',
         targetUid: '',
         atMs: nowMs,
