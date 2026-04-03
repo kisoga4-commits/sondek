@@ -57,6 +57,15 @@ function setStatus(text) {
   statusText.textContent = text;
 }
 
+function toDuelErrorMessage(error, fallbackText) {
+  const message = String(error?.message || '');
+  const code = String(error?.code || '');
+  const isPermissionDenied = code.includes('permission-denied')
+    || message.includes('Missing or insufficient permissions');
+  if (!isPermissionDenied) return message || fallbackText;
+  return 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode (Missing or insufficient permissions) — ให้เปิด Anonymous Auth และปรับ Firestore Rules ให้อนุญาต create/join ห้อง';
+}
+
 function normalizeRoomIdInput(value = '') {
   return String(value || '').replace(/\D+/g, '').slice(0, 4);
 }
@@ -322,7 +331,6 @@ async function handleCreateRoom() {
       courseId,
       durationSeconds,
       questionSequence,
-      roomId: normalizeRoomIdInput(roomIdInput.value),
     });
 
     state.roomId = created.roomId;
@@ -331,7 +339,7 @@ async function handleCreateRoom() {
     setStatus(`สร้างห้องสำเร็จ: ${created.roomId} (ส่งรหัสนี้ให้เพื่อน)`);
     await startSubscribeRoom(created.roomId);
   } catch (error) {
-    setStatus(error.message || 'สร้างห้องไม่สำเร็จ');
+    setStatus(toDuelErrorMessage(error, 'สร้างห้องไม่สำเร็จ'));
   }
 }
 
@@ -350,7 +358,7 @@ async function handleJoinRoom() {
     setStatus(`เข้าห้อง ${roomId} สำเร็จ (รอ Host กดเริ่มดวล)`);
     await startSubscribeRoom(roomId);
   } catch (error) {
-    setStatus(error.message || 'เข้าห้องไม่สำเร็จ');
+    setStatus(toDuelErrorMessage(error, 'เข้าห้องไม่สำเร็จ'));
   }
 }
 
@@ -361,7 +369,7 @@ async function handleStartDuel() {
     await startDuelRoom(roomId);
     setStatus(`เริ่มดวลห้อง ${roomId} แล้ว`);
   } catch (error) {
-    setStatus(error.message || 'เริ่มดวลไม่สำเร็จ');
+    setStatus(toDuelErrorMessage(error, 'เริ่มดวลไม่สำเร็จ'));
   }
 }
 

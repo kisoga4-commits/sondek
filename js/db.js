@@ -731,22 +731,10 @@ function normalizeDuelRoomId(value = '') {
   return digits;
 }
 
-async function ensureAvailableDuelRoomId(preferredRoomId = '') {
+function ensureAvailableDuelRoomId(preferredRoomId = '') {
   const preferred = normalizeDuelRoomId(preferredRoomId);
-  if (preferred.length === 4) {
-    const snap = await getDoc(doc(db, 'duel_rooms', preferred));
-    if (!snap.exists()) return preferred;
-    throw new Error('รหัสห้องนี้ถูกใช้งานแล้ว กรุณาลองใหม่');
-  }
-
-  for (let attempts = 0; attempts < 30; attempts += 1) {
-    const generated = String(Math.floor(1000 + Math.random() * 9000));
-    // eslint-disable-next-line no-await-in-loop
-    const snap = await getDoc(doc(db, 'duel_rooms', generated));
-    if (!snap.exists()) return generated;
-  }
-
-  throw new Error('สร้างรหัสห้องไม่สำเร็จ กรุณาลองอีกครั้ง');
+  if (preferred.length === 4) return preferred;
+  return String(Math.floor(1000 + Math.random() * 9000));
 }
 
 function buildDuelPlayerPayload(name) {
@@ -795,32 +783,57 @@ export async function createDuelRoom(payload) {
     // fallback: allow unauthenticated users when firestore rules permit
   }
   const uid = getDuelActorUid();
-  const roomId = await ensureAvailableDuelRoomId(payload?.roomId);
+  const preferredRoomId = normalizeDuelRoomId(payload?.roomId);
+  const maxAttempts = preferredRoomId ? 1 : 8;
   const durationSeconds = Number(payload?.durationSeconds) === 180 ? 180 : 120;
 
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
 
-  await setDoc(doc(db, 'duel_rooms', roomId), {
-    roomId,
-    courseId: String(payload?.courseId || '').trim(),
-    status: 'waiting',
-    hostUid: uid,
-    hostName: hostPlayer.name,
-    durationSeconds,
-    maxPlayers: 2,
-    questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
-    players: {
-      [uid]: hostPlayer,
-    },
-    winnerUid: '',
-    winReason: '',
-    eventCounter: 0,
-    updatedAtMs: Date.now(),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  let lastError = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const roomId = preferredRoomId || ensureAvailableDuelRoomId();
+    try {
+      // Intentionally skip client-side read before create.
+      // This avoids failing on projects that allow create but deny read.
+      // Expected Firestore rules should allow "create" only when room does not yet exist.
+      // If rules reject create/update, caller receives a clear error below.
+      // eslint-disable-next-line no-await-in-loop
+      await setDoc(doc(db, 'duel_rooms', roomId), {
+        roomId,
+        courseId: String(payload?.courseId || '').trim(),
+        status: 'waiting',
+        hostUid: uid,
+        hostName: hostPlayer.name,
+        durationSeconds,
+        maxPlayers: 2,
+        questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
+        players: {
+          [uid]: hostPlayer,
+        },
+        winnerUid: '',
+        winReason: '',
+        eventCounter: 0,
+        updatedAtMs: Date.now(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return { roomId, uid };
+    } catch (error) {
+      lastError = error;
+      const code = String(error?.code || '');
+      const message = String(error?.message || '');
+      const isLikelyCollision = code.includes('already-exists')
+        || message.includes('already exists')
+        || message.includes('ALREADY_EXISTS');
+      if (!isLikelyCollision || preferredRoomId) break;
+    }
+  }
 
-  return { roomId, uid };
+  if (isPermissionDeniedError(lastError)) {
+    throw new Error('ยังไม่มีสิทธิ์สร้างห้องดวลใน Firestore (Missing or insufficient permissions)');
+  }
+
+  throw lastError || new Error('สร้างห้องไม่สำเร็จ กรุณาลองอีกครั้ง');
 }
 
 export async function joinDuelRoom(roomId, playerName) {
