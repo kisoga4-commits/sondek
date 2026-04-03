@@ -979,16 +979,11 @@ export async function submitDuelAnswer(roomId, payload) {
       eventTargetUid = opponentUid;
     } else {
       me.wrongCount = Number(me.wrongCount || 0) + 1;
-      const nextStreak = Number(me.wrongStreak || 0) + 1;
-      if (nextStreak >= 3) {
-        me.wrongStreak = 0;
-        me.hp = Math.max(0, Number(me.hp || 0) - 1);
-        eventType = 'penalty';
-        eventMessage = 'โง่ซ้ำซ้อน! โดนหักคะแนนตัวเองเลยเห็นไหม?';
-        eventTargetUid = uid;
-      } else {
-        me.wrongStreak = nextStreak;
-      }
+      me.wrongStreak = 0;
+      me.hp = Math.max(0, Number(me.hp || 0) - 1);
+      eventType = 'penalty';
+      eventMessage = 'ตอบผิด! HP ลดลง 1';
+      eventTargetUid = uid;
     }
 
     me.updatedAt = nowMs;
