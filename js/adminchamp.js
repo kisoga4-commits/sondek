@@ -25,6 +25,7 @@ const profileTeachingImagesInput = document.getElementById('profileTeachingImage
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const profileFormStatus = document.getElementById('profileFormStatus');
 const openProfilePageBtn = document.getElementById('openProfilePageBtn');
+const openMyProfileBtn = document.getElementById('openMyProfileBtn');
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
@@ -441,4 +442,10 @@ subscribeAuthStatus(renderAuthStatus);
 
 if (openProfilePageBtn) {
   openProfilePageBtn.href = buildProfileLink();
+}
+
+if (openMyProfileBtn) {
+  openMyProfileBtn.addEventListener('click', () => {
+    window.open(buildProfileLink(), '_blank', 'noopener,noreferrer');
+  });
 }
