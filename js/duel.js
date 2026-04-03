@@ -16,7 +16,6 @@ const LOOP_QUESTION_COUNT = 50;
 const playerNameInput = document.getElementById('duelPlayerName');
 const courseIdInput = document.getElementById('duelCourseId');
 const durationInput = document.getElementById('duelDuration');
-const courseIdOptions = document.getElementById('duelCourseIdOptions');
 const roomIdInput = document.getElementById('duelRoomId');
 const createRoomBtn = document.getElementById('createRoomBtn');
 const joinRoomBtn = document.getElementById('joinRoomBtn');
@@ -349,20 +348,31 @@ function initFromQuery() {
 }
 
 function renderCourseIdOptions(courses) {
-  if (!courseIdOptions) return;
+  if (!courseIdInput) return;
 
-  const ids = Array.from(new Set(
+  const options = Array.from(new Map(
     (Array.isArray(courses) ? courses : [])
-      .map((course) => String(course?.courseId || '').trim())
-      .filter(Boolean),
-  )).sort((a, b) => a.localeCompare(b));
+      .map((course) => {
+        const courseId = String(course?.courseId || '').trim();
+        const title = String(course?.title || '').trim();
+        return [courseId, { courseId, title }];
+      })
+      .filter(([courseId]) => Boolean(courseId)),
+  ).values()).sort((a, b) => a.courseId.localeCompare(b.courseId));
 
-  courseIdOptions.innerHTML = '';
-  ids.forEach((courseId) => {
+  const currentValue = String(courseIdInput.value || '').trim();
+  courseIdInput.innerHTML = '<option value="">-- เลือกบททดสอบ --</option>';
+
+  options.forEach(({ courseId, title }) => {
     const option = document.createElement('option');
     option.value = courseId;
-    courseIdOptions.appendChild(option);
+    option.textContent = title ? `${title} (${courseId})` : courseId;
+    courseIdInput.appendChild(option);
   });
+
+  if (currentValue) {
+    courseIdInput.value = currentValue;
+  }
 }
 
 function init() {
