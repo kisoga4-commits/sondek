@@ -47,19 +47,19 @@
             <label>ชื่อครู
               <input type="text" id="profileNameInput" placeholder="เช่น ครูออย" required />
             </label>
-            <label>รูปโปรไฟล์ (URL)
-              <input type="url" id="profileImageInput" placeholder="https://..." required />
-            </label>
+            <input type="hidden" id="profileImageInput" />
+            <div class="muted" id="profileImagePreviewStatus">ยังไม่มีรูปโปรไฟล์ที่อัปโหลด</div>
             <label>อัปโหลดรูปโปรไฟล์จากเครื่อง
               <input type="file" id="profileImageFileInput" accept="image/*" />
             </label>
             <button class="btn btn-secondary" id="uploadProfileImageBtn" type="button">อัปโหลดรูปโปรไฟล์</button>
-            <label>ประวัติครู
-              <textarea id="profileBioInput" rows="3" placeholder="บอกประสบการณ์สอน / จุดเด่น" required></textarea>
+            <label>ข้อความแนะนำครู (ถ้ามี)
+              <textarea id="profileBioInput" rows="3" placeholder="ข้อความแนะนำที่ต้องการให้แสดงบนหน้าโปรไฟล์"></textarea>
             </label>
             <label>รูปการสอนเพิ่มเติม (URL ต่อบรรทัด)
               <textarea id="profileTeachingImagesInput" rows="3" placeholder="https://...\nhttps://..."></textarea>
             </label>
+            <div id="teachingImagesEditor" class="stack-form"></div>
             <label>อัปโหลดรูปการสอนจากเครื่อง (เลือกได้หลายรูป)
               <input type="file" id="profileTeachingImagesFileInput" accept="image/*" multiple />
             </label>
