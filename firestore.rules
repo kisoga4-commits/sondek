@@ -1,44 +1,52 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
+
+    // เช็กว่ามีการยืนยันตัวตนแล้ว
+    // รวมถึง Anonymous Auth ด้วย
+    function isAuthenticated() {
       return request.auth != null;
     }
 
-    // TODO: เปลี่ยนค่า UID ให้เป็นบัญชีแอดมินจริงของคุณ
-    function isAdmin() {
-      return signedIn()
-        && request.auth.uid in [
-          "REPLACE_WITH_ADMIN_UID_1",
-          "REPLACE_WITH_ADMIN_UID_2"
-        ];
-    }
-
-    // Public read data
-    match /courses/{courseId} {
+    // -----------------------------
+    // 1) คอร์ส / ข้อสอบ / ตั้งค่า / โปรไฟล์
+    // อ่านได้สาธารณะ
+    // เขียนได้เฉพาะคนที่ login แล้ว
+    // -----------------------------
+    match /courses/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || signedIn();
+      allow write: if isAuthenticated();
     }
 
-    match /questions/{questionId} {
+    match /questions/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || signedIn();
+      allow write: if isAuthenticated();
     }
 
-    match /profile/{docId} {
+    match /settings/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || signedIn();
+      allow write: if isAuthenticated();
     }
 
-    match /settings/{docId} {
+    match /profile/{document=**} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || signedIn();
+      allow write: if isAuthenticated();
     }
 
-    // Quiz submitter + admin
-    match /leads/{leadId} {
-      allow create: if signedIn();
-      allow read, update, delete: if isAdmin() || signedIn();
+    // -----------------------------
+    // 2) leads = รายชื่อผู้เข้าสอบ / คะแนน / leaderboard
+    // ตามโหมดง่าย: ต้อง login ก่อน ถึงจะอ่าน/เขียนได้
+    // -----------------------------
+    match /leads/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // -----------------------------
+    // 3) ปิดทุก collection อื่นที่ไม่ได้ระบุ
+    // -----------------------------
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
