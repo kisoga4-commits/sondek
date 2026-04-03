@@ -451,18 +451,36 @@ async function showResult() {
 
   const durationSeconds = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
 
-  await saveLead({
-    courseId,
-    name: state.studentName,
-    scorePercent: score.percent,
-    correct: score.correct,
-    total: score.total,
-    totalScore: score.totalScore,
-    maxScore: score.maxScore,
-    durationSeconds,
-  });
+  try {
+    await saveLead({
+      courseId,
+      name: state.studentName,
+      scorePercent: score.percent,
+      correct: score.correct,
+      total: score.total,
+      totalScore: score.totalScore,
+      maxScore: score.maxScore,
+      durationSeconds,
+    });
+  } catch (error) {
+    console.error('saveLead failed', error);
+    const errorCode = String(error?.code || '');
+    const errorMessage = String(error?.message || '');
+    const isPermissionIssue = errorCode.includes('permission-denied')
+      || errorMessage.includes('Missing or insufficient permissions');
+    const isAuthIssue = errorCode.includes('auth/not-authenticated');
 
-  await renderLeaderboard();
+    if (isPermissionIssue || isAuthIssue) {
+      resultMessage.textContent = `${resultMessage.textContent} (ระบบไม่สามารถบันทึกอันดับได้ในตอนนี้ แต่คะแนนของคุณแสดงครบแล้ว)`;
+    }
+  }
+
+  try {
+    await renderLeaderboard();
+  } catch (error) {
+    console.error('renderLeaderboard failed', error);
+    leaderboardList.innerHTML = '<li class="text-slate-500">ไม่สามารถโหลดอันดับได้ในขณะนี้</li>';
+  }
 
 }
 
@@ -492,13 +510,13 @@ function onNext() {
 
 entryForm.addEventListener('input', () => {
   const value = document.getElementById('studentName').value.trim();
-  startBtn.disabled = value.length < 2;
+  startBtn.disabled = value.length < 1;
 });
 
 entryForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const name = document.getElementById('studentName').value.trim();
-  if (name.length < 2) {
+  if (name.length < 1) {
     return;
   }
 
