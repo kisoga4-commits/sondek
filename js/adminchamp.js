@@ -102,8 +102,23 @@ function updateProfileImagePreviewStatus() {
   if (!profileImagePreviewStatus) return;
   const value = String(profileImageInput?.value || '').trim();
   profileImagePreviewStatus.textContent = value
-    ? `รูปโปรไฟล์พร้อมใช้งาน: ${value}`
+    ? 'อัปโหลดรูปโปรไฟล์แล้ว พร้อมบันทึก'
     : 'ยังไม่มีรูปโปรไฟล์ที่อัปโหลด';
+}
+
+function getFriendlyStorageUploadError(error) {
+  const errorCode = String(error?.code || '');
+  const errorMessage = String(error?.message || '');
+
+  if (errorCode.includes('auth/not-authenticated')) {
+    return 'อัปโหลดไม่สำเร็จ เพราะระบบยังล็อกอินไม่ได้\n\nกรุณาเปิด Firebase Authentication > Sign-in method > Anonymous แล้วลองใหม่';
+  }
+
+  if (errorCode.includes('storage/unauthorized') || errorCode.includes('permission-denied') || errorMessage.includes('permission')) {
+    return 'อัปโหลดไม่สำเร็จ เพราะยังไม่มีสิทธิ์เขียนไฟล์ใน Storage\n\nตรวจสอบ Storage Rules ให้อนุญาต write เมื่อ request.auth != null และ path ตรงกับ /profile-images/{uid}/{fileName} หรือ /teaching-images/{uid}/{fileName}';
+  }
+
+  return `อัปโหลดรูปไม่สำเร็จ${errorMessage ? `: ${errorMessage}` : ''}`;
 }
 
 function renderTeachingImagesEditor() {
@@ -206,7 +221,7 @@ async function onUploadProfileImage() {
   } catch (error) {
     console.error(error);
     if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์ไม่สำเร็จ';
-    alert(`อัปโหลดรูปโปรไฟล์ไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+    alert(getFriendlyStorageUploadError(error));
   } finally {
     if (uploadProfileImageBtn) uploadProfileImageBtn.disabled = false;
     if (profileImageFileInput) profileImageFileInput.value = '';
@@ -241,7 +256,7 @@ async function onUploadTeachingImages() {
   } catch (error) {
     console.error(error);
     if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปการสอนไม่สำเร็จ';
-    alert(`อัปโหลดรูปการสอนไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+    alert(getFriendlyStorageUploadError(error));
   } finally {
     if (uploadTeachingImagesBtn) uploadTeachingImagesBtn.disabled = false;
     if (profileTeachingImagesFileInput) profileTeachingImagesFileInput.value = '';
