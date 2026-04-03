@@ -49,7 +49,14 @@
           <aside class="editor-side stack-form">
             <h3>ตั้งค่าคำถาม</h3>
             <label>ประเภทคำถาม
-              <input id="questionTypeLabel" type="text" required value="คณิตศาสตร์พื้นฐาน" />
+              <select id="questionTypeLabel" required>
+                <option value="ไทย">ไทย</option>
+                <option value="English">English</option>
+                <option value="คณิต" selected>คณิต</option>
+                <option value="วิทย์">วิทย์</option>
+                <option value="สังคม">สังคม</option>
+                <option value="ทั่วไป">ทั่วไป</option>
+              </select>
             </label>
             <label>รูปแบบคำตอบ
               <select id="questionAnswerMode" required>
