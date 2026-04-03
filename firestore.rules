@@ -2,11 +2,60 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+
+    // ผู้ใช้ที่ผ่านการยืนยันตัวตนแล้ว (รวม Anonymous Auth)
+
     // เช็กว่ามีการยืนยันตัวตนแล้ว
     // รวมถึง Anonymous Auth ด้วย
+
     function isAuthenticated() {
       return request.auth != null;
     }
+
+
+    // แอดมินเท่านั้น (กำหนดผ่าน Firebase Custom Claims: admin=true)
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // -----------------------------
+    // 1) เนื้อหาบทเรียน/ข้อสอบ/ตั้งค่า
+    // นักเรียนอ่านได้, แก้ไขได้เฉพาะแอดมิน
+    // -----------------------------
+    match /courses/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /questions/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // -----------------------------
+    // 2) profile ของผู้ใช้
+    // อ่าน/เขียนของตัวเองได้, แอดมินเห็น/แก้ได้ทั้งหมด
+    // -----------------------------
+    match /profile/{userId} {
+      allow read, write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // -----------------------------
+    // 3) leads = ลงชื่อทำแบบทดสอบ / สมัครเรียน (ชื่อ+เบอร์)
+    // นักเรียนส่งได้เอง, แต่ดูรายการทั้งหมดได้เฉพาะแอดมิน
+    // -----------------------------
+    match /leads/{leadId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // -----------------------------
+    // 4) ปิดทุก collection อื่นที่ไม่ได้ระบุ
 
     // -----------------------------
     // 1) คอร์ส / ข้อสอบ / ตั้งค่า / โปรไฟล์
@@ -44,6 +93,7 @@ service cloud.firestore {
 
     // -----------------------------
     // 3) ปิดทุก collection อื่นที่ไม่ได้ระบุ
+
     // -----------------------------
     match /{document=**} {
       allow read, write: if false;
