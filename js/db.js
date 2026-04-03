@@ -46,17 +46,24 @@ function isPermissionDeniedError(error) {
 
 async function ensureAuthReady() {
   if (!authInitPromise) {
-    authInitPromise = signInAnonymously(auth).catch((error) => {
-      console.warn('Anonymous auth failed, continuing without auth session.', error);
-      return null;
-    });
+    authInitPromise = signInAnonymously(auth);
   }
 
   await authInitPromise;
 }
 
-export async function saveCourse(course) {
+async function ensureWriteAccess() {
   await ensureAuthReady();
+
+  if (!auth.currentUser) {
+    const error = new Error('Anonymous sign-in is not available. Enable Firebase Authentication > Anonymous.');
+    error.code = 'auth/not-authenticated';
+    throw error;
+  }
+}
+
+export async function saveCourse(course) {
+  await ensureWriteAccess();
   const currentPath = String(window.location.pathname || '/');
   const basePath = currentPath.includes('/')
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
@@ -76,7 +83,7 @@ export async function saveCourse(course) {
 }
 
 export async function addQuestion(courseId, question, order) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await addDoc(collection(db, 'questions'), {
     courseId,
     question: question.question,
@@ -93,12 +100,12 @@ export async function addQuestion(courseId, question, order) {
 }
 
 export async function saveQuestionsBatch(courseId, questions) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await Promise.all(questions.map((question, idx) => addQuestion(courseId, question, idx + 1)));
 }
 
 export async function replaceQuestionsForCourse(courseId, questions) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   const existingQuestions = await getQuestionsByCourse(courseId);
   const batch = writeBatch(db);
 
@@ -127,7 +134,7 @@ export async function replaceQuestionsForCourse(courseId, questions) {
 }
 
 export async function updateQuestion(questionId, question) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await updateDoc(doc(db, 'questions', questionId), {
     question: question.question,
     type: question.type || 'multiple_choice',
@@ -141,12 +148,12 @@ export async function updateQuestion(questionId, question) {
 }
 
 export async function deleteQuestionById(questionId) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await deleteDoc(doc(db, 'questions', questionId));
 }
 
 export async function deleteCourseWithQuestions(courseId) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   const existingQuestions = await getQuestionsByCourse(courseId);
 
   try {
@@ -241,7 +248,7 @@ export function subscribeQuestionsByCourse(courseId, callback, onError) {
 }
 
 export async function saveLead(payload) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await addDoc(collection(db, 'leads'), {
     ...payload,
     createdAt: serverTimestamp(),
@@ -264,7 +271,7 @@ export function subscribeLeads(callback, onError) {
 }
 
 export async function deleteLeadById(leadId) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await deleteDoc(doc(db, 'leads', leadId));
 }
 
@@ -283,7 +290,7 @@ export async function getLeaderboard(courseId) {
 }
 
 export async function saveProfile(profile) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await setDoc(doc(db, 'profile', 'tutor_profile'), {
     name: profile.name,
     bio: profile.bio,
@@ -322,7 +329,7 @@ export async function getResultFeedbackConfig() {
 }
 
 export async function saveResultFeedbackConfig(feedbackByBucket) {
-  await ensureAuthReady();
+  await ensureWriteAccess();
   await setDoc(doc(db, 'settings', RESULT_FEEDBACK_DOC_ID), {
     feedbackByBucket,
     updatedAt: serverTimestamp(),
