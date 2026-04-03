@@ -35,6 +35,34 @@
             <p class="muted">กำลังโหลดบททดสอบ...</p>
           </div>
         </section>
+
+        <section class="card adminchamp-section" id="profile-manager">
+          <div class="section-head">
+            <h2>แก้ไขโปรไฟล์ครู</h2>
+            <span class="section-note">Profile</span>
+          </div>
+          <p class="muted">หน้านี้ใช้จัดการข้อมูลโปรไฟล์ทั้งหมดของครู เมื่อบันทึกเสร็จสามารถเปิดหน้าโปรไฟล์เพื่อตรวจสอบได้ทันที</p>
+
+          <form id="profileForm" class="stack-form">
+            <label>ชื่อครู
+              <input type="text" id="profileNameInput" placeholder="เช่น ครูออย" required />
+            </label>
+            <label>รูปโปรไฟล์ (URL)
+              <input type="url" id="profileImageInput" placeholder="https://..." required />
+            </label>
+            <label>ประวัติครู
+              <textarea id="profileBioInput" rows="3" placeholder="บอกประสบการณ์สอน / จุดเด่น" required></textarea>
+            </label>
+            <label>รูปการสอนเพิ่มเติม (URL ต่อบรรทัด)
+              <textarea id="profileTeachingImagesInput" rows="3" placeholder="https://...\nhttps://..."></textarea>
+            </label>
+            <div class="admin-actions">
+              <button class="btn" id="saveProfileBtn" type="submit">บันทึกโปรไฟล์</button>
+              <a class="btn btn-secondary" id="openProfilePageBtn" href="profile.html" target="_blank" rel="noopener noreferrer">เปิดหน้าโปรไฟล์</a>
+            </div>
+            <p class="muted" id="profileFormStatus">กำลังโหลดข้อมูลโปรไฟล์...</p>
+          </form>
+        </section>
       </section>
 
       <section class="adminchamp-col adminchamp-col-right">

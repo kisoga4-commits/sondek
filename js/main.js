@@ -238,6 +238,12 @@ function getQuestionTypeLabel(type) {
 }
 
 async function init() {
+  const baseUrl = getBasePathUrl(window.location.pathname);
+  profileCta.href = courseId
+    ? `${baseUrl}profile.html?id=${encodeURIComponent(courseId)}`
+    : `${baseUrl}profile.html`;
+  enrollCta.href = `${baseUrl}adminchamp.html#course-destination`;
+
   if (!courseId) {
     courseInfo.textContent = 'ไม่พบรหัสแบบทดสอบในลิงก์ ตัวอย่าง: quiz.html?id=quiz_xxx';
     playCountInfo.textContent = 'ไม่พบข้อมูลจำนวนผู้เล่น';
@@ -284,7 +290,6 @@ async function init() {
     courseInfo.textContent = `คลังคำถาม ${state.allQuestions.length} ข้อ | สุ่มต่อครั้ง ${Math.min(state.drawCount, state.allQuestions.length)} ข้อ`;
     playCountInfo.textContent = `มีผู้เล่นทำแบบทดสอบนี้แล้ว ${Number(playCount || 0).toLocaleString('th-TH')} ครั้ง`;
 
-    const baseUrl = getBasePathUrl(window.location.pathname);
     profileCta.href = `${baseUrl}profile.html?id=${encodeURIComponent(courseId)}`;
     enrollCta.href = course.enrollmentUrl || `${baseUrl}adminchamp.html#course-destination`;
     startBtn.disabled = false;

@@ -1,8 +1,10 @@
 import {
   deleteCourseWithQuestions,
+  getProfile,
   getPlayCountByCourse,
   getResultFeedbackConfig,
   saveResultFeedbackConfig,
+  saveProfile,
   subscribeAuthStatus,
   subscribeCourses,
 } from './db.js';
@@ -15,6 +17,14 @@ const feedbackGrid = document.getElementById('feedbackGrid');
 const openFeedbackEditorBtn = document.getElementById('openFeedbackEditorBtn');
 const closeFeedbackModalBtn = document.getElementById('closeFeedbackModalBtn');
 const saveFeedbackBtn = document.getElementById('saveFeedbackBtn');
+const profileForm = document.getElementById('profileForm');
+const profileNameInput = document.getElementById('profileNameInput');
+const profileImageInput = document.getElementById('profileImageInput');
+const profileBioInput = document.getElementById('profileBioInput');
+const profileTeachingImagesInput = document.getElementById('profileTeachingImagesInput');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const profileFormStatus = document.getElementById('profileFormStatus');
+const openProfilePageBtn = document.getElementById('openProfilePageBtn');
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
@@ -46,6 +56,75 @@ function buildTop5Link(course) {
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
     : '/';
   return `${window.location.origin}${basePath}top.html?id=${encodeURIComponent(course?.courseId || '')}`;
+}
+
+function buildProfileLink() {
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}profile.html`;
+}
+
+function parseTeachingImagesFromInput(rawValue) {
+  return String(rawValue || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+async function loadProfileForm() {
+  if (!profileForm) return;
+
+  try {
+    const profile = await getProfile();
+    if (profileNameInput) profileNameInput.value = profile?.name || '';
+    if (profileImageInput) profileImageInput.value = profile?.imageUrl || '';
+    if (profileBioInput) profileBioInput.value = profile?.bio || '';
+    if (profileTeachingImagesInput) {
+      profileTeachingImagesInput.value = Array.isArray(profile?.teachingImages)
+        ? profile.teachingImages.join('\n')
+        : '';
+    }
+    if (profileFormStatus) {
+      profileFormStatus.textContent = 'โหลดข้อมูลโปรไฟล์แล้ว พร้อมแก้ไข';
+    }
+  } catch (error) {
+    console.error(error);
+    if (profileFormStatus) {
+      profileFormStatus.textContent = 'โหลดข้อมูลโปรไฟล์ไม่สำเร็จ แต่ยังสามารถกรอกใหม่และบันทึกได้';
+    }
+  }
+}
+
+async function onSaveProfile(event) {
+  event.preventDefault();
+  if (!profileForm) return;
+
+  const payload = {
+    name: String(profileNameInput?.value || '').trim(),
+    imageUrl: String(profileImageInput?.value || '').trim(),
+    bio: String(profileBioInput?.value || '').trim(),
+    teachingImages: parseTeachingImagesFromInput(profileTeachingImagesInput?.value || ''),
+  };
+
+  if (!payload.name || !payload.imageUrl || !payload.bio) {
+    alert('กรุณากรอกข้อมูลโปรไฟล์ให้ครบ');
+    return;
+  }
+
+  try {
+    if (saveProfileBtn) saveProfileBtn.disabled = true;
+    await saveProfile(payload);
+    if (profileFormStatus) profileFormStatus.textContent = 'บันทึกโปรไฟล์เรียบร้อยแล้ว กด "เปิดหน้าโปรไฟล์" เพื่อตรวจสอบได้ทันที';
+    alert('บันทึกโปรไฟล์สำเร็จ');
+  } catch (error) {
+    console.error(error);
+    if (profileFormStatus) profileFormStatus.textContent = 'บันทึกโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่';
+    alert('บันทึกโปรไฟล์ไม่สำเร็จ');
+  } finally {
+    if (saveProfileBtn) saveProfileBtn.disabled = false;
+  }
 }
 
 function downloadQrFromImage(qrSrc, courseId) {
@@ -349,6 +428,17 @@ if (saveFeedbackBtn) {
   });
 }
 
+if (profileForm) {
+  profileForm.addEventListener('submit', (event) => {
+    void onSaveProfile(event);
+  });
+}
+
 initQuizLibrary();
 void loadFeedbackConfig();
+void loadProfileForm();
 subscribeAuthStatus(renderAuthStatus);
+
+if (openProfilePageBtn) {
+  openProfilePageBtn.href = buildProfileLink();
+}
