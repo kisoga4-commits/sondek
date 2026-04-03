@@ -332,14 +332,20 @@ export async function getPlayCountByCourse(courseId) {
 
 export async function saveProfile(profile) {
   await ensureWriteAccess();
+  const normalizedName = String(profile?.name || '').trim();
+  const normalizedBio = String(profile?.bio || '').trim();
+  const normalizedImageUrl = String(profile?.imageUrl || '').trim();
+  const normalizedProfileUrl = String(profile?.profileUrl || '').trim();
+  const normalizedTeachingImages = Array.isArray(profile?.teachingImages)
+    ? profile.teachingImages.map((url) => String(url || '').trim()).filter(Boolean)
+    : [];
+
   await setDoc(doc(db, 'profile', 'tutor_profile'), {
-    name: profile.name,
-    bio: profile.bio,
-    imageUrl: profile.imageUrl,
-    profileUrl: profile.profileUrl,
-    teachingImages: Array.isArray(profile.teachingImages)
-      ? profile.teachingImages.map((url) => String(url || '').trim()).filter(Boolean)
-      : [],
+    name: normalizedName,
+    bio: normalizedBio,
+    imageUrl: normalizedImageUrl,
+    profileUrl: normalizedProfileUrl,
+    teachingImages: normalizedTeachingImages,
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }
