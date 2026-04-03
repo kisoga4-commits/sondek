@@ -43,24 +43,17 @@
       </section>
 
       <section class="card hidden" id="duelBattleSection">
-        <div class="duel-scoreboard">
-          <div class="duel-player-panel">
-            <h3 id="meName">ฉัน</h3>
+        <div class="duel-mini-hud">
+          <div class="duel-player-panel duel-player-panel--me">
+            <div class="duel-hud-topline">
+              <h3 id="meName">ฉัน</h3>
+              <span id="duelTimerText">00:00</span>
+            </div>
             <div class="duel-hp-bar"><div id="meHpFill"></div></div>
             <p id="meHpText">10 / 10</p>
-            <p id="meStats">ถูก: 0 | ผิด: 0 | พลาดติดกัน: 0</p>
-          </div>
-          <div class="duel-timer-box">
-            <div id="duelTimerText">00:00</div>
-            <small id="duelResultHint">รอเริ่มเกม...</small>
-          </div>
-          <div class="duel-player-panel">
-            <h3 id="oppName">คู่ต่อสู้</h3>
-            <div class="duel-hp-bar"><div id="oppHpFill"></div></div>
-            <p id="oppHpText">10 / 10</p>
-            <p id="oppStats">ถูก: 0 | ผิด: 0 | พลาดติดกัน: 0</p>
           </div>
         </div>
+        <small id="duelResultHint" class="duel-result-hint">รอเริ่มเกม...</small>
 
         <hr />
 
@@ -73,6 +66,13 @@
         </div>
       </section>
     </main>
+
+    <div id="duelEventModal" class="duel-event-modal hidden" aria-live="polite">
+      <div class="duel-event-box">
+        <div id="duelEventTitle" class="duel-event-title">⚔️ เปิดศึก!</div>
+        <p id="duelEventText" class="duel-event-text">จงตอบให้ไวและแม่นที่สุด</p>
+      </div>
+    </div>
 
     <script type="module" src="js/duel.js"></script>
     <a class="home-fab" href="index.html" aria-label="กลับหน้าแรก">🏠</a>

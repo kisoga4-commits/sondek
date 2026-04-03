@@ -24,15 +24,13 @@ const statusText = document.getElementById('duelStatusText');
 const battleSection = document.getElementById('duelBattleSection');
 
 const meName = document.getElementById('meName');
-const oppName = document.getElementById('oppName');
 const meHpFill = document.getElementById('meHpFill');
-const oppHpFill = document.getElementById('oppHpFill');
 const meHpText = document.getElementById('meHpText');
-const oppHpText = document.getElementById('oppHpText');
-const meStats = document.getElementById('meStats');
-const oppStats = document.getElementById('oppStats');
 const timerText = document.getElementById('duelTimerText');
 const resultHint = document.getElementById('duelResultHint');
+const duelEventModal = document.getElementById('duelEventModal');
+const duelEventTitle = document.getElementById('duelEventTitle');
+const duelEventText = document.getElementById('duelEventText');
 const questionTitle = document.getElementById('duelQuestionTitle');
 const choicesWrap = document.getElementById('duelChoices');
 const submitBtn = document.getElementById('duelSubmitBtn');
@@ -52,6 +50,7 @@ const state = {
   lastEventId: '',
   hasShownFinalResult: false,
   finalResultTimerId: null,
+  eventTimerId: null,
 };
 
 function setStatus(text) {
@@ -172,16 +171,8 @@ function renderBattle(room) {
   battleSection.classList.remove('hidden');
 
   meName.textContent = me.name || 'ฉัน';
-  oppName.textContent = opp?.name || 'รอคู่ต่อสู้';
-
   renderHp(meHpFill, me.hp);
-  renderHp(oppHpFill, opp?.hp ?? START_HP);
-
   meHpText.textContent = `${Number(me.hp || 0)} / ${START_HP}`;
-  oppHpText.textContent = `${Number(opp?.hp || START_HP)} / ${START_HP}`;
-
-  meStats.textContent = `ถูก: ${Number(me.correctCount || 0)} | ผิด: ${Number(me.wrongCount || 0)} | พลาดติดกัน: ${Number(me.wrongStreak || 0)}`;
-  oppStats.textContent = `ถูก: ${Number(opp?.correctCount || 0)} | ผิด: ${Number(opp?.wrongCount || 0)} | พลาดติดกัน: ${Number(opp?.wrongStreak || 0)}`;
 
   submitBtn.disabled = room.status !== 'active';
   skipBtn.disabled = room.status !== 'active';
@@ -205,6 +196,29 @@ function renderBattle(room) {
     submitBtn.disabled = true;
     skipBtn.disabled = true;
   }
+
+  if (room.status === 'active') {
+    const myHp = Number(me.hp || 0);
+    const oppHp = Number(opp?.hp ?? START_HP);
+    resultHint.textContent = `พลังเรา ${myHp} | พลังคู่ต่อสู้ ${oppHp}`;
+  }
+}
+
+function showEventPopup(title, detail) {
+  if (!duelEventModal || !duelEventTitle || !duelEventText) return;
+  if (state.eventTimerId) {
+    window.clearTimeout(state.eventTimerId);
+    state.eventTimerId = null;
+  }
+  duelEventTitle.textContent = title;
+  duelEventText.textContent = detail;
+  duelEventModal.classList.remove('hidden');
+  duelEventModal.classList.remove('is-animate');
+  void duelEventModal.offsetWidth;
+  duelEventModal.classList.add('is-animate');
+  state.eventTimerId = window.setTimeout(() => {
+    duelEventModal.classList.add('hidden');
+  }, 1300);
 }
 
 function ensureTimer(room) {
@@ -237,20 +251,25 @@ function ensureTimer(room) {
 
 function applyVoiceEvent(room) {
   const event = room?.lastEvent;
+  const { opp } = getPlayerEntries(room);
+  const oppNameText = String(opp?.name || 'คู่ต่อสู้');
   if (!event || !event.id || event.id === state.lastEventId) return;
   state.lastEventId = event.id;
 
   if (event.type === 'attack' && event.actorUid === state.uid) {
+    showEventPopup('⚡ โจมตีเข้าเป้า!', `${oppNameText} โดนหักพลัง 1 แต้ม`);
     speak(getRandomAttackVoice());
     return;
   }
 
   if (event.type === 'penalty' && event.targetUid === state.uid) {
+    showEventPopup('💥 พลาดติดกัน!', 'คุณโดนหักพลังตัวเอง 1 แต้ม');
     speak('โง่ซ้ำซ้อน! โดนหักคะแนนตัวเองเลยเห็นไหม?');
     return;
   }
 
   if (event.type === 'critical') {
+    showEventPopup('🚨 จุดวิกฤต', 'ใครพลังเหลือน้อยกว่า 3 ต้องรีบพลิกเกม');
     speak('ระวัง! มึงจะตายแล้ว!');
   }
 }
@@ -305,7 +324,6 @@ function handleRoomUpdate(room) {
 
   if (room.status === 'active') {
     renderQuestion();
-    resultHint.textContent = 'โจมตีให้ไว! ตอบถูกเพื่อตัดคะแนนฝั่งตรงข้าม';
   }
 
   const { me } = getPlayerEntries(room);
