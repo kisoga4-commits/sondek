@@ -53,6 +53,9 @@ const state = {
   eventTimerId: null,
   isSubmitting: false,
   hasRequestedFinalize: false,
+  currentQuestionId: '',
+  questionLoadPromise: null,
+  questionLoadCourseId: '',
 };
 
 function setStatus(text) {
@@ -133,8 +136,15 @@ function getCurrentQuestion() {
   return normalizeQuestion(raw);
 }
 
-function renderQuestion() {
+function renderQuestion(force = false) {
   const question = getCurrentQuestion();
+  const questionId = question ? String(question.id) : '';
+
+  if (!force && questionId && state.currentQuestionId === questionId) {
+    return;
+  }
+
+  state.currentQuestionId = questionId;
   state.selectedAnswer = null;
   submitBtn.disabled = true;
 
@@ -164,6 +174,28 @@ function renderQuestion() {
     label.append(radio, span);
     choicesWrap.appendChild(label);
   });
+}
+
+async function ensureQuestionBankLoaded(courseId) {
+  const safeCourseId = String(courseId || '').trim();
+  if (!safeCourseId) return;
+  if (safeCourseId === state.loadedCourseId && state.questionBank.length) return;
+  if (state.questionLoadPromise && state.questionLoadCourseId === safeCourseId) {
+    await state.questionLoadPromise;
+    return;
+  }
+
+  state.questionLoadCourseId = safeCourseId;
+  state.questionLoadPromise = loadQuestionBank(safeCourseId)
+    .catch((error) => {
+      throw error;
+    })
+    .finally(() => {
+      state.questionLoadPromise = null;
+      state.questionLoadCourseId = '';
+    });
+
+  await state.questionLoadPromise;
 }
 
 function renderBattle(room) {
@@ -321,11 +353,10 @@ function handleRoomUpdate(room) {
 
   const roomCourseId = String(room.courseId || '').trim();
   if (roomCourseId && roomCourseId !== state.loadedCourseId) {
-    void loadQuestionBank(roomCourseId)
+    void ensureQuestionBankLoaded(roomCourseId)
       .then(() => {
-        state.loadedCourseId = roomCourseId;
         if (!courseIdInput.value) courseIdInput.value = roomCourseId;
-        if (state.room?.status === 'active') renderQuestion();
+        if (state.room?.status === 'active') renderQuestion(true);
       })
       .catch((error) => {
         setStatus(error.message || 'โหลดคลังโจทย์ไม่สำเร็จ');
@@ -341,6 +372,7 @@ function handleRoomUpdate(room) {
     if (state.questionBank.length) {
       renderQuestion();
     } else {
+      state.currentQuestionId = '';
       questionTitle.textContent = 'กำลังโหลดคำถาม...';
       choicesWrap.innerHTML = '';
     }
@@ -360,6 +392,7 @@ async function loadQuestionBank(courseId) {
   if (!rows.length) throw new Error('ไม่พบคลังโจทย์ของคอร์สนี้');
   state.questionBank = rows;
   state.loadedCourseId = String(courseId || '').trim();
+  state.currentQuestionId = '';
 }
 
 function buildQuestionLoop(questionBank) {
@@ -380,6 +413,7 @@ async function startSubscribeRoom(roomId) {
   state.selectedAnswer = null;
   state.isSubmitting = false;
   state.hasRequestedFinalize = false;
+  state.currentQuestionId = '';
   if (state.finalResultTimerId) {
     window.clearTimeout(state.finalResultTimerId);
     state.finalResultTimerId = null;
