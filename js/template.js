@@ -37,6 +37,13 @@ const draftCourseId = editingCourseId || `quiz_${Date.now()}`;
 let bankQuestions = [];
 let editingIndex = null;
 let autoSaveTimer = null;
+const QUESTION_TYPE_OPTIONS = ['ไทย', 'English', 'คณิต', 'วิทย์', 'สังคม', 'ทั่วไป'];
+
+function normalizeQuestionTypeLabel(value) {
+  if (QUESTION_TYPE_OPTIONS.includes(value)) return value;
+  if (value === 'คณิตศาสตร์พื้นฐาน') return 'คณิต';
+  return 'คณิต';
+}
 
 function saveLocalSnapshot() {
   const snapshot = {
@@ -76,7 +83,7 @@ function restoreLocalSnapshot() {
     const matchedPreset = drawCountPresetEls.find((item) => item.value === String(snapshot.drawPreset || ''));
     if (matchedPreset) matchedPreset.checked = true;
 
-    questionTypeLabelEl.value = snapshot.questionTypeLabel || 'คณิตศาสตร์พื้นฐาน';
+    questionTypeLabelEl.value = normalizeQuestionTypeLabel(snapshot.questionTypeLabel);
     questionAnswerModeEl.value = snapshot.answerMode || 'multiple_choice';
     document.getElementById('questionText').value = snapshot.questionText || '';
     document.getElementById('questionTimeLimit').value = String(Math.max(5, Number(snapshot.questionTimeLimit) || 30));
@@ -219,7 +226,7 @@ function resetEditor() {
   addOrUpdateBtn.textContent = 'ถัดไป (Next)';
   cancelEditBtn.classList.add('hidden');
   questionEditor.reset();
-  questionTypeLabelEl.value = 'คณิตศาสตร์พื้นฐาน';
+  questionTypeLabelEl.value = 'คณิต';
   document.getElementById('questionTimeLimit').value = selectedTime;
   document.getElementById('questionPoints').value = '10';
   questionAnswerModeEl.value = selectedMode;
@@ -261,7 +268,7 @@ function renderQuestionBank() {
       document.getElementById('questionText').value = question.questionText;
       document.getElementById('questionTimeLimit').value = String(question.timeLimitSeconds);
       document.getElementById('questionPoints').value = String(question.points);
-      questionTypeLabelEl.value = question.questionTypeLabel || 'คณิตศาสตร์พื้นฐาน';
+      questionTypeLabelEl.value = normalizeQuestionTypeLabel(question.questionTypeLabel);
       questionAnswerModeEl.value = question.answerMode || 'multiple_choice';
       showAnswerEditor(question.answerMode || 'multiple_choice', question);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -478,7 +485,7 @@ async function loadCourseForEditing() {
 
     bankQuestions = questions.map((q) => ({
       questionText: q.question || '',
-      questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
+      questionTypeLabel: 'คณิต',
       answerMode: q.type === 'short_text'
         ? 'short_text'
         : (q.type === 'true_false' ? 'true_false' : 'multiple_choice'),
