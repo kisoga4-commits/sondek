@@ -2,11 +2,13 @@ import {
   deleteCourseWithQuestions,
   getResultFeedbackConfig,
   saveResultFeedbackConfig,
+  subscribeAuthStatus,
   subscribeCourses,
 } from './db.js';
 import { getDefaultFeedbackMap } from './quiz.js';
 
 const quizLibrary = document.getElementById('quizLibrary');
+const authStatusNotice = document.getElementById('authStatusNotice');
 const feedbackModal = document.getElementById('feedbackModal');
 const feedbackGrid = document.getElementById('feedbackGrid');
 const openFeedbackEditorBtn = document.getElementById('openFeedbackEditorBtn');
@@ -266,6 +268,22 @@ function initQuizLibrary() {
   });
 }
 
+function renderAuthStatus(authStatus) {
+  if (!authStatusNotice) return;
+
+  if (!authStatus?.isAuthenticated) {
+    authStatusNotice.textContent = 'ยังไม่ได้ล็อกอิน: ระบบจะพยายามใช้ Anonymous auth อัตโนมัติสำหรับงานที่ต้องเขียนข้อมูล';
+    return;
+  }
+
+  if (authStatus.isAnonymous) {
+    authStatusNotice.innerHTML = `บัญชีปัจจุบัน: <strong>Anonymous</strong> (uid: <code>${escapeHtml(authStatus.uid)}</code>) — นี่คือสาเหตุที่ Firebase Console แสดงว่าเป็น anonymous`;
+    return;
+  }
+
+  authStatusNotice.innerHTML = `บัญชีปัจจุบัน: <strong>Authenticated</strong> (uid: <code>${escapeHtml(authStatus.uid)}</code>)`;
+}
+
 if (openFeedbackEditorBtn) {
   openFeedbackEditorBtn.addEventListener('click', () => {
     openFeedbackModal();
@@ -294,3 +312,4 @@ if (saveFeedbackBtn) {
 
 initQuizLibrary();
 void loadFeedbackConfig();
+subscribeAuthStatus(renderAuthStatus);

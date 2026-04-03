@@ -1,5 +1,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
-import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInAnonymously,
+} from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import {
   addDoc,
   collection,
@@ -334,4 +338,14 @@ export async function saveResultFeedbackConfig(feedbackByBucket) {
     feedbackByBucket,
     updatedAt: serverTimestamp(),
   }, { merge: true });
+}
+
+export function subscribeAuthStatus(callback) {
+  return onAuthStateChanged(auth, (user) => {
+    callback({
+      uid: user?.uid || '',
+      isAuthenticated: Boolean(user),
+      isAnonymous: Boolean(user?.isAnonymous),
+    });
+  });
 }
