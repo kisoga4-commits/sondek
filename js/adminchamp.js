@@ -3,10 +3,14 @@ import {
   getProfile,
   getPlayCountByCourse,
   getResultFeedbackConfig,
+  saveCourseEnrollment,
+  saveCourseOffering,
   saveResultFeedbackConfig,
   saveProfile,
   subscribeAuthStatus,
+  subscribeCourseOfferings,
   subscribeCourses,
+  toggleCourseOfferingStatus,
 } from './db.js';
 import { getDefaultFeedbackMap } from './quiz.js';
 
@@ -28,6 +32,15 @@ const profileFormStatus = document.getElementById('profileFormStatus');
 const openProfilePageBtn = document.getElementById('openProfilePageBtn');
 const openMyProfileBtn = document.getElementById('openMyProfileBtn');
 const openCourseDestinationBtn = document.getElementById('openCourseDestinationBtn');
+const courseOfferForm = document.getElementById('courseOfferForm');
+const offerTitleInput = document.getElementById('offerTitleInput');
+const offerDayInput = document.getElementById('offerDayInput');
+const offerTimeInput = document.getElementById('offerTimeInput');
+const offerPriceInput = document.getElementById('offerPriceInput');
+const offerContentInput = document.getElementById('offerContentInput');
+const saveCourseOfferBtn = document.getElementById('saveCourseOfferBtn');
+const courseOfferStatus = document.getElementById('courseOfferStatus');
+const courseOfferList = document.getElementById('courseOfferList');
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
@@ -111,6 +124,20 @@ function parseMultilineUrls(value) {
     .filter(Boolean);
 }
 
+function formatDateTime(value) {
+  if (!value) return '-';
+  if (value?.toDate instanceof Function) {
+    return value.toDate().toLocaleString('th-TH');
+  }
+  if (typeof value === 'number') {
+    return new Date(value).toLocaleString('th-TH');
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return '-';
+}
+
 async function loadProfileForm() {
   if (!profileForm) return;
 
@@ -164,6 +191,165 @@ async function onSaveProfile(event) {
   } finally {
     if (saveProfileBtn) saveProfileBtn.disabled = false;
   }
+}
+
+async function onSaveCourseOffering(event) {
+  event.preventDefault();
+  if (!courseOfferForm) return;
+
+  const payload = {
+    title: String(offerTitleInput?.value || '').trim(),
+    day: String(offerDayInput?.value || '').trim(),
+    time: String(offerTimeInput?.value || '').trim(),
+    price: String(offerPriceInput?.value || '').trim(),
+    content: String(offerContentInput?.value || '').trim(),
+  };
+
+  if (!payload.title || !payload.day || !payload.time || !payload.price) {
+    alert('กรุณากรอกชื่อคอร์ส วัน เวลา และราคาให้ครบ');
+    return;
+  }
+
+  try {
+    if (saveCourseOfferBtn) saveCourseOfferBtn.disabled = true;
+    await saveCourseOffering(payload);
+    courseOfferForm.reset();
+    if (courseOfferStatus) {
+      courseOfferStatus.textContent = 'เพิ่มคอร์สแล้ว สามารถเปิด/ปิดรับสมัคร และดูรายชื่อนักเรียนได้ด้านล่าง';
+    }
+  } catch (error) {
+    console.error(error);
+    if (courseOfferStatus) courseOfferStatus.textContent = 'เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่';
+    alert('เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่');
+  } finally {
+    if (saveCourseOfferBtn) saveCourseOfferBtn.disabled = false;
+  }
+}
+
+async function onEnrollCourse(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const courseId = String(form?.dataset?.courseId || '');
+  if (!courseId) return;
+
+  const nameInput = form.querySelector('input[name="studentName"]');
+  const phoneInput = form.querySelector('input[name="studentPhone"]');
+
+  const studentName = String(nameInput?.value || '').trim();
+  const studentPhone = String(phoneInput?.value || '').trim();
+  if (!studentName || !studentPhone) {
+    alert('กรุณากรอกชื่อและเบอร์โทรก่อนสมัคร');
+    return;
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  try {
+    if (submitBtn) submitBtn.disabled = true;
+    await saveCourseEnrollment(courseId, { studentName, studentPhone });
+    form.reset();
+    alert('บันทึกผู้สนใจคอร์สเรียบร้อย');
+  } catch (error) {
+    console.error(error);
+    alert('สมัครคอร์สไม่สำเร็จ กรุณาลองใหม่');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+function renderCourseOfferings(courseOffers) {
+  if (!courseOfferList) return;
+  courseOfferList.innerHTML = '';
+
+  if (!courseOffers.length) {
+    courseOfferList.innerHTML = '<p class="muted">ยังไม่มีคอร์สที่เปิดสอน</p>';
+    return;
+  }
+
+  courseOffers.forEach((course) => {
+    const isOpen = String(course?.status || 'open') === 'open';
+    const enrollments = Array.isArray(course?.enrollments) ? course.enrollments : [];
+    const card = document.createElement('article');
+    card.className = `course-card ${isOpen ? 'is-open' : 'is-closed'}`;
+    card.innerHTML = `
+      <header class="course-card-head">
+        <div>
+          <h3>${escapeHtml(course?.title || 'ไม่ระบุชื่อคอร์ส')}</h3>
+          <p class="muted">วัน: ${escapeHtml(course?.day || '-')} · เวลา: ${escapeHtml(course?.time || '-')}</p>
+          <p class="muted">ราคา: ${escapeHtml(course?.price || '-')}</p>
+        </div>
+        <span class="status-pill ${isOpen ? '' : 'status-closed'}">${isOpen ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}</span>
+      </header>
+      <p class="muted">${escapeHtml(course?.content || 'ยังไม่ได้ระบุเนื้อหา')}</p>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-compact" type="button" data-action="toggle-status">
+          ${isOpen ? 'ปิดคอร์ส' : 'เปิดคอร์ส'}
+        </button>
+      </div>
+      <form class="course-enroll-form ${isOpen ? '' : 'is-hidden'}" data-course-id="${escapeHtml(course.courseId)}">
+        <p class="student-title">สมัครคอร์ส (ชื่อ + เบอร์โทร)</p>
+        <div class="form-split">
+          <input type="text" name="studentName" placeholder="ชื่อนักเรียน" required />
+          <input type="tel" name="studentPhone" placeholder="เบอร์โทร" required />
+        </div>
+        <button class="btn btn-compact" type="submit">บันทึกผู้สนใจ</button>
+      </form>
+      <div>
+        <p class="student-title">นักเรียนที่สนใจล่าสุด (${enrollments.length})</p>
+        ${
+  enrollments.length
+    ? `<ul>${enrollments
+      .slice(0, 8)
+      .map((item) => `<li>${escapeHtml(item.studentName)} (${escapeHtml(item.studentPhone)}) · ${escapeHtml(formatDateTime(item.createdAt))}</li>`)
+      .join('')}</ul>`
+    : '<p class="muted">ยังไม่มีผู้สมัคร</p>'
+}
+      </div>
+    `;
+
+    const toggleBtn = card.querySelector('[data-action="toggle-status"]');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', async () => {
+        try {
+          toggleBtn.disabled = true;
+          await toggleCourseOfferingStatus(course.courseId, isOpen ? 'closed' : 'open');
+        } catch (error) {
+          console.error(error);
+          alert('เปลี่ยนสถานะคอร์สไม่สำเร็จ');
+        } finally {
+          toggleBtn.disabled = false;
+        }
+      });
+    }
+
+    const enrollForm = card.querySelector('.course-enroll-form');
+    if (enrollForm) {
+      enrollForm.addEventListener('submit', (event) => {
+        void onEnrollCourse(event);
+      });
+    }
+
+    courseOfferList.appendChild(card);
+  });
+}
+
+function initCourseOfferingSection() {
+  if (!courseOfferList) return;
+  if (courseOfferStatus) {
+    courseOfferStatus.textContent = 'กำลังโหลดรายการคอร์ส...';
+  }
+
+  subscribeCourseOfferings((courseOffers) => {
+    if (courseOfferStatus) {
+      courseOfferStatus.textContent = 'พร้อมจัดการคอร์สและรับสมัครนักเรียน';
+    }
+    renderCourseOfferings(courseOffers);
+  }, (error) => {
+    console.error(error);
+    if (courseOfferStatus) {
+      courseOfferStatus.textContent = 'โหลดคอร์สไม่สำเร็จ กรุณารีเฟรช';
+    }
+    courseOfferList.innerHTML = '<p class="muted">โหลดคอร์สไม่สำเร็จ</p>';
+  });
 }
 
 function downloadQrFromImage(qrSrc, courseId) {
@@ -476,6 +662,7 @@ if (profileForm) {
 initQuizLibrary();
 void loadFeedbackConfig();
 void loadProfileForm();
+initCourseOfferingSection();
 subscribeAuthStatus(renderAuthStatus);
 updateProfileImagePreviewStatus();
 
@@ -498,5 +685,11 @@ if (openMyProfileBtn) {
 if (openCourseDestinationBtn) {
   openCourseDestinationBtn.addEventListener('click', () => {
     window.open(buildCourseDestinationLink(), '_blank', 'noopener,noreferrer');
+  });
+}
+
+if (courseOfferForm) {
+  courseOfferForm.addEventListener('submit', (event) => {
+    void onSaveCourseOffering(event);
   });
 }

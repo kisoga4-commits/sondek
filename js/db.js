@@ -409,6 +409,74 @@ export function subscribeCourses(callback, onError) {
   return () => unsubscribe();
 }
 
+export async function saveCourseOffering(courseOffer) {
+  await ensureWriteAccess();
+  const courseId = `offer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  await setDoc(doc(db, 'course_offerings', courseId), {
+    courseId,
+    title: String(courseOffer?.title || '').trim(),
+    day: String(courseOffer?.day || '').trim(),
+    time: String(courseOffer?.time || '').trim(),
+    price: String(courseOffer?.price || '').trim(),
+    content: String(courseOffer?.content || '').trim(),
+    status: 'open',
+    enrollments: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export function subscribeCourseOfferings(callback, onError) {
+  const q = query(collection(db, 'course_offerings'), orderBy('createdAt', 'desc'));
+  let unsubscribe = () => {};
+
+  ensureAuthReady()
+    .then(() => {
+      unsubscribe = onSnapshot(q, (snap) => callback(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() })),
+      ), onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+
+  return () => unsubscribe();
+}
+
+export async function toggleCourseOfferingStatus(courseId, nextStatus) {
+  await ensureWriteAccess();
+  await updateDoc(doc(db, 'course_offerings', courseId), {
+    status: String(nextStatus || '').trim() === 'closed' ? 'closed' : 'open',
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function saveCourseEnrollment(courseId, payload) {
+  await ensureWriteAccess();
+  const ref = doc(db, 'course_offerings', courseId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    throw new Error('ไม่พบคอร์สที่ต้องการสมัคร');
+  }
+
+  const data = snap.data() || {};
+  const enrollments = Array.isArray(data.enrollments) ? data.enrollments : [];
+  const nextEnrollments = [
+    {
+      studentName: String(payload?.studentName || '').trim(),
+      studentPhone: String(payload?.studentPhone || '').trim(),
+      createdAt: new Date().toISOString(),
+    },
+    ...enrollments,
+  ].slice(0, 80);
+
+  await updateDoc(ref, {
+    enrollments: nextEnrollments,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function getCourse(courseId) {
   await ensureAuthReady();
   const snap = await getDoc(doc(db, 'courses', courseId));

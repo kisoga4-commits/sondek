@@ -72,43 +72,34 @@
             <h2>คอร์สที่เปิดสอน</h2>
             <span class="section-note">Active Courses</span>
           </div>
-          <p class="muted">ปลายทางสำหรับปุ่ม <strong>ดูคอร์สที่เปิด / สมัครคอร์สใหม่</strong></p>
+          <p class="muted">จัดการคอร์สแบบไม่กระทบส่วนอื่น: ระบุวัน เวลา ราคา เนื้อหา และเปิด/ปิดรับสมัคร พร้อมรับชื่อ+เบอร์นักเรียนที่สนใจ</p>
 
-          <div class="course-list scroll-list" aria-label="รายการคอร์สที่เปิดสอน">
-            <article class="course-card is-open">
-              <header class="course-card-head">
-                <div>
-                  <h3>คอร์ส: คณิตฯ พื้นฐาน ม.ต้น</h3>
-                  <p class="muted">รหัสคอร์ส: MATH-101</p>
-                </div>
-                <span class="status-pill">เปิดรับสมัคร</span>
-              </header>
-              <div>
-                <p class="student-title">นักเรียนล่าสุด</p>
-                <ul>
-                  <li>ธนภัทร จันทร์ดี</li>
-                  <li>ภัทรวดี ศรีทอง</li>
-                  <li>ณัฐวุฒิ วงศ์งาม</li>
-                </ul>
-              </div>
-            </article>
+          <form id="courseOfferForm" class="stack-form course-offer-form">
+            <label>ชื่อคอร์ส
+              <input type="text" id="offerTitleInput" placeholder="เช่น คณิตฯ พื้นฐาน ม.ต้น" required />
+            </label>
+            <div class="form-split">
+              <label>วันเรียน
+                <input type="text" id="offerDayInput" placeholder="เช่น เสาร์-อาทิตย์" required />
+              </label>
+              <label>เวลาเรียน
+                <input type="text" id="offerTimeInput" placeholder="เช่น 09:00 - 11:00" required />
+              </label>
+            </div>
+            <label>ราคา
+              <input type="text" id="offerPriceInput" placeholder="เช่น 2,500 บาท/คอร์ส" required />
+            </label>
+            <label>เนื้อหา
+              <textarea id="offerContentInput" rows="3" placeholder="สรุปหัวข้อที่จะสอนในคอร์สนี้"></textarea>
+            </label>
+            <div class="admin-actions">
+              <button class="btn" id="saveCourseOfferBtn" type="submit">เพิ่มคอร์ส</button>
+            </div>
+            <p class="muted" id="courseOfferStatus">กำลังโหลดรายการคอร์ส...</p>
+          </form>
 
-            <article class="course-card is-closed">
-              <header class="course-card-head">
-                <div>
-                  <h3>คอร์ส: วิทย์เร่งรัด ม.ปลาย</h3>
-                  <p class="muted">รหัสคอร์ส: SCI-220</p>
-                </div>
-                <span class="status-pill status-closed">ปิดแล้ว</span>
-              </header>
-              <div>
-                <p class="student-title">นักเรียนล่าสุด</p>
-                <ul>
-                  <li>อภิชาติ รุ่งเรือง</li>
-                  <li>มลฤดี สุขใจ</li>
-                </ul>
-              </div>
-            </article>
+          <div class="course-list scroll-list" id="courseOfferList" aria-label="รายการคอร์สที่เปิดสอน">
+            <p class="muted">กำลังโหลดคอร์ส...</p>
           </div>
         </section>
 
