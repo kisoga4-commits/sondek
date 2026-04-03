@@ -16,6 +16,7 @@
           <label>ชื่อบททดสอบ
             <input id="quizTitle" type="text" placeholder="เช่น Pre-test คณิตศาสตร์" required />
           </label>
+          <p class="muted">ขั้นตอนใช้งานสั้นๆ: 1) ตั้งชื่อบททดสอบ 2) เพิ่มคำถามแล้วกด Next (ระบบบันทึกทันที) 3) กด "เสร็จ" เมื่อพร้อมนำไปใช้จริง</p>
           <label class="hidden">รหัสบททดสอบ (ระบบกำหนดอัตโนมัติ)
             <input id="quizCourseId" type="text" value="" readonly required />
           </label>
@@ -52,7 +53,8 @@
               <select id="questionTypeLabel" required>
                 <option value="ไทย">ไทย</option>
                 <option value="English">English</option>
-                <option value="คณิต" selected>คณิต</option>
+                <option value="คณิต">คณิต</option>
+                <option value="คณิตศาสตร์พื้นฐาน" selected>คณิตศาสตร์พื้นฐาน</option>
                 <option value="วิทย์">วิทย์</option>
                 <option value="สังคม">สังคม</option>
                 <option value="ทั่วไป">ทั่วไป</option>
@@ -105,11 +107,19 @@
 
         <hr />
         <h2>รายการคำถามที่เพิ่ม</h2>
+        <div class="stack-form">
+          <label>Import คำถามแบบเร็ว (Notepad)
+            <textarea id="importPayload" rows="8" placeholder="ตัวอย่าง: 1|1|5+5=?|9|10|11|12|2|30|10"></textarea>
+          </label>
+          <p class="muted">รูปแบบ: ลำดับ|ประเภท(1 ตัวเลือก,2 จริง/เท็จ,3 เรียงลำดับ)|โจทย์|ก|ข|ค|ง|เฉลย|วินาที|คะแนน</p>
+          <button type="button" id="importBtn" class="btn btn-secondary">เริ่ม Import ข้อมูล</button>
+        </div>
         <p id="bankSummary" class="muted">กำลังโหลด...</p>
         <ol id="questionBankList" class="preview-list"></ol>
 
         <div class="admin-actions">
           <button type="button" id="completeQuizBtn" class="btn">เสร็จ</button>
+          <button type="button" id="duplicateQuizBtn" class="btn btn-secondary">สำเนาบททดสอบ</button>
           <button type="button" id="deleteQuizBtn" class="btn btn-danger hidden">ลบบททดสอบนี้</button>
           <a href="adminchamp.html" class="btn btn-secondary">ไปหน้า adminchamp.html</a>
         </div>

@@ -22,12 +22,15 @@ const qrOutput = document.getElementById('qrOutput');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 const downloadQrBtn = document.getElementById('downloadQrBtn');
 const completeQuizBtn = document.getElementById('completeQuizBtn');
+const duplicateQuizBtn = document.getElementById('duplicateQuizBtn');
 const deleteQuizBtn = document.getElementById('deleteQuizBtn');
 const completionNotice = document.getElementById('completionNotice');
 const quizMetaForm = document.getElementById('quizMetaForm');
 const drawCountPresetEls = Array.from(document.querySelectorAll('input[name="drawCountPreset"]'));
 const drawCountHintEl = document.getElementById('drawCountHint');
 const templateHealthEl = document.getElementById('templateHealth');
+const importPayloadEl = document.getElementById('importPayload');
+const importBtn = document.getElementById('importBtn');
 const LOCAL_SNAPSHOT_KEY = 'template_quiz_local_snapshot_v1';
 
 const params = new URLSearchParams(window.location.search);
@@ -37,12 +40,27 @@ const draftCourseId = editingCourseId || `quiz_${Date.now()}`;
 let bankQuestions = [];
 let editingIndex = null;
 let autoSaveTimer = null;
-const QUESTION_TYPE_OPTIONS = ['ไทย', 'English', 'คณิต', 'วิทย์', 'สังคม', 'ทั่วไป'];
+const QUESTION_TYPE_OPTIONS = ['ไทย', 'English', 'คณิต', 'คณิตศาสตร์พื้นฐาน', 'วิทย์', 'สังคม', 'ทั่วไป'];
 
 function normalizeQuestionTypeLabel(value) {
   if (QUESTION_TYPE_OPTIONS.includes(value)) return value;
-  if (value === 'คณิตศาสตร์พื้นฐาน') return 'คณิต';
-  return 'คณิต';
+  if (value === 'คณิตศาสตร์พื้นฐาน') return 'คณิตศาสตร์พื้นฐาน';
+  return 'คณิตศาสตร์พื้นฐาน';
+}
+
+function getCorrectDisplay(question) {
+  if (question.answerMode === 'true_false') {
+    return question.correctAnswer.value ? 'จริง' : 'เท็จ';
+  }
+
+  if (question.answerMode === 'short_text') {
+    return (question.acceptedAnswers || []).join(' / ');
+  }
+
+  const key = question.correctAnswer?.key || 'A';
+  const index = ['A', 'B', 'C', 'D'].indexOf(key);
+  const answerText = Array.isArray(question.options) ? (question.options[index] || '') : '';
+  return answerText ? `${key} (${answerText})` : key;
 }
 
 function saveLocalSnapshot() {
@@ -226,7 +244,7 @@ function resetEditor() {
   addOrUpdateBtn.textContent = 'ถัดไป (Next)';
   cancelEditBtn.classList.add('hidden');
   questionEditor.reset();
-  questionTypeLabelEl.value = 'คณิต';
+  questionTypeLabelEl.value = 'คณิตศาสตร์พื้นฐาน';
   document.getElementById('questionTimeLimit').value = selectedTime;
   document.getElementById('questionPoints').value = '10';
   questionAnswerModeEl.value = selectedMode;
@@ -246,11 +264,7 @@ function renderQuestionBank() {
 
   bankQuestions.forEach((question, index) => {
     const li = document.createElement('li');
-    const correctDisplay = question.answerMode === 'true_false'
-      ? String(question.correctAnswer.value)
-      : (question.answerMode === 'short_text'
-        ? (question.acceptedAnswers || []).join(' / ')
-        : question.correctAnswer.key);
+    const correctDisplay = getCorrectDisplay(question);
 
     li.innerHTML = `<div class="preview-item-main"><strong>ข้อ ${index + 1}</strong> [${question.questionTypeLabel}] ${question.questionText}<div class="muted">เฉลย: ${correctDisplay} | ${question.points} คะแนน / ${question.timeLimitSeconds} วินาที</div></div>`;
 
@@ -290,6 +304,165 @@ function renderQuestionBank() {
   });
 
   updateDrawCountHint();
+}
+
+function parseImportLine(line) {
+  const raw = line.trim();
+  if (!raw) return null;
+
+  const parts = raw.split('|').map((item) => item.trim());
+  if (parts.length !== 10) {
+    throw new Error('ข้อมูลไม่ครบ 10 ส่วน');
+  }
+
+  const answerMode = Number(parts[1]);
+  const questionText = parts[2];
+  const choiceA = parts[3];
+  const choiceB = parts[4];
+  const choiceC = parts[5];
+  const choiceD = parts[6];
+  const answerRaw = parts[7];
+  const timeLimitSeconds = Math.max(5, Number(parts[8]) || 30);
+  const points = Math.max(1, Number(parts[9]) || 10);
+
+  if (!questionText) {
+    throw new Error('ไม่พบโจทย์คำถาม');
+  }
+
+  if (answerMode === 1) {
+    const options = [choiceA, choiceB, choiceC, choiceD];
+    if (options.some((item) => !item)) {
+      throw new Error('ประเภท 1 ต้องมีตัวเลือก ก-ง ครบ');
+    }
+    const answerIndex = Number(answerRaw);
+    const safeIndex = Number.isFinite(answerIndex) ? Math.min(3, Math.max(0, answerIndex - 1)) : 0;
+    return {
+      questionText,
+      questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
+      answerMode: 'multiple_choice',
+      options,
+      correctAnswer: { key: ['A', 'B', 'C', 'D'][safeIndex] },
+      points,
+      timeLimitSeconds,
+    };
+  }
+
+  if (answerMode === 2) {
+    const answerIndex = Number(answerRaw);
+    const tfPatternOk = [choiceA, choiceB, choiceC, choiceD]
+      .map((item) => item.toLowerCase())
+      .join('|') === 'จริง|เท็จ|-|-';
+    if (!tfPatternOk) {
+      throw new Error('ประเภท 2 ต้องเป็น จริง|เท็จ|-|-');
+    }
+    return {
+      questionText,
+      questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
+      answerMode: 'true_false',
+      options: ['จริง', 'เท็จ'],
+      correctAnswer: { value: answerIndex === 1 },
+      points,
+      timeLimitSeconds,
+    };
+  }
+
+  if (answerMode === 3) {
+    const choices = [choiceA, choiceB, choiceC, choiceD].filter((item) => item && item !== '-');
+    const acceptedAnswers = [answerRaw].filter(Boolean);
+    if (!acceptedAnswers.length) {
+      throw new Error('ประเภท 3 ต้องระบุเฉลย');
+    }
+    return {
+      questionText,
+      questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
+      answerMode: 'short_text',
+      acceptedAnswers,
+      options: choices,
+      correctAnswer: { text: acceptedAnswers[0] },
+      points,
+      timeLimitSeconds,
+    };
+  }
+
+  throw new Error(`ไม่รู้จักรูปแบบคำตอบ: ${line}`);
+}
+
+function importQuestionsFromText() {
+  const raw = importPayloadEl?.value || '';
+  if (!raw.trim()) {
+    alert('กรุณาวางข้อมูลก่อน import');
+    return;
+  }
+
+  const lines = raw
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const imported = [];
+  const invalidLines = [];
+
+  lines.forEach((line, index) => {
+    try {
+      const question = parseImportLine(line);
+      if (question) imported.push(question);
+    } catch (error) {
+      invalidLines.push(`บรรทัดที่ ${index + 1} ข้อมูลไม่ถูกต้อง`);
+      console.warn('import line invalid', { line: index + 1, raw: line, error });
+    }
+  });
+
+  if (!imported.length) {
+    const errorMessage = invalidLines.length
+      ? invalidLines.join('\n')
+      : 'ไม่พบข้อมูลที่ import ได้';
+    alert(errorMessage);
+    return;
+  }
+
+  bankQuestions.push(...imported);
+  renderQuestionBank();
+  queueAutoSave();
+  void autoSaveDraft().catch((error) => console.error('autosave on import failed', error));
+
+  if (invalidLines.length) {
+    alert(`Import สำเร็จ ${imported.length} ข้อ\n${invalidLines.join('\n')}`);
+    return;
+  }
+
+  alert(`Import สำเร็จ ${imported.length} ข้อ`);
+}
+
+async function duplicateCurrentQuiz() {
+  const meta = getMetaPayload();
+  if (!meta) return;
+
+  const newCourseId = `quiz_${Date.now()}`;
+  const newTitle = `${meta.title} (สำเนา)`;
+  const quizLink = buildQuizLink(newCourseId);
+
+  duplicateQuizBtn.disabled = true;
+  duplicateQuizBtn.textContent = 'กำลังสำเนา...';
+
+  try {
+    await saveCourse({
+      ...meta,
+      courseId: newCourseId,
+      title: newTitle,
+      status: 'draft',
+      quizLink,
+    });
+    await replaceQuestionsForCourse(newCourseId, buildNormalizedQuestions());
+    alert('สร้างสำเนาเรียบร้อย กำลังเปิดบททดสอบสำเนา');
+    window.location.href = `template.html?courseId=${encodeURIComponent(newCourseId)}`;
+  } catch (error) {
+    console.error(error);
+    alert(`สำเนาไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+  } finally {
+    duplicateQuizBtn.disabled = false;
+    duplicateQuizBtn.textContent = 'สำเนาบททดสอบ';
+  }
 }
 
 function buildQuizLink(courseId) {
@@ -485,7 +658,7 @@ async function loadCourseForEditing() {
 
     bankQuestions = questions.map((q) => ({
       questionText: q.question || '',
-      questionTypeLabel: 'คณิต',
+      questionTypeLabel: 'คณิตศาสตร์พื้นฐาน',
       answerMode: q.type === 'short_text'
         ? 'short_text'
         : (q.type === 'true_false' ? 'true_false' : 'multiple_choice'),
@@ -532,6 +705,19 @@ questionEditor.addEventListener('submit', (event) => {
 cancelEditBtn.addEventListener('click', () => resetEditor());
 completeQuizBtn.addEventListener('click', () => {
   void saveToFirebase();
+});
+
+duplicateQuizBtn?.addEventListener('click', () => {
+  void duplicateCurrentQuiz();
+});
+
+importBtn?.addEventListener('click', () => {
+  try {
+    importQuestionsFromText();
+  } catch (error) {
+    console.error(error);
+    alert(`Import ไม่สำเร็จ: ${error?.message || 'ตรวจรูปแบบข้อมูลอีกครั้ง'}`);
+  }
 });
 
 deleteQuizBtn?.addEventListener('click', () => {
