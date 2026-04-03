@@ -318,16 +318,27 @@ function normalizeScoreBucket(percent) {
   return Math.floor(safePercent / 10) * 10;
 }
 
+export function getScoreRangeLabel(percent) {
+  const bucket = normalizeScoreBucket(percent);
+  if (bucket === 100) {
+    return '100';
+  }
+  return `${bucket}-${bucket + 9}`;
+}
+
 export function getResultMessage(percent) {
-  return getResultFeedback(percent).title;
+  const rangeLabel = getScoreRangeLabel(percent);
+  return `${rangeLabel} คะแนน (${rangeLabel}%)`;
 }
 
 export function getResultFeedback(percent) {
   const bucket = normalizeScoreBucket(percent);
   const feedback = RESULT_FEEDBACKS[bucket] || RESULT_FEEDBACKS[0];
+  const rangeLabel = getScoreRangeLabel(percent);
 
   return {
     ...feedback,
+    title: `${rangeLabel} คะแนน (${rangeLabel}%)`,
     lines: shuffleArray(feedback.lines).slice(0, 1),
   };
 }
@@ -342,14 +353,14 @@ export function getDefaultFeedbackMap() {
 
 export function getResultFeedbackWithConfig(percent, feedbackByBucket) {
   const bucket = normalizeScoreBucket(percent);
+  const rangeLabel = getScoreRangeLabel(percent);
   const customLines = Array.isArray(feedbackByBucket?.[bucket])
     ? feedbackByBucket[bucket].map((line) => String(line || '').trim()).filter(Boolean)
     : [];
 
   if (customLines.length > 0) {
-    const fallback = RESULT_FEEDBACKS[bucket] || RESULT_FEEDBACKS[0];
     return {
-      title: fallback.title,
+      title: `${rangeLabel} คะแนน (${rangeLabel}%)`,
       lines: shuffleArray(customLines).slice(0, 1),
     };
   }

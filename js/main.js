@@ -12,6 +12,7 @@ import {
   getQuestionType,
   getResultFeedback,
   getResultFeedbackWithConfig,
+  getScoreRangeLabel,
   normalizeQuestion,
   pickRandomQuestions,
   shuffleArray,
@@ -70,6 +71,7 @@ const state = {
 };
 
 const LOW_TIME_ALERT_SECONDS = 5;
+const SCORE_REVEAL_DELAY_MS = 3000;
 
 function getBasePathUrl(pathname) {
   const basePath = pathname.includes('/')
@@ -119,6 +121,34 @@ function clearTimer() {
     window.clearInterval(state.timerId);
     state.timerId = null;
   }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function speakFeedbackLine(text) {
+  return new Promise((resolve) => {
+    if (!state.audioEnabled || !('speechSynthesis' in window)) {
+      resolve();
+      return;
+    }
+
+    const line = String(text || '').trim();
+    if (!line) {
+      resolve();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(line);
+    utterance.lang = 'th-TH';
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  });
 }
 
 function currentQuestion() {
@@ -442,12 +472,21 @@ async function showResult() {
   resultSection.classList.remove('hidden');
 
   const score = calculateScore(state.quizQuestions, state.answers);
-  resultScore.textContent = `คะแนน ${score.percent}/100 (${score.percent}%) • ถูก ${score.correct}/${score.total} ข้อ`;
   const feedback = state.feedbackByBucket
     ? getResultFeedbackWithConfig(score.percent, state.feedbackByBucket)
     : getResultFeedback(score.percent);
-  resultMessage.textContent = feedback.lines?.[0] || feedback.title;
+  const firstLine = feedback.lines?.[0] || feedback.title;
+  const scoreRange = getScoreRangeLabel(score.percent);
+
+  resultScore.textContent = `กำลังประมวลผลคะแนนช่วง ${scoreRange}%...`;
+  resultMessage.textContent = firstLine;
   renderAnswerReview(score);
+
+  const revealScoreTask = (async () => {
+    await speakFeedbackLine(firstLine);
+    await wait(SCORE_REVEAL_DELAY_MS);
+    resultScore.textContent = `คะแนน ${score.percent}/100 (${score.percent}%) • ถูก ${score.correct}/${score.total} ข้อ`;
+  })();
 
   const durationSeconds = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
 
@@ -481,6 +520,8 @@ async function showResult() {
     console.error('renderLeaderboard failed', error);
     leaderboardList.innerHTML = '<li class="text-slate-500">ไม่สามารถโหลดอันดับได้ในขณะนี้</li>';
   }
+
+  await revealScoreTask;
 
 }
 
