@@ -412,11 +412,13 @@ export function subscribeCourses(callback, onError) {
 export async function saveCourseOffering(courseOffer) {
   await ensureWriteAccess();
   const courseId = `offer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const scheduleDetails = String(courseOffer?.scheduleDetails || courseOffer?.day || '').trim();
   await setDoc(doc(db, 'course_offerings', courseId), {
     courseId,
     title: String(courseOffer?.title || '').trim(),
-    day: String(courseOffer?.day || '').trim(),
-    time: String(courseOffer?.time || '').trim(),
+    scheduleDetails,
+    day: scheduleDetails,
+    time: '',
     price: String(courseOffer?.price || '').trim(),
     content: String(courseOffer?.content || '').trim(),
     status: 'open',
@@ -428,10 +430,12 @@ export async function saveCourseOffering(courseOffer) {
 
 export async function updateCourseOffering(courseId, payload) {
   await ensureWriteAccess();
+  const scheduleDetails = String(payload?.scheduleDetails || payload?.day || '').trim();
   await updateDoc(doc(db, 'course_offerings', courseId), {
     title: String(payload?.title || '').trim(),
-    day: String(payload?.day || '').trim(),
-    time: String(payload?.time || '').trim(),
+    scheduleDetails,
+    day: scheduleDetails,
+    time: '',
     price: String(payload?.price || '').trim(),
     content: String(payload?.content || '').trim(),
     updatedAt: serverTimestamp(),

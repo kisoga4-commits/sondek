@@ -38,12 +38,7 @@ const openMyProfileBtn = document.getElementById('openMyProfileBtn');
 const openCourseDestinationBtn = document.getElementById('openCourseDestinationBtn');
 const courseOfferForm = document.getElementById('courseOfferForm');
 const offerTitleInput = document.getElementById('offerTitleInput');
-const offerDayInput = document.getElementById('offerDayInput');
-const offerTimeInput = document.getElementById('offerTimeInput');
-const offerDaysPicker = document.getElementById('offerDaysPicker');
-const offerStartTimeInput = document.getElementById('offerStartTimeInput');
-const offerEndTimeInput = document.getElementById('offerEndTimeInput');
-const offerCustomDayInput = document.getElementById('offerCustomDayInput');
+const offerScheduleDetailsInput = document.getElementById('offerScheduleDetailsInput');
 const offerPriceInput = document.getElementById('offerPriceInput');
 const offerContentInput = document.getElementById('offerContentInput');
 const saveCourseOfferBtn = document.getElementById('saveCourseOfferBtn');
@@ -51,16 +46,6 @@ const courseOfferStatus = document.getElementById('courseOfferStatus');
 const courseOfferList = document.getElementById('courseOfferList');
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-const COURSE_DAY_LABELS = {
-  mon: 'จันทร์',
-  tue: 'อังคาร',
-  wed: 'พุธ',
-  thu: 'พฤหัสบดี',
-  fri: 'ศุกร์',
-  sat: 'เสาร์',
-  sun: 'อาทิตย์',
-};
-
 function getBucketRangeLabel(bucket) {
   if (bucket === 100) return '100';
   return `${bucket}-${bucket + 9}`;
@@ -104,7 +89,7 @@ function buildCourseDestinationLink() {
   const basePath = currentPath.includes('/')
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
     : '/';
-  return `${window.location.origin}${basePath}adminchamp.html#course-destination`;
+  return `${window.location.origin}${basePath}courses.html`;
 }
 
 function getFriendlyProfileSaveError(error) {
@@ -139,23 +124,6 @@ function parseMultilineUrls(value) {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-}
-
-function hydrateCourseScheduleFields() {
-  if (!offerDayInput || !offerTimeInput) return;
-
-  const pickedDays = Array.from(offerDaysPicker?.querySelectorAll('input[type="checkbox"]:checked') || [])
-    .map((checkbox) => COURSE_DAY_LABELS[checkbox.value] || checkbox.value)
-    .filter(Boolean);
-  const customDay = String(offerCustomDayInput?.value || '').trim();
-  const dayLabel = [pickedDays.join(', '), customDay].filter(Boolean).join(' / ');
-
-  const startTime = String(offerStartTimeInput?.value || '').trim();
-  const endTime = String(offerEndTimeInput?.value || '').trim();
-  const timeLabel = startTime && endTime ? `${startTime} - ${endTime}` : [startTime, endTime].filter(Boolean).join(' - ');
-
-  offerDayInput.value = dayLabel;
-  offerTimeInput.value = timeLabel;
 }
 
 function formatDateTime(value) {
@@ -233,14 +201,13 @@ async function onSaveCourseOffering(event) {
 
   const payload = {
     title: String(offerTitleInput?.value || '').trim(),
-    day: String(offerDayInput?.value || '').trim(),
-    time: String(offerTimeInput?.value || '').trim(),
+    scheduleDetails: String(offerScheduleDetailsInput?.value || '').trim(),
     price: String(offerPriceInput?.value || '').trim(),
     content: String(offerContentInput?.value || '').trim(),
   };
 
-  if (!payload.title || !payload.day || !payload.time || !payload.price) {
-    alert('กรุณากรอกชื่อคอร์ส วัน เวลา และราคาให้ครบ');
+  if (!payload.title || !payload.scheduleDetails || !payload.price) {
+    alert('กรุณากรอกชื่อคอร์ส รายละเอียดวันเรียน และราคาให้ครบ');
     return;
   }
 
@@ -293,22 +260,25 @@ async function onEnrollCourse(event) {
 async function onEditCourseOffering(course) {
   const title = window.prompt('แก้ชื่อคอร์ส', String(course?.title || '').trim());
   if (title === null) return;
-  const day = window.prompt('แก้วันเรียน', String(course?.day || '').trim());
-  if (day === null) return;
-  const time = window.prompt('แก้เวลาเรียน', String(course?.time || '').trim());
-  if (time === null) return;
+  const scheduleDetails = window.prompt('แก้รายละเอียดวันเรียน', String(course?.scheduleDetails || course?.day || '').trim());
+  if (scheduleDetails === null) return;
   const price = window.prompt('แก้ราคา', String(course?.price || '').trim());
   if (price === null) return;
   const content = window.prompt('แก้เนื้อหา', String(course?.content || '').trim());
   if (content === null) return;
 
-  if (!String(title).trim() || !String(day).trim() || !String(time).trim() || !String(price).trim()) {
-    alert('ต้องกรอกชื่อคอร์ส วัน เวลา และราคาให้ครบ');
+  if (!String(title).trim() || !String(scheduleDetails).trim() || !String(price).trim()) {
+    alert('ต้องกรอกชื่อคอร์ส รายละเอียดวันเรียน และราคาให้ครบ');
     return;
   }
 
   try {
-    await updateCourseOffering(course.courseId, { title, day, time, price, content });
+    await updateCourseOffering(course.courseId, {
+      title,
+      scheduleDetails,
+      price,
+      content,
+    });
     alert('แก้ไขข้อมูลคอร์สเรียบร้อย');
   } catch (error) {
     console.error(error);
@@ -391,7 +361,7 @@ function renderCourseOfferings(courseOffers) {
       <header class="course-card-head">
         <div>
           <h3>${escapeHtml(course?.title || 'ไม่ระบุชื่อคอร์ส')}</h3>
-          <p class="muted">วัน: ${escapeHtml(course?.day || '-')} · เวลา: ${escapeHtml(course?.time || '-')}</p>
+          <p class="muted">วันเรียน: ${escapeHtml(course?.scheduleDetails || course?.day || '-')}</p>
           <p class="muted">ราคา: ${escapeHtml(course?.price || '-')}</p>
         </div>
         <span class="status-pill ${isOpen ? '' : 'status-closed'}">${isOpen ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}</span>
@@ -868,12 +838,7 @@ if (openCourseDestinationBtn) {
 }
 
 if (courseOfferForm) {
-  offerDaysPicker?.addEventListener('change', hydrateCourseScheduleFields);
-  offerStartTimeInput?.addEventListener('input', hydrateCourseScheduleFields);
-  offerEndTimeInput?.addEventListener('input', hydrateCourseScheduleFields);
-  offerCustomDayInput?.addEventListener('input', hydrateCourseScheduleFields);
   courseOfferForm.addEventListener('submit', (event) => {
-    hydrateCourseScheduleFields();
     void onSaveCourseOffering(event);
   });
 }

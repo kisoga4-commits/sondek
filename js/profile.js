@@ -105,7 +105,7 @@ async function init() {
     renderTeachingGallery(teachingImages);
 
     const baseUrl = getBasePathUrl(window.location.pathname);
-    enrollLink.href = course?.enrollmentUrl || `${baseUrl}adminchamp.html#course-destination`;
+    enrollLink.href = `${baseUrl}courses.html`;
 
     if (!courseId) {
       statusText.textContent = 'เปิดหน้าโปรไฟล์สำเร็จ (ไม่ได้ระบุรหัสคอร์ส)';
