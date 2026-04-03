@@ -26,6 +26,7 @@ const quizMetaForm = document.getElementById('quizMetaForm');
 const drawCountPresetEls = Array.from(document.querySelectorAll('input[name="drawCountPreset"]'));
 const drawCountHintEl = document.getElementById('drawCountHint');
 const templateHealthEl = document.getElementById('templateHealth');
+const LOCAL_SNAPSHOT_KEY = 'template_quiz_local_snapshot_v1';
 
 const params = new URLSearchParams(window.location.search);
 const editingCourseId = params.get('courseId') || '';
@@ -34,6 +35,55 @@ const draftCourseId = editingCourseId || `quiz_${Date.now()}`;
 let bankQuestions = [];
 let editingIndex = null;
 let autoSaveTimer = null;
+
+function saveLocalSnapshot() {
+  const snapshot = {
+    savedAt: Date.now(),
+    courseId: document.getElementById('quizCourseId').value.trim() || draftCourseId,
+    title: document.getElementById('quizTitle').value.trim(),
+    description: document.getElementById('quizDescription').value.trim(),
+    enrollmentUrl: document.getElementById('enrollmentUrl').value.trim(),
+    drawCount: document.getElementById('drawCount').value,
+    drawPreset: drawCountPresetEls.find((item) => item.checked)?.value || null,
+    questionText: document.getElementById('questionText').value,
+    questionTypeLabel: questionTypeLabelEl.value,
+    answerMode: questionAnswerModeEl.value,
+    questionTimeLimit: document.getElementById('questionTimeLimit').value,
+    questionPoints: document.getElementById('questionPoints').value,
+    bankQuestions,
+  };
+  localStorage.setItem(LOCAL_SNAPSHOT_KEY, JSON.stringify(snapshot));
+}
+
+function restoreLocalSnapshot() {
+  if (editingCourseId) return;
+  const raw = localStorage.getItem(LOCAL_SNAPSHOT_KEY);
+  if (!raw) return;
+
+  try {
+    const snapshot = JSON.parse(raw);
+    if (!snapshot || !Array.isArray(snapshot.bankQuestions)) return;
+
+    bankQuestions = snapshot.bankQuestions;
+    document.getElementById('quizCourseId').value = snapshot.courseId || draftCourseId;
+    document.getElementById('quizTitle').value = snapshot.title || '';
+    document.getElementById('quizDescription').value = snapshot.description || '';
+    document.getElementById('enrollmentUrl').value = snapshot.enrollmentUrl || '';
+    document.getElementById('drawCount').value = String(Math.max(1, Number(snapshot.drawCount) || 10));
+
+    const matchedPreset = drawCountPresetEls.find((item) => item.value === String(snapshot.drawPreset || ''));
+    if (matchedPreset) matchedPreset.checked = true;
+
+    questionTypeLabelEl.value = snapshot.questionTypeLabel || 'คณิตศาสตร์พื้นฐาน';
+    questionAnswerModeEl.value = snapshot.answerMode || 'multiple_choice';
+    document.getElementById('questionText').value = snapshot.questionText || '';
+    document.getElementById('questionTimeLimit').value = String(Math.max(5, Number(snapshot.questionTimeLimit) || 30));
+    document.getElementById('questionPoints').value = String(Math.max(1, Number(snapshot.questionPoints) || 10));
+    showAnswerEditor(questionAnswerModeEl.value || 'multiple_choice');
+  } catch (error) {
+    console.warn('restore local snapshot failed', error);
+  }
+}
 
 function updateDrawCountHint() {
   const drawPreset = drawCountPresetEls.find((item) => item.checked)?.value;
@@ -298,7 +348,7 @@ function buildNormalizedQuestions() {
 
 async function autoSaveDraft() {
   const title = document.getElementById('quizTitle').value.trim();
-  if (!title || !bankQuestions.length) return;
+  if (!bankQuestions.length) return;
 
   const courseId = document.getElementById('quizCourseId').value.trim() || draftCourseId;
   document.getElementById('quizCourseId').value = courseId;
@@ -307,7 +357,7 @@ async function autoSaveDraft() {
 
   await saveCourse({
     courseId,
-    title,
+    title: title || 'แบบทดสอบยังไม่ตั้งชื่อ',
     description: document.getElementById('quizDescription').value.trim(),
     enrollmentUrl: document.getElementById('enrollmentUrl').value.trim(),
     drawCount: Math.max(1, Number(drawPreset || document.getElementById('drawCount').value) || 10),
@@ -316,9 +366,11 @@ async function autoSaveDraft() {
   });
 
   await replaceQuestionsForCourse(courseId, buildNormalizedQuestions());
+  saveLocalSnapshot();
 }
 
 function queueAutoSave() {
+  saveLocalSnapshot();
   if (autoSaveTimer) {
     window.clearTimeout(autoSaveTimer);
   }
@@ -352,6 +404,7 @@ async function saveToFirebase() {
     qrOutput.classList.remove('hidden');
     sharePanel.classList.remove('hidden');
     completionNotice.classList.remove('hidden');
+    localStorage.removeItem(LOCAL_SNAPSHOT_KEY);
 
     alert('ระบบอนุญาตให้นายทำควิซให้แล้ว และบันทึกขึ้น Firebase เรียบร้อย');
   } catch (error) {
@@ -437,6 +490,7 @@ questionEditor.addEventListener('submit', (event) => {
   renderQuestionBank();
   resetEditor();
   queueAutoSave();
+  void autoSaveDraft().catch((error) => console.error('autosave on next failed', error));
 });
 
 cancelEditBtn.addEventListener('click', () => resetEditor());
@@ -471,5 +525,7 @@ drawCountPresetEls.forEach((item) => {
 
 showAnswerEditor('multiple_choice');
 renderTemplateHealth();
+restoreLocalSnapshot();
+renderQuestionBank();
 updateDrawCountHint();
 void loadCourseForEditing();
