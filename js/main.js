@@ -77,7 +77,6 @@ const state = {
 
 const LOW_TIME_ALERT_SECONDS = 5;
 const FEEDBACK_MODAL_DURATION_MS = 5000;
-const FEEDBACK_VOLUME_NOTICE = 'เสียงด่า/อวยพร เบาเกินไป ทำให้ดังกว่านี้';
 
 function getBasePathUrl(pathname) {
   const basePath = pathname.includes('/')
@@ -151,13 +150,30 @@ function speakFeedbackLine(text) {
     const utterance = new SpeechSynthesisUtterance(line);
     utterance.lang = 'th-TH';
     utterance.volume = 1;
-    utterance.rate = 1.05;
+    utterance.rate = 1;
     utterance.pitch = 1;
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   });
+}
+
+function pickRandomLine(lines, fallback = '') {
+  const cleanLines = Array.isArray(lines)
+    ? lines.map((line) => String(line || '').trim()).filter(Boolean)
+    : [];
+  if (!cleanLines.length) {
+    return String(fallback || '').trim();
+  }
+  const randomIndex = Math.floor(Math.random() * cleanLines.length);
+  return cleanLines[randomIndex];
+}
+
+function getFeedbackIcon(percent) {
+  if (percent >= 80) return '🏆';
+  if (percent >= 50) return '👏';
+  return '🔥';
 }
 
 function currentQuestion() {
@@ -489,10 +505,11 @@ async function showResult() {
   const feedback = state.feedbackByBucket
     ? getResultFeedbackWithConfig(score.percent, state.feedbackByBucket)
     : getResultFeedback(score.percent);
-  const firstLine = feedback.lines?.[0] || feedback.title;
+  const firstLine = pickRandomLine(feedback.lines, feedback.title);
+  const feedbackIcon = getFeedbackIcon(score.percent);
   if (feedbackModal && feedbackModalLine && feedbackModalNotice) {
-    feedbackModalLine.textContent = firstLine;
-    feedbackModalNotice.textContent = FEEDBACK_VOLUME_NOTICE;
+    feedbackModalLine.textContent = `${feedbackIcon} ${firstLine}`;
+    feedbackModalNotice.textContent = '🔊 เช็กเสียงด่า/อวยพรให้ดังพอดี';
     feedbackModal.classList.remove('hidden');
     feedbackModal.classList.add('flex');
   }
@@ -508,8 +525,8 @@ async function showResult() {
   }
 
   resultSection.classList.remove('hidden');
-  resultScore.textContent = `คะแนน ${score.percent}/100 (${score.percent}%) • ถูก ${score.correct}/${score.total} ข้อ`;
-  resultMessage.textContent = `${firstLine} (${FEEDBACK_VOLUME_NOTICE})`;
+  resultScore.textContent = `คะแนน ${score.percent}% • ถูก ${score.correct}/${score.total} ข้อ`;
+  resultMessage.textContent = `${feedbackIcon} ${firstLine}`;
   renderAnswerReview(score);
 
   const durationSeconds = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));

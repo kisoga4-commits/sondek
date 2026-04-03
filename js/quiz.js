@@ -339,7 +339,7 @@ export function getResultFeedback(percent) {
   return {
     ...feedback,
     title: `${rangeLabel} คะแนน (${rangeLabel}%)`,
-    lines: shuffleArray(feedback.lines).slice(0, 1),
+    lines: shuffleArray(feedback.lines),
   };
 }
 
@@ -361,7 +361,7 @@ export function getResultFeedbackWithConfig(percent, feedbackByBucket) {
   if (customLines.length > 0) {
     return {
       title: `${rangeLabel} คะแนน (${rangeLabel}%)`,
-      lines: shuffleArray(customLines).slice(0, 1),
+      lines: shuffleArray(customLines),
     };
   }
 
