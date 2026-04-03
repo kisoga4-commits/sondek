@@ -50,7 +50,37 @@ function isPermissionDeniedError(error) {
 
 async function ensureAuthReady() {
   if (!authInitPromise) {
-    authInitPromise = signInAnonymously(auth);
+    authInitPromise = new Promise((resolve, reject) => {
+      let settled = false;
+      let unsubscribe = null;
+
+      const finalizeResolve = () => {
+        if (settled) return;
+        settled = true;
+        if (unsubscribe) unsubscribe();
+        resolve();
+      };
+
+      const finalizeReject = (error) => {
+        if (settled) return;
+        settled = true;
+        if (unsubscribe) unsubscribe();
+        reject(error);
+      };
+
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          finalizeResolve();
+          return;
+        }
+
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          finalizeReject(error);
+        }
+      }, finalizeReject);
+    });
   }
 
   await authInitPromise;
