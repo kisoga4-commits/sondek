@@ -20,6 +20,18 @@ function getBasePathUrl(pathname) {
   return `${window.location.origin}${basePath}`;
 }
 
+function optimizeTeachingImageUrl(rawUrl) {
+  const url = String(rawUrl || '').trim();
+  if (!url) return '';
+
+  if (url.includes('images.unsplash.com')) {
+    const [base] = url.split('?');
+    return `${base}?auto=format&fit=crop&w=720&h=540&q=70`;
+  }
+
+  return url;
+}
+
 function renderTeachingGallery(images = []) {
   teachingGallery.innerHTML = '';
   const cleanImages = Array.isArray(images)
@@ -36,12 +48,14 @@ function renderTeachingGallery(images = []) {
 
   cleanImages.forEach((url, index) => {
     const wrap = document.createElement('figure');
-    wrap.className = 'overflow-hidden rounded-2xl border border-slate-200 bg-slate-50';
+    wrap.className = 'mx-auto w-full max-w-xs overflow-hidden rounded-2xl border border-slate-200 bg-slate-50';
 
     const img = document.createElement('img');
-    img.src = url;
+    img.src = optimizeTeachingImageUrl(url);
     img.alt = `รูปการสอน ${index + 1}`;
-    img.className = 'h-52 w-full object-cover';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.className = 'aspect-[4/3] w-full object-cover object-center';
 
     wrap.appendChild(img);
     teachingGallery.appendChild(wrap);
