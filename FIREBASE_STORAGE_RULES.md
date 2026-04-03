@@ -10,6 +10,7 @@
 ## สิ่งที่ Rules นี้ทำ
 - อนุญาตอ่านรูปแบบสาธารณะ (`read: if true`) สำหรับ:
   - `profile-images/{uid}/{fileName}`
+  - `users/{uid}/profile/{fileName}` (path รูปโปรไฟล์แบบใหม่)
   - `teaching-images/{uid}/{fileName}`
 - อนุญาตเขียนได้เฉพาะผู้ใช้ที่ล็อกอิน และ `request.auth.uid` ต้องตรงกับ `{uid}` ใน path
 - อนุญาตเฉพาะไฟล์รูปภาพ (`image/*`)
@@ -22,3 +23,7 @@ firebase deploy --only storage
 ```
 
 > หมายเหตุ: โปรเจกต์นี้ใช้ Anonymous Auth ในหน้าเว็บ จึงยังนับว่าเป็นผู้ใช้ที่ยืนยันตัวตนแล้ว (`request.auth != null`).
+
+## คำถามที่พบบ่อย
+- ถ้าเปลี่ยน “ค่าฟิลด์” ใน Firestore ให้เก็บเป็น URL (เช่น `profile_image_url` หรือ `profileUrl`) โดยยังเขียนใน collection เดิม (`profile`) **ไม่จำเป็นต้องเปลี่ยน Firestore Rules**.
+- แต่ถ้าเปลี่ยน “ตำแหน่งไฟล์” ที่อัปโหลดใน Firebase Storage (เช่นจาก `profile-images/...` ไปเป็น `users/...`) ต้องอัปเดต `storage.rules` ให้ตรงกับ path ใหม่.
