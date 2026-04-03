@@ -40,6 +40,7 @@ const resultMessage = document.getElementById('resultMessage');
 const leaderboardList = document.getElementById('leaderboardList');
 const profileCta = document.getElementById('profileCta');
 const enrollCta = document.getElementById('enrollCta');
+const homeCourseCta = document.getElementById('homeCourseCta');
 const quizTitle = document.getElementById('quizTitle');
 const quizDescription = document.getElementById('quizDescription');
 const timerFill = document.getElementById('timerFill');
@@ -260,7 +261,8 @@ async function init() {
   profileCta.href = courseId
     ? `${baseUrl}profile.html?id=${encodeURIComponent(courseId)}`
     : `${baseUrl}profile.html`;
-  enrollCta.href = `${baseUrl}adminchamp.html#course-destination`;
+  enrollCta.href = `${baseUrl}courses.html`;
+  if (homeCourseCta) homeCourseCta.href = `${baseUrl}courses.html`;
 
   if (!courseId) {
     courseInfo.textContent = 'ไม่พบรหัสแบบทดสอบในลิงก์ ตัวอย่าง: quiz.html?id=quiz_xxx';
@@ -309,7 +311,7 @@ async function init() {
     playCountInfo.textContent = `มีผู้เล่นทำแบบทดสอบนี้แล้ว ${Number(playCount || 0).toLocaleString('th-TH')} ครั้ง`;
 
     profileCta.href = `${baseUrl}profile.html?id=${encodeURIComponent(courseId)}`;
-    enrollCta.href = course.enrollmentUrl || `${baseUrl}adminchamp.html#course-destination`;
+    enrollCta.href = `${baseUrl}courses.html`;
     startBtn.disabled = false;
   } catch (error) {
     console.error(error);
