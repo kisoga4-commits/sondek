@@ -61,6 +61,13 @@ function setStatus(text) {
 function toDuelErrorMessage(error, fallbackText) {
   const message = String(error?.message || '');
   const code = String(error?.code || '');
+  const isAuthConfigError = code.includes('auth/anonymous-not-enabled')
+    || code.includes('auth/operation-not-allowed')
+    || code.includes('auth/admin-restricted-operation')
+    || code.includes('auth/unauthorized-domain');
+  if (isAuthConfigError) {
+    return 'ระบบล็อกอิน Anonymous ยังไม่พร้อม — เปิด Firebase Authentication > Sign-in method > Anonymous และเพิ่มโดเมนเว็บใน Authorized domains';
+  }
   const isPermissionDenied = code.includes('permission-denied')
     || message.includes('Missing or insufficient permissions');
   if (!isPermissionDenied) return message || fallbackText;

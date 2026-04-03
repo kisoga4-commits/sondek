@@ -70,12 +70,28 @@ function isPermissionDeniedError(error) {
     || errorMessage.includes('Missing or insufficient permissions');
 }
 
+function isAnonymousAuthConfigError(error) {
+  const errorCode = String(error?.code || '');
+  return errorCode.includes('auth/operation-not-allowed')
+    || errorCode.includes('auth/admin-restricted-operation')
+    || errorCode.includes('auth/unauthorized-domain');
+}
+
 const DUEL_PERMISSION_HINT = 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode ใน Realtime Database (Missing or insufficient permissions) — เปิด Firebase Auth แบบ Anonymous และ publish RTDB Rules ที่อนุญาต auth != null บน path duel_rooms/{roomId}';
+const DUEL_AUTH_HINT = 'ล็อกอินแบบ Anonymous ไม่สำเร็จ — เปิด Firebase Authentication > Sign-in method > Anonymous และเพิ่มโดเมนปัจจุบันใน Authorized domains';
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
   const nextError = new Error(fallbackMessage || DUEL_PERMISSION_HINT);
   nextError.code = 'permission-denied';
+  nextError.cause = error;
+  return nextError;
+}
+
+function toDuelAuthConfigError(error) {
+  if (!isAnonymousAuthConfigError(error)) return error;
+  const nextError = new Error(DUEL_AUTH_HINT);
+  nextError.code = 'auth/anonymous-not-enabled';
   nextError.cause = error;
   return nextError;
 }
@@ -110,7 +126,7 @@ async function ensureAuthReady() {
         try {
           await signInAnonymously(auth);
         } catch (error) {
-          finalizeReject(error);
+          finalizeReject(toDuelAuthConfigError(error));
         }
       }, finalizeReject);
     });
