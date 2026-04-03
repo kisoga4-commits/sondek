@@ -979,11 +979,14 @@ export async function submitDuelAnswer(roomId, payload) {
       eventTargetUid = opponentUid;
     } else {
       me.wrongCount = Number(me.wrongCount || 0) + 1;
-      me.wrongStreak = 0;
-      me.hp = Math.max(0, Number(me.hp || 0) - 1);
-      eventType = 'penalty';
-      eventMessage = 'ตอบผิด! HP ลดลง 1';
-      eventTargetUid = uid;
+      me.wrongStreak = Number(me.wrongStreak || 0) + 1;
+      if (me.wrongStreak >= 3) {
+        me.wrongStreak = 0;
+        me.hp = Math.max(0, Number(me.hp || 0) - 1);
+        eventType = 'penalty';
+        eventMessage = 'ตอบผิดติดกัน 3 ครั้ง! HP ลดลง 1';
+        eventTargetUid = uid;
+      }
     }
 
     me.updatedAt = nowMs;
