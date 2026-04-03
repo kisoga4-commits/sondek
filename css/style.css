@@ -743,6 +743,10 @@ select:focus {
   background: #f8fffe;
 }
 
+.title-prompt-card {
+  width: min(520px, 100%);
+}
+
 .mode-tabs {
   display: grid;
   gap: 0.5rem;
