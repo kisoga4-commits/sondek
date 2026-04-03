@@ -62,6 +62,10 @@ function renderTeachingGallery(images = []) {
   });
 }
 
+function resolveProfileImageUrl(profile) {
+  return String(profile?.profile_image_url || profile?.imageUrl || '').trim();
+}
+
 async function init() {
   try {
     const [course, profile] = await Promise.all([
@@ -69,14 +73,15 @@ async function init() {
       getProfile(),
     ]);
 
-    profileImage.src = profile?.imageUrl || DEFAULT_PROFILE_IMAGE;
+    const resolvedProfileImage = resolveProfileImageUrl(profile);
+    profileImage.src = resolvedProfileImage || DEFAULT_PROFILE_IMAGE;
     profileName.textContent = profile?.name || 'ครูผู้สอน';
     profileBio.textContent = profile?.bio || '';
     profileBio.style.display = profile?.bio ? 'block' : 'none';
 
     const teachingImages = Array.isArray(profile?.teachingImages) && profile.teachingImages.length
       ? profile.teachingImages
-      : (profile?.imageUrl ? [profile.imageUrl] : []);
+      : (resolvedProfileImage ? [resolvedProfileImage] : []);
     renderTeachingGallery(teachingImages);
 
     const baseUrl = getBasePathUrl(window.location.pathname);
