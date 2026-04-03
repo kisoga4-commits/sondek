@@ -18,7 +18,8 @@
             <input id="duelPlayerName" type="text" minlength="2" placeholder="เช่น แชมป์" />
           </label>
           <label>Course ID (ใช้ดึงคลังโจทย์)
-            <input id="duelCourseId" type="text" placeholder="เช่น math01" />
+            <input id="duelCourseId" type="text" list="duelCourseIdOptions" placeholder="เลือกหรือพิมพ์ เช่น math01" />
+            <datalist id="duelCourseIdOptions"></datalist>
           </label>
           <label>เวลา (Host)
             <select id="duelDuration">
