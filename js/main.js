@@ -54,6 +54,14 @@ const soundToggle = document.getElementById('soundToggle');
 const feedbackModal = document.getElementById('feedbackModal');
 const feedbackModalLine = document.getElementById('feedbackModalLine');
 const feedbackModalNotice = document.getElementById('feedbackModalNotice');
+const openHomeHubBtn = document.getElementById('openHomeHubBtn');
+const homeHubModal = document.getElementById('homeHubModal');
+const closeHomeHubBtn = document.getElementById('closeHomeHubBtn');
+const homeHubHomeLink = document.getElementById('homeHubHomeLink');
+const homeHubQuizLink = document.getElementById('homeHubQuizLink');
+const homeHubTopLink = document.getElementById('homeHubTopLink');
+const homeHubProfileLink = document.getElementById('homeHubProfileLink');
+const homeHubAdminLink = document.getElementById('homeHubAdminLink');
 
 const state = {
   course: null,
@@ -239,6 +247,16 @@ function getQuestionTypeLabel(type) {
 
 async function init() {
   const baseUrl = getBasePathUrl(window.location.pathname);
+  if (homeHubHomeLink) homeHubHomeLink.href = `${baseUrl}index.html`;
+  if (homeHubQuizLink) homeHubQuizLink.href = courseId
+    ? `${baseUrl}quiz.html?id=${encodeURIComponent(courseId)}`
+    : `${baseUrl}quiz.html`;
+  if (homeHubTopLink) homeHubTopLink.href = courseId
+    ? `${baseUrl}top.html?id=${encodeURIComponent(courseId)}`
+    : `${baseUrl}top.html`;
+  if (homeHubProfileLink) homeHubProfileLink.href = `${baseUrl}profile.html`;
+  if (homeHubAdminLink) homeHubAdminLink.href = `${baseUrl}adminchamp.html`;
+
   profileCta.href = courseId
     ? `${baseUrl}profile.html?id=${encodeURIComponent(courseId)}`
     : `${baseUrl}profile.html`;
@@ -641,6 +659,29 @@ if (top5Modal) {
 if (soundToggle) {
   soundToggle.addEventListener('change', () => {
     state.audioEnabled = Boolean(soundToggle.checked);
+  });
+}
+
+if (openHomeHubBtn && homeHubModal) {
+  openHomeHubBtn.addEventListener('click', () => {
+    homeHubModal.classList.remove('hidden');
+    homeHubModal.classList.add('flex');
+  });
+}
+
+if (closeHomeHubBtn && homeHubModal) {
+  closeHomeHubBtn.addEventListener('click', () => {
+    homeHubModal.classList.add('hidden');
+    homeHubModal.classList.remove('flex');
+  });
+}
+
+if (homeHubModal) {
+  homeHubModal.addEventListener('click', (event) => {
+    if (event.target === homeHubModal) {
+      homeHubModal.classList.add('hidden');
+      homeHubModal.classList.remove('flex');
+    }
   });
 }
 
