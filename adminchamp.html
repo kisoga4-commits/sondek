@@ -50,12 +50,20 @@
             <label>รูปโปรไฟล์ (URL)
               <input type="url" id="profileImageInput" placeholder="https://..." required />
             </label>
+            <label>อัปโหลดรูปโปรไฟล์จากเครื่อง
+              <input type="file" id="profileImageFileInput" accept="image/*" />
+            </label>
+            <button class="btn btn-secondary" id="uploadProfileImageBtn" type="button">อัปโหลดรูปโปรไฟล์</button>
             <label>ประวัติครู
               <textarea id="profileBioInput" rows="3" placeholder="บอกประสบการณ์สอน / จุดเด่น" required></textarea>
             </label>
             <label>รูปการสอนเพิ่มเติม (URL ต่อบรรทัด)
               <textarea id="profileTeachingImagesInput" rows="3" placeholder="https://...\nhttps://..."></textarea>
             </label>
+            <label>อัปโหลดรูปการสอนจากเครื่อง (เลือกได้หลายรูป)
+              <input type="file" id="profileTeachingImagesFileInput" accept="image/*" multiple />
+            </label>
+            <button class="btn btn-secondary" id="uploadTeachingImagesBtn" type="button">อัปโหลดรูปการสอน</button>
             <div class="admin-actions">
               <button class="btn" id="saveProfileBtn" type="submit">บันทึกโปรไฟล์</button>
               <a class="btn btn-secondary" id="openProfilePageBtn" href="profile.html" target="_blank" rel="noopener noreferrer">เปิดหน้าโปรไฟล์</a>

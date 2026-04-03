@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isImageUpload() {
+      return request.resource != null
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // รูปโปรไฟล์ที่อัปจากเครื่อง
+    match /profile-images/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == uid && isImageUpload();
+    }
+
+    // รูปการสอนเพิ่มเติมที่อัปจากเครื่อง
+    match /teaching-images/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == uid && isImageUpload();
+    }
+
+    // ปิด path อื่นทั้งหมด
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

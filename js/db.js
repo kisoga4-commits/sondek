@@ -22,6 +22,12 @@ import {
   writeBatch,
 } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytes,
+} from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -36,6 +42,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 
 let authInitPromise = null;
 
@@ -94,6 +101,41 @@ async function ensureWriteAccess() {
     error.code = 'auth/not-authenticated';
     throw error;
   }
+}
+
+
+function sanitizeStorageSegment(value, fallback = 'file') {
+  const normalized = String(value || '').toLowerCase().trim();
+  const cleaned = normalized.replace(/[^a-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return cleaned || fallback;
+}
+
+export async function uploadImageFile(file, options = {}) {
+  await ensureWriteAccess();
+
+  if (!(file instanceof File)) {
+    throw new Error('กรุณาเลือกไฟล์รูปภาพก่อนอัปโหลด');
+  }
+
+  const uid = auth.currentUser?.uid || 'anonymous';
+  const folder = sanitizeStorageSegment(options.folder || 'profile-images', 'profile-images');
+  const extension = sanitizeStorageSegment(file.name.split('.').pop() || 'jpg', 'jpg');
+  const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const path = `${folder}/${uid}/${fileId}.${extension}`;
+  const storageRef = ref(storage, path);
+
+  const metadata = {
+    contentType: file.type || 'image/jpeg',
+    cacheControl: 'public,max-age=31536000',
+  };
+
+  await uploadBytes(storageRef, file, metadata);
+  const downloadUrl = await getDownloadURL(storageRef);
+
+  return {
+    path,
+    downloadUrl,
+  };
 }
 
 export async function saveCourse(course) {

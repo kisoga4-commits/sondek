@@ -7,6 +7,7 @@ import {
   saveProfile,
   subscribeAuthStatus,
   subscribeCourses,
+  uploadImageFile,
 } from './db.js';
 import { getDefaultFeedbackMap } from './quiz.js';
 
@@ -20,8 +21,12 @@ const saveFeedbackBtn = document.getElementById('saveFeedbackBtn');
 const profileForm = document.getElementById('profileForm');
 const profileNameInput = document.getElementById('profileNameInput');
 const profileImageInput = document.getElementById('profileImageInput');
+const profileImageFileInput = document.getElementById('profileImageFileInput');
+const uploadProfileImageBtn = document.getElementById('uploadProfileImageBtn');
 const profileBioInput = document.getElementById('profileBioInput');
 const profileTeachingImagesInput = document.getElementById('profileTeachingImagesInput');
+const profileTeachingImagesFileInput = document.getElementById('profileTeachingImagesFileInput');
+const uploadTeachingImagesBtn = document.getElementById('uploadTeachingImagesBtn');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const profileFormStatus = document.getElementById('profileFormStatus');
 const openProfilePageBtn = document.getElementById('openProfilePageBtn');
@@ -96,6 +101,107 @@ function parseTeachingImagesFromInput(rawValue) {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+async function compressImageFile(file, options = {}) {
+  const maxWidth = Math.max(480, Number(options.maxWidth) || 1280);
+  const quality = Math.min(0.92, Math.max(0.45, Number(options.quality) || 0.76));
+
+  if (!file?.type?.startsWith('image/')) {
+    throw new Error('ไฟล์ที่เลือกไม่ใช่รูปภาพ');
+  }
+
+  const imageBitmap = await createImageBitmap(file);
+  const ratio = imageBitmap.width > maxWidth ? maxWidth / imageBitmap.width : 1;
+  const width = Math.max(1, Math.round(imageBitmap.width * ratio));
+  const height = Math.max(1, Math.round(imageBitmap.height * ratio));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('ไม่สามารถเตรียมตัวบีบรูปได้');
+  }
+
+  ctx.drawImage(imageBitmap, 0, 0, width, height);
+
+  const outputType = 'image/webp';
+  const compressedBlob = await new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('บีบรูปไม่สำเร็จ'));
+        return;
+      }
+      resolve(blob);
+    }, outputType, quality);
+  });
+
+  const baseName = String(file.name || 'upload').replace(/\.[^.]+$/, '');
+  return new File([compressedBlob], `${baseName}.webp`, { type: outputType });
+}
+
+async function onUploadProfileImage() {
+  const file = profileImageFileInput?.files?.[0];
+  if (!file) {
+    alert('กรุณาเลือกไฟล์รูปโปรไฟล์ก่อน');
+    return;
+  }
+
+  try {
+    if (uploadProfileImageBtn) uploadProfileImageBtn.disabled = true;
+    if (profileFormStatus) profileFormStatus.textContent = 'กำลังบีบรูปโปรไฟล์และอัปโหลด...';
+
+    const compressedFile = await compressImageFile(file, { maxWidth: 1080, quality: 0.78 });
+    const uploadResult = await uploadImageFile(compressedFile, { folder: 'profile-images' });
+    if (profileImageInput) profileImageInput.value = uploadResult.downloadUrl;
+
+    if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์สำเร็จแล้ว';
+  } catch (error) {
+    console.error(error);
+    if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์ไม่สำเร็จ';
+    alert(`อัปโหลดรูปโปรไฟล์ไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+  } finally {
+    if (uploadProfileImageBtn) uploadProfileImageBtn.disabled = false;
+    if (profileImageFileInput) profileImageFileInput.value = '';
+  }
+}
+
+async function onUploadTeachingImages() {
+  const files = Array.from(profileTeachingImagesFileInput?.files || []);
+  if (!files.length) {
+    alert('กรุณาเลือกรูปการสอนก่อน');
+    return;
+  }
+
+  try {
+    if (uploadTeachingImagesBtn) uploadTeachingImagesBtn.disabled = true;
+    if (profileFormStatus) profileFormStatus.textContent = `กำลังบีบและอัปโหลดรูปการสอน ${files.length} รูป...`;
+
+    const uploadedUrls = [];
+    for (const [index, file] of files.entries()) {
+      if (profileFormStatus) profileFormStatus.textContent = `กำลังอัปโหลดรูปการสอน ${index + 1}/${files.length}...`;
+      const compressedFile = await compressImageFile(file, { maxWidth: 1280, quality: 0.76 });
+      const uploadResult = await uploadImageFile(compressedFile, { folder: 'teaching-images' });
+      uploadedUrls.push(uploadResult.downloadUrl);
+    }
+
+    const existing = parseTeachingImagesFromInput(profileTeachingImagesInput?.value || '');
+    const merged = [...existing, ...uploadedUrls];
+    if (profileTeachingImagesInput) {
+      profileTeachingImagesInput.value = merged.join('\n');
+    }
+
+    if (profileFormStatus) profileFormStatus.textContent = `อัปโหลดรูปการสอนสำเร็จ ${uploadedUrls.length} รูป`;
+  } catch (error) {
+    console.error(error);
+    if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปการสอนไม่สำเร็จ';
+    alert(`อัปโหลดรูปการสอนไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
+  } finally {
+    if (uploadTeachingImagesBtn) uploadTeachingImagesBtn.disabled = false;
+    if (profileTeachingImagesFileInput) profileTeachingImagesFileInput.value = '';
+  }
 }
 
 async function loadProfileForm() {
@@ -456,6 +562,18 @@ if (saveFeedbackBtn) {
 if (profileForm) {
   profileForm.addEventListener('submit', (event) => {
     void onSaveProfile(event);
+  });
+}
+
+if (uploadProfileImageBtn) {
+  uploadProfileImageBtn.addEventListener('click', () => {
+    void onUploadProfileImage();
+  });
+}
+
+if (uploadTeachingImagesBtn) {
+  uploadTeachingImagesBtn.addEventListener('click', () => {
+    void onUploadTeachingImages();
   });
 }
 
