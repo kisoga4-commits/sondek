@@ -31,6 +31,7 @@ const drawCountHintEl = document.getElementById('drawCountHint');
 const templateHealthEl = document.getElementById('templateHealth');
 const importPayloadEl = document.getElementById('importPayload');
 const importBtn = document.getElementById('importBtn');
+const titleFirstNoticeEl = document.getElementById('titleFirstNotice');
 const LOCAL_SNAPSHOT_KEY = 'template_quiz_local_snapshot_v1';
 
 const params = new URLSearchParams(window.location.search);
@@ -46,6 +47,29 @@ function normalizeQuestionTypeLabel(value) {
   if (QUESTION_TYPE_OPTIONS.includes(value)) return value;
   if (value === 'คณิตศาสตร์พื้นฐาน') return 'คณิตศาสตร์พื้นฐาน';
   return 'คณิตศาสตร์พื้นฐาน';
+}
+
+function isQuizTitleReady() {
+  return Boolean(document.getElementById('quizTitle').value.trim());
+}
+
+function setBuilderLockedState() {
+  const canEdit = isQuizTitleReady();
+  const lockTargets = Array.from(questionEditor.querySelectorAll('input, textarea, select, button'));
+  lockTargets.forEach((element) => {
+    element.disabled = !canEdit;
+  });
+
+  if (importPayloadEl) importPayloadEl.disabled = !canEdit;
+  if (importBtn) importBtn.disabled = !canEdit;
+  if (completeQuizBtn) completeQuizBtn.disabled = !canEdit;
+  if (duplicateQuizBtn) duplicateQuizBtn.disabled = !canEdit;
+
+  if (titleFirstNoticeEl) {
+    titleFirstNoticeEl.textContent = canEdit
+      ? 'ตั้งชื่อบททดสอบแล้ว สามารถเพิ่มคำถามได้'
+      : 'กรุณาตั้งชื่อบททดสอบก่อน แล้วจึงเพิ่มคำถาม/Import/กดเสร็จได้';
+  }
 }
 
 function getCorrectDisplay(question) {
@@ -260,7 +284,11 @@ function renderQuestionBank() {
     return;
   }
 
-  bankSummary.textContent = `มีคำถามแล้ว ${bankQuestions.length} ข้อ (ขั้นต่ำ ${MIN_QUESTION_BANK} ข้อก่อนบันทึก)`;
+  if (bankQuestions.length >= MIN_QUESTION_BANK) {
+    bankSummary.textContent = `มีคำถามแล้ว ${bankQuestions.length} ข้อ (ขั้นต่ำ ${MIN_QUESTION_BANK} ข้อก่อนบันทึก)`;
+  } else {
+    bankSummary.textContent = `มีคำถามแล้ว ${bankQuestions.length} ข้อ (ต้องมีขั้นต่ำ ${MIN_QUESTION_BANK} ข้อก่อนบันทึก)`;
+  }
 
   bankQuestions.forEach((question, index) => {
     const li = document.createElement('li');
@@ -589,6 +617,11 @@ function queueAutoSave() {
 }
 
 async function saveToFirebase() {
+  if (!isQuizTitleReady()) {
+    alert('กรุณากรอกชื่อบททดสอบก่อนบันทึก');
+    return;
+  }
+
   const meta = getMetaPayload();
   if (!meta) return;
 
@@ -628,6 +661,7 @@ async function loadCourseForEditing() {
   if (!editingCourseId) {
     document.getElementById('quizCourseId').value = draftCourseId;
     renderQuestionBank();
+    setBuilderLockedState();
     return;
   }
 
@@ -674,10 +708,12 @@ async function loadCourseForEditing() {
     }));
 
     renderQuestionBank();
+    setBuilderLockedState();
   } catch (error) {
     console.error(error);
     alert('โหลดคอร์สเดิมไม่สำเร็จ');
     renderQuestionBank();
+    setBuilderLockedState();
   }
 }
 
@@ -687,6 +723,11 @@ questionAnswerModeEl.addEventListener('change', () => {
 
 questionEditor.addEventListener('submit', (event) => {
   event.preventDefault();
+  if (!isQuizTitleReady()) {
+    alert('กรุณากรอกชื่อบททดสอบก่อนเพิ่มคำถาม');
+    document.getElementById('quizTitle').focus();
+    return;
+  }
   const payload = buildQuestionPayloadFromEditor();
   if (!payload) return;
 
@@ -738,6 +779,7 @@ downloadQrBtn.addEventListener('click', () => {
 });
 
 quizMetaForm.addEventListener('input', () => {
+  setBuilderLockedState();
   queueAutoSave();
 });
 
@@ -754,4 +796,5 @@ renderTemplateHealth();
 restoreLocalSnapshot();
 renderQuestionBank();
 updateDrawCountHint();
+setBuilderLockedState();
 void loadCourseForEditing();
