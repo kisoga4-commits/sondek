@@ -51,10 +51,10 @@ service cloud.firestore {
     }
 
     match /duel_rooms/{roomId} {
-      // โหมดดวลต้องให้ Host/Join เข้าห้องได้ทันที
-      // อนุญาตทั้ง guest และ anonymous auth แต่บังคับ Room ID เป็นเลข 4 หลัก
+      // โหมดดวลต้องให้ผู้เล่นที่ sign-in (รวม anonymous) create/join ได้ทันที
+      // ปิด guest เพื่อกันการเขียนโดยไม่ระบุตัวตน
       allow read: if isValidRoomId(roomId);
-      allow create, update, delete: if isValidRoomId(roomId);
+      allow create, update, delete: if isAuthenticated() && isValidRoomId(roomId);
     }
 
     // -----------------------------
