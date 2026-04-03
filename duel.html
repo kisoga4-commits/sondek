@@ -17,9 +17,10 @@
           <label>ชื่อผู้เล่น
             <input id="duelPlayerName" type="text" minlength="2" placeholder="เช่น แชมป์" />
           </label>
-          <label>Course ID (ใช้ดึงคลังโจทย์)
-            <input id="duelCourseId" type="text" list="duelCourseIdOptions" placeholder="เลือกหรือพิมพ์ เช่น math01" />
-            <datalist id="duelCourseIdOptions"></datalist>
+          <label>บททดสอบ (เลือกจากชื่อ)
+            <select id="duelCourseId">
+              <option value="">-- เลือกบททดสอบ --</option>
+            </select>
           </label>
           <label>เวลา (Host)
             <select id="duelDuration">
