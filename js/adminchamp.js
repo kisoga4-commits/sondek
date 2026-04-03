@@ -26,6 +26,7 @@ const saveProfileBtn = document.getElementById('saveProfileBtn');
 const profileFormStatus = document.getElementById('profileFormStatus');
 const openProfilePageBtn = document.getElementById('openProfilePageBtn');
 const openMyProfileBtn = document.getElementById('openMyProfileBtn');
+const openCourseDestinationBtn = document.getElementById('openCourseDestinationBtn');
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
@@ -65,6 +66,29 @@ function buildProfileLink() {
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
     : '/';
   return `${window.location.origin}${basePath}profile.html`;
+}
+
+function buildCourseDestinationLink() {
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}adminchamp.html#course-destination`;
+}
+
+function getFriendlyProfileSaveError(error) {
+  const errorCode = String(error?.code || '');
+  const errorMessage = String(error?.message || '');
+
+  if (errorCode.includes('auth/not-authenticated')) {
+    return 'บันทึกไม่สำเร็จ เพราะระบบยังล็อกอินไม่ได้\n\nกรุณาเปิด Firebase Authentication > Sign-in method > Anonymous แล้วลองใหม่';
+  }
+
+  if (errorCode.includes('permission-denied') || errorMessage.includes('Missing or insufficient permissions')) {
+    return 'บันทึกไม่สำเร็จ เพราะบัญชีนี้ยังไม่มีสิทธิ์เขียนข้อมูลใน Firestore\n\nตรวจสอบ Firebase Rules ให้อนุญาต write เมื่อ request.auth != null แล้วลองใหม่';
+  }
+
+  return `บันทึกโปรไฟล์ไม่สำเร็จ${errorMessage ? `: ${errorMessage}` : ''}`;
 }
 
 function parseTeachingImagesFromInput(rawValue) {
@@ -122,7 +146,7 @@ async function onSaveProfile(event) {
   } catch (error) {
     console.error(error);
     if (profileFormStatus) profileFormStatus.textContent = 'บันทึกโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่';
-    alert('บันทึกโปรไฟล์ไม่สำเร็จ');
+    alert(getFriendlyProfileSaveError(error));
   } finally {
     if (saveProfileBtn) saveProfileBtn.disabled = false;
   }
@@ -447,5 +471,11 @@ if (openProfilePageBtn) {
 if (openMyProfileBtn) {
   openMyProfileBtn.addEventListener('click', () => {
     window.open(buildProfileLink(), '_blank', 'noopener,noreferrer');
+  });
+}
+
+if (openCourseDestinationBtn) {
+  openCourseDestinationBtn.addEventListener('click', () => {
+    window.open(buildCourseDestinationLink(), '_blank', 'noopener,noreferrer');
   });
 }
