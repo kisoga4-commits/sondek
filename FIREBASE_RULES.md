@@ -15,10 +15,28 @@
 - ดังนั้น error `Missing or insufficient permissions` ของโหมดดวล จะเกี่ยวกับ **Realtime Database Rules** ไม่ใช่ `firestore.rules`
 - ควรเปิด Anonymous Auth และตั้ง RTDB Rules ให้ user ที่ล็อกอินแล้ว (รวม anonymous) อ่าน/เขียนห้องของ Duel ได้
 
-ตัวอย่างแนวคิด Rules สำหรับ RTDB:
-- อนุญาต `read/write` เมื่อ `auth != null`
-- บังคับ `roomId` เป็นตัวเลข 4 หลัก
-- จำกัดจำนวน player ไม่เกิน 2 คน (validation เพิ่มใน rules ได้)
+## วิธีแก้ `permission_denied` ของ Duel แบบเร็ว
+1. เปิด `Firebase Console > Authentication > Sign-in method > Anonymous` ให้เป็น **Enabled**
+2. Deploy RTDB rules จากไฟล์ `database.rules.json` ใน repo นี้:
+   ```bash
+   firebase deploy --only database
+   ```
+3. ทดสอบใหม่โดยเปิดหน้า `duel.html` แล้วสร้างห้องรหัสใหม่ 4 หลัก
+
+ไฟล์ `database.rules.json` ถูกตั้งค่าให้:
+- อนุญาต `read/write` เฉพาะ user ที่ login แล้ว (`auth != null`)
+- อนุญาตเฉพาะ `roomId` ที่เป็นตัวเลข 4 หลัก
+- จำกัด `players` ไม่เกิน 2 คน
+
+## ถ้ายังไม่หาย: รีเซ็ตระบบ Duel แล้วเริ่มใหม่
+ถ้าข้อมูลห้องเดิมค้าง/เพี้ยน ให้ลบ node `duel_rooms` ทั้งหมดใน Realtime Database แล้วเริ่มสร้างห้องใหม่:
+
+1. ไปที่ `Firebase Console > Realtime Database > Data`
+2. เลือก node `duel_rooms`
+3. กดเมนู `⋮` แล้วเลือก **Delete node**
+4. กลับไปหน้าเว็บ แล้วสร้างห้อง Duel ใหม่
+
+> หมายเหตุ: การลบ `duel_rooms` จะลบห้องดวลที่กำลังรอ/กำลังเล่นทั้งหมดทันที
 
 ## วิธีหา UID แอดมิน
 - เปิดหน้า `adminchamp.html`
