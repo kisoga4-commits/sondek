@@ -36,6 +36,7 @@ const LOCAL_SNAPSHOT_KEY = 'template_quiz_local_snapshot_v1';
 
 const params = new URLSearchParams(window.location.search);
 const editingCourseId = params.get('courseId') || '';
+const shouldRestoreSnapshot = params.get('resume') === '1';
 const draftCourseId = editingCourseId || `quiz_${Date.now()}`;
 
 let bankQuestions = [];
@@ -107,7 +108,7 @@ function saveLocalSnapshot() {
 }
 
 function restoreLocalSnapshot() {
-  if (editingCourseId) return;
+  if (editingCourseId || !shouldRestoreSnapshot) return;
   const raw = localStorage.getItem(LOCAL_SNAPSHOT_KEY);
   if (!raw) return;
 
@@ -452,7 +453,6 @@ function importQuestionsFromText() {
   bankQuestions.push(...imported);
   renderQuestionBank();
   queueAutoSave();
-  void autoSaveDraft().catch((error) => console.error('autosave on import failed', error));
 
   if (invalidLines.length) {
     alert(`Import สำเร็จ ${imported.length} ข้อ\n${invalidLines.join('\n')}`);
@@ -740,7 +740,6 @@ questionEditor.addEventListener('submit', (event) => {
   renderQuestionBank();
   resetEditor();
   queueAutoSave();
-  void autoSaveDraft().catch((error) => console.error('autosave on next failed', error));
 });
 
 cancelEditBtn.addEventListener('click', () => resetEditor());
@@ -793,6 +792,9 @@ drawCountPresetEls.forEach((item) => {
 
 showAnswerEditor('multiple_choice');
 renderTemplateHealth();
+if (!editingCourseId && !shouldRestoreSnapshot) {
+  localStorage.removeItem(LOCAL_SNAPSHOT_KEY);
+}
 restoreLocalSnapshot();
 renderQuestionBank();
 updateDrawCountHint();
