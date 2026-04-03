@@ -976,3 +976,194 @@ select:focus {
     width: 100%;
   }
 }
+
+/* adminchamp redesign */
+.adminchamp-layout {
+  max-width: 1240px;
+  gap: 1rem;
+}
+
+.adminchamp-hero {
+  background: linear-gradient(180deg, #ecfeff 0%, #ffffff 100%);
+}
+
+.adminchamp-col {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.adminchamp-section {
+  gap: 1rem;
+}
+
+.question-type-row {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid #d1fae5;
+  border-radius: 0.85rem;
+  background: #f8fffe;
+  padding: 0.75rem;
+}
+
+.question-type-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.question-type-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.type-pill {
+  border: 1px solid #99f6e4;
+  background: #ffffff;
+  color: #115e59;
+  border-radius: 999px;
+  padding: 0.32rem 0.72rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.type-pill.is-active {
+  background: #0f766e;
+  color: #fff;
+  border-color: #0f766e;
+}
+
+.adminchamp-cta {
+  border: 1px solid #5eead4;
+}
+
+.quiz-library {
+  gap: 0.8rem;
+}
+
+.library-item {
+  padding: 0.85rem;
+  border-color: #c7d2fe;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.03);
+}
+
+.library-item-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
+}
+
+.library-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.status-pill.status-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.share-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.7rem;
+}
+
+.qr-box {
+  width: fit-content;
+}
+
+.qr-box img {
+  width: 112px;
+  height: 112px;
+}
+
+.action-row {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.item-actions {
+  margin-top: 0;
+  gap: 0.5rem;
+}
+
+.item-actions-main,
+.item-actions-secondary,
+.item-actions-danger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.item-actions-main .btn {
+  background: #0d9488;
+}
+
+.item-actions-secondary .btn {
+  background: #334155;
+}
+
+.item-actions-danger .btn {
+  min-width: 90px;
+}
+
+.scroll-list {
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.course-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.destination-actions {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.destination-btn {
+  min-height: 44px;
+}
+
+@media (min-width: 980px) {
+  .adminchamp-layout {
+    grid-template-columns: 1.15fr 0.95fr;
+    align-items: start;
+  }
+
+  .adminchamp-hero {
+    grid-column: 1 / -1;
+  }
+
+  .library-item-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+
+  .adminchamp-col-right .scroll-list {
+    max-height: 500px;
+  }
+}
+
+@media (max-width: 900px) {
+  .destination-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .item-actions-main .btn,
+  .item-actions-secondary .btn,
+  .item-actions-danger .btn {
+    width: 100%;
+  }
+}
