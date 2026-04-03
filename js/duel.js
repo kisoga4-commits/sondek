@@ -64,7 +64,7 @@ function toDuelErrorMessage(error, fallbackText) {
   const isPermissionDenied = code.includes('permission-denied')
     || message.includes('Missing or insufficient permissions');
   if (!isPermissionDenied) return message || fallbackText;
-  return 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode (Missing or insufficient permissions) — ให้เปิด Anonymous Auth และปรับ Firestore Rules ให้อนุญาต create/join ห้อง';
+  return 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode (Missing or insufficient permissions) — เปิด Firebase Auth แบบ Anonymous, Deploy firestore.rules ล่าสุด และอนุญาต create/join ที่ duel_rooms';
 }
 
 function normalizeRoomIdInput(value = '') {
