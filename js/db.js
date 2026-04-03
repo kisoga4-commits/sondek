@@ -337,6 +337,9 @@ export async function saveProfile(profile) {
     bio: profile.bio,
     imageUrl: profile.imageUrl,
     profileUrl: profile.profileUrl,
+    teachingImages: Array.isArray(profile.teachingImages)
+      ? profile.teachingImages.map((url) => String(url || '').trim()).filter(Boolean)
+      : [],
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }
