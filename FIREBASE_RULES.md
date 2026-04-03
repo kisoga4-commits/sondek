@@ -10,10 +10,15 @@
 2. Publish ไฟล์ `firestore.rules` ที่อยู่ใน repo นี้
 3. ค่อย ๆ ย้ายจากเงื่อนไข `|| signedIn()` ไปใช้ `isAdmin()` อย่างเดียว เมื่อมีระบบล็อกอินแอดมินจริง (เช่น Google Sign-In + custom claims)
 
-## Duel Mode ต้องตัด Firestore ออกไหม?
-- **ไม่ควรตัดออก** ถ้ายังต้องการ Duel แบบเรียลไทม์ระหว่าง 2 เครื่อง เพราะสถานะห้อง/HP/เวลา ต้อง sync ผ่าน backend กลาง
-- ถ้าต้องการโหมดออฟไลน์ (เครื่องเดียว) ค่อยแยกเป็น Local Duel อีกโหมดแทน
-- สำหรับโหมดปัจจุบัน ให้ใช้ Anonymous Auth + `duel_rooms` rules ที่อนุญาต `create/update` สำหรับผู้ใช้ที่ล็อกอินแล้วเท่านั้น
+## Duel Mode ใช้ฐานข้อมูลอะไร?
+- Duel Mode ถูกปรับให้ใช้ **Realtime Database** ที่ path `duel_rooms/{roomId}` แล้ว
+- ดังนั้น error `Missing or insufficient permissions` ของโหมดดวล จะเกี่ยวกับ **Realtime Database Rules** ไม่ใช่ `firestore.rules`
+- ควรเปิด Anonymous Auth และตั้ง RTDB Rules ให้ user ที่ล็อกอินแล้ว (รวม anonymous) อ่าน/เขียนห้องของ Duel ได้
+
+ตัวอย่างแนวคิด Rules สำหรับ RTDB:
+- อนุญาต `read/write` เมื่อ `auth != null`
+- บังคับ `roomId` เป็นตัวเลข 4 หลัก
+- จำกัดจำนวน player ไม่เกิน 2 คน (validation เพิ่มใน rules ได้)
 
 ## วิธีหา UID แอดมิน
 - เปิดหน้า `adminchamp.html`

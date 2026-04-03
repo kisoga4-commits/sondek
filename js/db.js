@@ -21,9 +21,14 @@ import {
   updateDoc,
   where,
   writeBatch,
-  runTransaction,
 } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
+import {
+  getDatabase,
+  onValue,
+  ref as rtdbRef,
+  runTransaction as runRtdbTransaction,
+} from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
 import {
   getDownloadURL,
   getStorage,
@@ -51,6 +56,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const rtdb = getDatabase(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
@@ -777,11 +783,7 @@ function pickDuelWinner(playersByUid = {}) {
 }
 
 export async function createDuelRoom(payload) {
-  try {
-    await ensureAuthReady();
-  } catch (_error) {
-    // fallback: allow unauthenticated users when firestore rules permit
-  }
+  await ensureWriteAccess();
   const uid = getDuelActorUid();
   const preferredRoomId = normalizeDuelRoomId(payload?.roomId);
   const maxAttempts = preferredRoomId ? 1 : 8;
@@ -795,28 +797,38 @@ export async function createDuelRoom(payload) {
     try {
       // Intentionally skip client-side read before create.
       // This avoids failing on projects that allow create but deny read.
-      // Expected Firestore rules should allow "create" only when room does not yet exist.
-      // If rules reject create/update, caller receives a clear error below.
+      // Expected Realtime Database rules should allow write only when room does not yet exist.
       // eslint-disable-next-line no-await-in-loop
-      await setDoc(doc(db, 'duel_rooms', roomId), {
-        roomId,
-        courseId: String(payload?.courseId || '').trim(),
-        status: 'waiting',
-        hostUid: uid,
-        hostName: hostPlayer.name,
-        durationSeconds,
-        maxPlayers: 2,
-        questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
-        players: {
-          [uid]: hostPlayer,
-        },
-        winnerUid: '',
-        winReason: '',
-        eventCounter: 0,
-        updatedAtMs: Date.now(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const roomRef = rtdbRef(rtdb, `duel_rooms/${roomId}`);
+      // eslint-disable-next-line no-await-in-loop
+      const tx = await runRtdbTransaction(roomRef, (current) => {
+        if (current) return;
+        return {
+          roomId,
+          courseId: String(payload?.courseId || '').trim(),
+          status: 'waiting',
+          hostUid: uid,
+          hostName: hostPlayer.name,
+          durationSeconds,
+          maxPlayers: 2,
+          questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
+          players: {
+            [uid]: hostPlayer,
+          },
+          winnerUid: '',
+          winReason: '',
+          eventCounter: 0,
+          updatedAtMs: Date.now(),
+          createdAtMs: Date.now(),
+          startedAtMs: null,
+          endedAtMs: null,
+        };
       });
+      if (!tx.committed) {
+        const collision = new Error('duel room already exists');
+        collision.code = 'already-exists';
+        throw collision;
+      }
       return { roomId, uid };
     } catch (error) {
       lastError = error;
@@ -830,30 +842,22 @@ export async function createDuelRoom(payload) {
   }
 
   if (isPermissionDeniedError(lastError)) {
-    throw new Error('ยังไม่มีสิทธิ์สร้างห้องดวลใน Firestore (Missing or insufficient permissions)');
+    throw new Error('ยังไม่มีสิทธิ์สร้างห้องดวลใน Realtime Database (Missing or insufficient permissions)');
   }
 
   throw lastError || new Error('สร้างห้องไม่สำเร็จ กรุณาลองอีกครั้ง');
 }
 
 export async function joinDuelRoom(roomId, playerName) {
-  try {
-    await ensureAuthReady();
-  } catch (_error) {
-    // fallback: allow unauthenticated users when firestore rules permit
-  }
+  await ensureWriteAccess();
   const uid = getDuelActorUid();
 
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
 
-  const ref = doc(db, 'duel_rooms', safeRoomId);
-
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
-
-    const data = snap.data() || {};
+  const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
+  const tx = await runRtdbTransaction(roomRef, (data) => {
+    if (!data) throw new Error('ไม่พบห้องดวลนี้');
     const players = data.players || {};
     const existingUids = Object.keys(players);
 
@@ -872,50 +876,45 @@ export async function joinDuelRoom(roomId, playerName) {
       } : buildDuelPlayerPayload(playerName),
     };
 
-    tx.update(ref, {
+    return {
+      ...data,
       players: nextPlayers,
       status: data.status || 'waiting',
       startedAtMs: data.startedAtMs || null,
       updatedAtMs: Date.now(),
-      updatedAt: serverTimestamp(),
-    });
+    };
   });
+  if (!tx.committed) throw new Error('เข้าห้องดวลไม่สำเร็จ กรุณาลองอีกครั้ง');
 
   return { roomId: safeRoomId, uid };
 }
 
 export async function startDuelRoom(roomId) {
-  try {
-    await ensureAuthReady();
-  } catch (_error) {
-    // fallback: allow unauthenticated users when firestore rules permit
-  }
+  await ensureWriteAccess();
   const uid = getDuelActorUid();
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
 
-  const ref = doc(db, 'duel_rooms', safeRoomId);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
-
-    const data = snap.data() || {};
+  const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
+  const tx = await runRtdbTransaction(roomRef, (data) => {
+    if (!data) throw new Error('ไม่พบห้องดวลนี้');
     if (String(data.hostUid || '') !== uid) throw new Error('เฉพาะ Host เท่านั้นที่เริ่มดวลได้');
     if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
-    if (data.status === 'active') return;
+    if (data.status === 'active') return data;
 
     const players = data.players || {};
     if (Object.keys(players).length < 2) {
       throw new Error('ต้องมีผู้เล่นครบ 2 คนก่อนเริ่มดวล');
     }
 
-    tx.update(ref, {
+    return {
+      ...data,
       status: 'active',
       startedAtMs: Date.now(),
       updatedAtMs: Date.now(),
-      updatedAt: serverTimestamp(),
-    });
+    };
   });
+  if (!tx.committed) throw new Error('เริ่มดวลไม่สำเร็จ กรุณาลองอีกครั้ง');
 
   return { roomId: safeRoomId, uid };
 }
@@ -924,8 +923,10 @@ export function subscribeDuelRoom(roomId, callback, onError) {
   let unsubscribe = () => {};
   ensureAuthReady()
     .then(() => {
-      unsubscribe = onSnapshot(doc(db, 'duel_rooms', roomId), (snap) => {
-        callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      const safeRoomId = normalizeDuelRoomId(roomId);
+      const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
+      unsubscribe = onValue(roomRef, (snap) => {
+        callback(snap.exists() ? { id: safeRoomId, ...snap.val() } : null);
       }, onError);
     })
     .catch((error) => {
@@ -936,24 +937,17 @@ export function subscribeDuelRoom(roomId, callback, onError) {
 }
 
 export async function submitDuelAnswer(roomId, payload) {
-  try {
-    await ensureAuthReady();
-  } catch (_error) {
-    // fallback: allow unauthenticated users when firestore rules permit
-  }
+  await ensureWriteAccess();
   const uid = getDuelActorUid();
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
 
-  const ref = doc(db, 'duel_rooms', safeRoomId);
+  const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
 
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
-
-    const data = snap.data() || {};
+  const tx = await runRtdbTransaction(roomRef, (data) => {
+    if (!data) throw new Error('ไม่พบห้องดวลนี้');
     if (data.status !== 'active') {
-      return { accepted: false, reason: 'room_not_active' };
+      return data;
     }
 
     const players = { ...(data.players || {}) };
@@ -1013,7 +1007,8 @@ export async function submitDuelAnswer(roomId, payload) {
 
     const eventCounter = Number(data.eventCounter || 0) + (eventType ? 1 : 0);
 
-    tx.update(ref, {
+    return {
+      ...data,
       players,
       status: nextStatus,
       winnerUid,
@@ -1029,23 +1024,29 @@ export async function submitDuelAnswer(roomId, payload) {
       } : null,
       endedAtMs: nextStatus === 'finished' ? nowMs : data.endedAtMs || null,
       updatedAtMs: nowMs,
-      updatedAt: serverTimestamp(),
-    });
-
-    return { accepted: true };
+    };
   });
+
+  if (!tx.committed) return { accepted: false, reason: 'transaction_not_committed' };
+  const nextData = tx.snapshot.val();
+  if (!nextData || nextData.status === 'active' || nextData.status === 'finished') {
+    return { accepted: true };
+  }
+  return { accepted: false, reason: 'room_not_active' };
 }
 
 export async function finalizeDuelByTimeout(roomId) {
   await ensureWriteAccess();
-  const ref = doc(db, 'duel_rooms', roomId);
+  const roomRef = rtdbRef(rtdb, `duel_rooms/${normalizeDuelRoomId(roomId)}`);
+  let finalizeReason = '';
 
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
-    const data = snap.data() || {};
+  const tx = await runRtdbTransaction(roomRef, (data) => {
+    if (!data) throw new Error('ไม่พบห้องดวลนี้');
 
-    if (data.status !== 'active') return { accepted: false, reason: 'room_not_active' };
+    if (data.status !== 'active') {
+      finalizeReason = 'room_not_active';
+      return data;
+    }
 
     const startedAtMs = Number(data.startedAtMs || 0);
     const durationSeconds = Number(data.durationSeconds || 120);
@@ -1053,14 +1054,16 @@ export async function finalizeDuelByTimeout(roomId) {
     const deadlineMs = startedAtMs + (durationSeconds * 1000);
 
     if (!startedAtMs || nowMs < deadlineMs) {
-      return { accepted: false, reason: 'still_running' };
+      finalizeReason = 'still_running';
+      return data;
     }
 
     const players = data.players || {};
     const result = pickDuelWinner(players);
     const eventCounter = Number(data.eventCounter || 0) + 1;
 
-    tx.update(ref, {
+    return {
+      ...data,
       status: 'finished',
       winnerUid: result.winnerUid,
       winReason: `timeout_${result.reason}`,
@@ -1075,9 +1078,12 @@ export async function finalizeDuelByTimeout(roomId) {
       },
       endedAtMs: nowMs,
       updatedAtMs: nowMs,
-      updatedAt: serverTimestamp(),
-    });
-
-    return { accepted: true, ...result };
+    };
   });
+
+  if (!tx.committed) return { accepted: false, reason: 'transaction_not_committed' };
+  if (finalizeReason) return { accepted: false, reason: finalizeReason };
+  const nextData = tx.snapshot.val();
+  if (!nextData || nextData.status !== 'finished') return { accepted: false, reason: 'room_not_active' };
+  return { accepted: true, winnerUid: nextData.winnerUid || '', reason: nextData.winReason || '' };
 }
