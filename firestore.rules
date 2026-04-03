@@ -2,10 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+
     // ผู้ใช้ที่ผ่านการยืนยันตัวตนแล้ว (รวม Anonymous Auth)
+
+    // เช็กว่ามีการยืนยันตัวตนแล้ว
+    // รวมถึง Anonymous Auth ด้วย
+
     function isAuthenticated() {
       return request.auth != null;
     }
+
 
     // แอดมินเท่านั้น (กำหนดผ่าน Firebase Custom Claims: admin=true)
     function isAdmin() {
@@ -50,6 +56,44 @@ service cloud.firestore {
 
     // -----------------------------
     // 4) ปิดทุก collection อื่นที่ไม่ได้ระบุ
+
+    // -----------------------------
+    // 1) คอร์ส / ข้อสอบ / ตั้งค่า / โปรไฟล์
+    // อ่านได้สาธารณะ
+    // เขียนได้เฉพาะคนที่ login แล้ว
+    // -----------------------------
+    match /courses/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /questions/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /profile/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // -----------------------------
+    // 2) leads = รายชื่อผู้เข้าสอบ / คะแนน / leaderboard
+    // ตามโหมดง่าย: ต้อง login ก่อน ถึงจะอ่าน/เขียนได้
+    // -----------------------------
+    match /leads/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // -----------------------------
+    // 3) ปิดทุก collection อื่นที่ไม่ได้ระบุ
+
     // -----------------------------
     match /{document=**} {
       allow read, write: if false;
