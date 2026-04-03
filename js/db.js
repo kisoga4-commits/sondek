@@ -27,7 +27,14 @@ import {
   getStorage,
   ref,
   uploadBytes,
+  uploadBytesResumable,
 } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
+import {
+  buildProfileImageStoragePath,
+  PROFILE_IMAGE_MAX_DIMENSION,
+  PROFILE_IMAGE_QUALITY,
+  validateProfileImageConstraints,
+} from './profileImagePolicy.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -135,6 +142,118 @@ export async function uploadImageFile(file, options = {}) {
   return {
     path,
     downloadUrl,
+  };
+}
+
+async function resizeProfileImageFile(file) {
+  const imageBitmap = await createImageBitmap(file);
+  const ratio = Math.min(
+    1,
+    PROFILE_IMAGE_MAX_DIMENSION / Math.max(1, imageBitmap.width),
+    PROFILE_IMAGE_MAX_DIMENSION / Math.max(1, imageBitmap.height),
+  );
+  const width = Math.max(1, Math.round(imageBitmap.width * ratio));
+  const height = Math.max(1, Math.round(imageBitmap.height * ratio));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('ไม่สามารถเตรียมรูปสำหรับอัปโหลดได้');
+  }
+  ctx.drawImage(imageBitmap, 0, 0, width, height);
+
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (!result) {
+        reject(new Error('แปลงไฟล์รูปไม่สำเร็จ'));
+        return;
+      }
+      resolve(result);
+    }, 'image/jpeg', PROFILE_IMAGE_QUALITY);
+  });
+
+  const baseName = String(file.name || 'profile').replace(/\.[^.]+$/, '');
+  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+}
+
+function isRetryableNetworkError(error) {
+  const code = String(error?.code || '');
+  return code.includes('storage/retry-limit-exceeded')
+    || code.includes('storage/network-request-failed')
+    || code.includes('storage/unknown')
+    || code.includes('timeout');
+}
+
+async function uploadWithTimeout(file, path, metadata, timeoutMs, requestId) {
+  const storageRef = ref(storage, path);
+  const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+  const uploadPromise = new Promise((resolve, reject) => {
+    uploadTask.on('state_changed', null, reject, resolve);
+  });
+
+  const timeoutPromise = new Promise((_, reject) => {
+    const timeoutHandle = window.setTimeout(() => {
+      uploadTask.cancel();
+      const timeoutError = new Error(`Upload timeout after ${timeoutMs}ms`);
+      timeoutError.code = 'upload/timeout';
+      reject(timeoutError);
+    }, timeoutMs);
+
+    uploadPromise.finally(() => window.clearTimeout(timeoutHandle));
+  });
+
+  await Promise.race([uploadPromise, timeoutPromise]);
+  const downloadUrl = await getDownloadURL(storageRef);
+  console.info(`[requestId:${requestId}] profile image uploaded`, { path });
+  return { path, downloadUrl };
+}
+
+async function uploadWithRetry(file, path, metadata, timeoutMs, retries, requestId) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await uploadWithTimeout(file, path, metadata, timeoutMs, requestId);
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = attempt < retries && isRetryableNetworkError(error);
+      console.error(`[requestId:${requestId}] upload attempt ${attempt + 1} failed`, error);
+      if (!shouldRetry) break;
+    }
+  }
+
+  throw lastError || new Error('อัปโหลดรูปไม่สำเร็จ');
+}
+
+export async function uploadProfileImageAndSaveUrl(file, options = {}) {
+  await ensureWriteAccess();
+  validateProfileImageConstraints(file);
+
+  const requestId = String(options.requestId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const timeoutMs = Math.min(60000, Math.max(30000, Number(options.timeoutMs) || 45000));
+  const retries = 1;
+  const userId = auth.currentUser?.uid || 'anonymous';
+  const resizedFile = await resizeProfileImageFile(file);
+  const path = buildProfileImageStoragePath(userId, Date.now());
+  const metadata = {
+    contentType: 'image/jpeg',
+    cacheControl: 'public,max-age=31536000',
+  };
+
+  const uploadResult = await uploadWithRetry(resizedFile, path, metadata, timeoutMs, retries, requestId);
+
+  await setDoc(doc(db, 'profile', 'tutor_profile'), {
+    profile_image_url: uploadResult.downloadUrl,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  return {
+    requestId,
+    profileImageUrl: uploadResult.downloadUrl,
+    path: uploadResult.path,
   };
 }
 
@@ -376,7 +495,7 @@ export async function saveProfile(profile) {
   await ensureWriteAccess();
   const normalizedName = String(profile?.name || '').trim();
   const normalizedBio = String(profile?.bio || '').trim();
-  const normalizedImageUrl = String(profile?.imageUrl || '').trim();
+  const normalizedProfileImageUrl = String(profile?.profile_image_url || profile?.imageUrl || '').trim();
   const normalizedProfileUrl = String(profile?.profileUrl || '').trim();
   const normalizedTeachingImages = Array.isArray(profile?.teachingImages)
     ? profile.teachingImages.map((url) => String(url || '').trim()).filter(Boolean)
@@ -385,7 +504,7 @@ export async function saveProfile(profile) {
   await setDoc(doc(db, 'profile', 'tutor_profile'), {
     name: normalizedName,
     bio: normalizedBio,
-    imageUrl: normalizedImageUrl,
+    profile_image_url: normalizedProfileImageUrl,
     profileUrl: normalizedProfileUrl,
     teachingImages: normalizedTeachingImages,
     updatedAt: serverTimestamp(),

@@ -7,6 +7,7 @@ import {
   saveProfile,
   subscribeAuthStatus,
   subscribeCourses,
+  uploadProfileImageAndSaveUrl,
   uploadImageFile,
 } from './db.js';
 import { getDefaultFeedbackMap } from './quiz.js';
@@ -106,6 +107,10 @@ function updateProfileImagePreviewStatus() {
     : 'ยังไม่มีรูปโปรไฟล์ที่อัปโหลด';
 }
 
+function resolveProfileImageUrl(profile) {
+  return String(profile?.profile_image_url || profile?.imageUrl || '').trim();
+}
+
 function getFriendlyStorageUploadError(error) {
   const errorCode = String(error?.code || '');
   const errorMessage = String(error?.message || '');
@@ -116,6 +121,10 @@ function getFriendlyStorageUploadError(error) {
 
   if (errorCode.includes('storage/unauthorized') || errorCode.includes('permission-denied') || errorMessage.includes('permission')) {
     return 'อัปโหลดไม่สำเร็จ เพราะยังไม่มีสิทธิ์เขียนไฟล์ใน Storage\n\nตรวจสอบ Storage Rules ให้อนุญาต write เมื่อ request.auth != null และ path ตรงกับ /profile-images/{uid}/{fileName} หรือ /teaching-images/{uid}/{fileName}';
+  }
+
+  if (errorCode.includes('timeout') || errorMessage.includes('timeout')) {
+    return 'อัปโหลดไม่สำเร็จ เพราะใช้เวลานานเกินกำหนด (45 วินาที) กรุณาลองใหม่อีกครั้ง';
   }
 
   return `อัปโหลดรูปไม่สำเร็จ${errorMessage ? `: ${errorMessage}` : ''}`;
@@ -210,17 +219,21 @@ async function onUploadProfileImage() {
 
   try {
     if (uploadProfileImageBtn) uploadProfileImageBtn.disabled = true;
-    if (profileFormStatus) profileFormStatus.textContent = 'กำลังบีบรูปโปรไฟล์และอัปโหลด...';
+    if (profileFormStatus) profileFormStatus.textContent = 'กำลังอัปโหลดรูปโปรไฟล์ (หมดเวลาใน 45 วินาที)...';
 
-    const compressedFile = await compressImageFile(file, { maxWidth: 1080, quality: 0.78 });
-    const uploadResult = await uploadImageFile(compressedFile, { folder: 'profile-images' });
-    if (profileImageInput) profileImageInput.value = uploadResult.downloadUrl;
+    const uploadResult = await uploadProfileImageAndSaveUrl(file, { timeoutMs: 45000 });
+    if (profileImageInput) profileImageInput.value = uploadResult.profileImageUrl;
     updateProfileImagePreviewStatus();
 
-    if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์สำเร็จแล้ว';
+    if (profileFormStatus) profileFormStatus.textContent = `อัปโหลดรูปโปรไฟล์สำเร็จแล้ว (request id: ${uploadResult.requestId})`;
   } catch (error) {
     console.error(error);
-    if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์ไม่สำเร็จ';
+    const isTimeout = String(error?.code || '').includes('timeout') || String(error?.message || '').includes('timeout');
+    if (isTimeout && profileFormStatus) {
+      profileFormStatus.textContent = 'อัปโหลดใช้เวลานานเกินกำหนด (45 วินาที) กรุณาลองใหม่';
+    } else if (profileFormStatus) {
+      profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์ไม่สำเร็จ';
+    }
     alert(getFriendlyStorageUploadError(error));
   } finally {
     if (uploadProfileImageBtn) uploadProfileImageBtn.disabled = false;
@@ -269,7 +282,7 @@ async function loadProfileForm() {
   try {
     const profile = await getProfile();
     if (profileNameInput) profileNameInput.value = profile?.name || '';
-    if (profileImageInput) profileImageInput.value = profile?.imageUrl || '';
+    if (profileImageInput) profileImageInput.value = resolveProfileImageUrl(profile);
     updateProfileImagePreviewStatus();
     if (profileBioInput) profileBioInput.value = profile?.bio || '';
     teachingImagesState = Array.isArray(profile?.teachingImages) ? profile.teachingImages : [];
@@ -291,14 +304,14 @@ async function onSaveProfile(event) {
 
   const payload = {
     name: String(profileNameInput?.value || '').trim(),
-    imageUrl: String(profileImageInput?.value || '').trim(),
+    profile_image_url: String(profileImageInput?.value || '').trim(),
     bio: String(profileBioInput?.value || '').trim(),
     teachingImages: Array.isArray(teachingImagesState)
       ? teachingImagesState.map((url) => String(url || '').trim()).filter(Boolean)
       : [],
   };
 
-  if (!payload.name || !payload.imageUrl) {
+  if (!payload.name || !payload.profile_image_url) {
     alert('กรุณากรอกชื่อครู และอัปโหลดรูปโปรไฟล์');
     return;
   }
