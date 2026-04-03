@@ -21,10 +21,12 @@ const saveFeedbackBtn = document.getElementById('saveFeedbackBtn');
 const profileForm = document.getElementById('profileForm');
 const profileNameInput = document.getElementById('profileNameInput');
 const profileImageInput = document.getElementById('profileImageInput');
+const profileImagePreviewStatus = document.getElementById('profileImagePreviewStatus');
 const profileImageFileInput = document.getElementById('profileImageFileInput');
 const uploadProfileImageBtn = document.getElementById('uploadProfileImageBtn');
 const profileBioInput = document.getElementById('profileBioInput');
 const profileTeachingImagesInput = document.getElementById('profileTeachingImagesInput');
+const teachingImagesEditor = document.getElementById('teachingImagesEditor');
 const profileTeachingImagesFileInput = document.getElementById('profileTeachingImagesFileInput');
 const uploadTeachingImagesBtn = document.getElementById('uploadTeachingImagesBtn');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
@@ -103,6 +105,51 @@ function parseTeachingImagesFromInput(rawValue) {
     .filter(Boolean);
 }
 
+function updateProfileImagePreviewStatus() {
+  if (!profileImagePreviewStatus) return;
+  const value = String(profileImageInput?.value || '').trim();
+  profileImagePreviewStatus.textContent = value
+    ? `รูปโปรไฟล์พร้อมใช้งาน: ${value}`
+    : 'ยังไม่มีรูปโปรไฟล์ที่อัปโหลด';
+}
+
+function renderTeachingImagesEditor() {
+  if (!teachingImagesEditor) return;
+  teachingImagesEditor.innerHTML = '';
+
+  const images = parseTeachingImagesFromInput(profileTeachingImagesInput?.value || '');
+  if (!images.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'ยังไม่มีรูปรายการสอนเพิ่มเติม';
+    teachingImagesEditor.appendChild(empty);
+    return;
+  }
+
+  images.forEach((url, index) => {
+    const row = document.createElement('div');
+    row.className = 'admin-actions';
+
+    const text = document.createElement('span');
+    text.className = 'muted';
+    text.textContent = `${index + 1}. ${url}`;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-secondary btn-compact';
+    removeBtn.textContent = 'ลบรูปนี้';
+    removeBtn.addEventListener('click', () => {
+      const current = parseTeachingImagesFromInput(profileTeachingImagesInput?.value || '');
+      current.splice(index, 1);
+      if (profileTeachingImagesInput) profileTeachingImagesInput.value = current.join('\n');
+      renderTeachingImagesEditor();
+    });
+
+    row.append(text, removeBtn);
+    teachingImagesEditor.appendChild(row);
+  });
+}
+
 async function compressImageFile(file, options = {}) {
   const maxWidth = Math.max(480, Number(options.maxWidth) || 1280);
   const quality = Math.min(0.92, Math.max(0.45, Number(options.quality) || 0.76));
@@ -156,6 +203,7 @@ async function onUploadProfileImage() {
     const compressedFile = await compressImageFile(file, { maxWidth: 1080, quality: 0.78 });
     const uploadResult = await uploadImageFile(compressedFile, { folder: 'profile-images' });
     if (profileImageInput) profileImageInput.value = uploadResult.downloadUrl;
+    updateProfileImagePreviewStatus();
 
     if (profileFormStatus) profileFormStatus.textContent = 'อัปโหลดรูปโปรไฟล์สำเร็จแล้ว';
   } catch (error) {
@@ -192,6 +240,7 @@ async function onUploadTeachingImages() {
     if (profileTeachingImagesInput) {
       profileTeachingImagesInput.value = merged.join('\n');
     }
+    renderTeachingImagesEditor();
 
     if (profileFormStatus) profileFormStatus.textContent = `อัปโหลดรูปการสอนสำเร็จ ${uploadedUrls.length} รูป`;
   } catch (error) {
@@ -211,12 +260,14 @@ async function loadProfileForm() {
     const profile = await getProfile();
     if (profileNameInput) profileNameInput.value = profile?.name || '';
     if (profileImageInput) profileImageInput.value = profile?.imageUrl || '';
+    updateProfileImagePreviewStatus();
     if (profileBioInput) profileBioInput.value = profile?.bio || '';
     if (profileTeachingImagesInput) {
       profileTeachingImagesInput.value = Array.isArray(profile?.teachingImages)
         ? profile.teachingImages.join('\n')
         : '';
     }
+    renderTeachingImagesEditor();
     if (profileFormStatus) {
       profileFormStatus.textContent = 'โหลดข้อมูลโปรไฟล์แล้ว พร้อมแก้ไข';
     }
@@ -239,8 +290,8 @@ async function onSaveProfile(event) {
     teachingImages: parseTeachingImagesFromInput(profileTeachingImagesInput?.value || ''),
   };
 
-  if (!payload.name || !payload.imageUrl || !payload.bio) {
-    alert('กรุณากรอกข้อมูลโปรไฟล์ให้ครบ');
+  if (!payload.name || !payload.imageUrl) {
+    alert('กรุณากรอกชื่อครู และอัปโหลดรูปโปรไฟล์');
     return;
   }
 
@@ -565,6 +616,12 @@ if (profileForm) {
   });
 }
 
+if (profileTeachingImagesInput) {
+  profileTeachingImagesInput.addEventListener('input', () => {
+    renderTeachingImagesEditor();
+  });
+}
+
 if (uploadProfileImageBtn) {
   uploadProfileImageBtn.addEventListener('click', () => {
     void onUploadProfileImage();
@@ -581,6 +638,8 @@ initQuizLibrary();
 void loadFeedbackConfig();
 void loadProfileForm();
 subscribeAuthStatus(renderAuthStatus);
+updateProfileImagePreviewStatus();
+renderTeachingImagesEditor();
 
 if (openProfilePageBtn) {
   openProfilePageBtn.href = buildProfileLink();

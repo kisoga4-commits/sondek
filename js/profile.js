@@ -71,7 +71,8 @@ async function init() {
 
     profileImage.src = profile?.imageUrl || DEFAULT_PROFILE_IMAGE;
     profileName.textContent = profile?.name || 'ครูผู้สอน';
-    profileBio.textContent = profile?.bio || 'ยังไม่มีข้อมูลประวัติครูในระบบ';
+    profileBio.textContent = profile?.bio || '';
+    profileBio.style.display = profile?.bio ? 'block' : 'none';
 
     const teachingImages = Array.isArray(profile?.teachingImages) && profile.teachingImages.length
       ? profile.teachingImages
