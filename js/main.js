@@ -49,6 +49,9 @@ const openTopWindow = document.getElementById('openTopWindow');
 const top5Modal = document.getElementById('top5Modal');
 const closeTop5Modal = document.getElementById('closeTop5Modal');
 const soundToggle = document.getElementById('soundToggle');
+const feedbackModal = document.getElementById('feedbackModal');
+const feedbackModalLine = document.getElementById('feedbackModalLine');
+const feedbackModalNotice = document.getElementById('feedbackModalNotice');
 
 const state = {
   course: null,
@@ -71,7 +74,8 @@ const state = {
 };
 
 const LOW_TIME_ALERT_SECONDS = 5;
-const SCORE_REVEAL_DELAY_MS = 3000;
+const FEEDBACK_MODAL_DURATION_MS = 5000;
+const FEEDBACK_VOLUME_NOTICE = 'เสียงด่า/อวยพร เบาเกินไป ทำให้ดังกว่านี้';
 
 function getBasePathUrl(pathname) {
   const basePath = pathname.includes('/')
@@ -144,6 +148,9 @@ function speakFeedbackLine(text) {
 
     const utterance = new SpeechSynthesisUtterance(line);
     utterance.lang = 'th-TH';
+    utterance.volume = 1;
+    utterance.rate = 1.05;
+    utterance.pitch = 1;
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
     window.speechSynthesis.cancel();
@@ -185,7 +192,7 @@ function jumpNextByTimeout() {
   clearTimer();
   timerText.textContent = 'หมดเวลา';
   timerFill.style.width = '0%';
-  nextBtn.disabled = false;
+  void goNextQuestion();
 }
 
 function startQuestionTimer(question) {
@@ -469,24 +476,34 @@ function renderAnswerReview(score) {
 async function showResult() {
   clearTimer();
   quizSection.classList.add('hidden');
-  resultSection.classList.remove('hidden');
+  resultSection.classList.add('hidden');
 
   const score = calculateScore(state.quizQuestions, state.answers);
   const feedback = state.feedbackByBucket
     ? getResultFeedbackWithConfig(score.percent, state.feedbackByBucket)
     : getResultFeedback(score.percent);
   const firstLine = feedback.lines?.[0] || feedback.title;
-  const scoreRange = getScoreRangeLabel(score.percent);
+  if (feedbackModal && feedbackModalLine && feedbackModalNotice) {
+    feedbackModalLine.textContent = firstLine;
+    feedbackModalNotice.textContent = FEEDBACK_VOLUME_NOTICE;
+    feedbackModal.classList.remove('hidden');
+    feedbackModal.classList.add('flex');
+  }
 
-  resultScore.textContent = `กำลังประมวลผลคะแนนช่วง ${scoreRange}%...`;
-  resultMessage.textContent = firstLine;
+  await Promise.all([
+    speakFeedbackLine(firstLine),
+    wait(FEEDBACK_MODAL_DURATION_MS),
+  ]);
+
+  if (feedbackModal) {
+    feedbackModal.classList.add('hidden');
+    feedbackModal.classList.remove('flex');
+  }
+
+  resultSection.classList.remove('hidden');
+  resultScore.textContent = `คะแนน ${score.percent}/100 (${score.percent}%) • ถูก ${score.correct}/${score.total} ข้อ`;
+  resultMessage.textContent = `${firstLine} (${FEEDBACK_VOLUME_NOTICE})`;
   renderAnswerReview(score);
-
-  const revealScoreTask = (async () => {
-    await speakFeedbackLine(firstLine);
-    await wait(SCORE_REVEAL_DELAY_MS);
-    resultScore.textContent = `คะแนน ${score.percent}/100 (${score.percent}%) • ถูก ${score.correct}/${score.total} ข้อ`;
-  })();
 
   const durationSeconds = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
 
@@ -520,8 +537,6 @@ async function showResult() {
     console.error('renderLeaderboard failed', error);
     leaderboardList.innerHTML = '<li class="text-slate-500">ไม่สามารถโหลดอันดับได้ในขณะนี้</li>';
   }
-
-  await revealScoreTask;
 
 }
 
