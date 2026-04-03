@@ -28,9 +28,6 @@ const meHpFill = document.getElementById('meHpFill');
 const meHpText = document.getElementById('meHpText');
 const timerText = document.getElementById('duelTimerText');
 const resultHint = document.getElementById('duelResultHint');
-const duelEventModal = document.getElementById('duelEventModal');
-const duelEventTitle = document.getElementById('duelEventTitle');
-const duelEventText = document.getElementById('duelEventText');
 const questionTitle = document.getElementById('duelQuestionTitle');
 const choicesWrap = document.getElementById('duelChoices');
 const submitBtn = document.getElementById('duelSubmitBtn');
@@ -50,7 +47,6 @@ const state = {
   lastEventId: '',
   hasShownFinalResult: false,
   finalResultTimerId: null,
-  eventTimerId: null,
   isSubmitting: false,
   hasRequestedFinalize: false,
   currentQuestionId: '',
@@ -80,22 +76,6 @@ function toDuelErrorMessage(error, fallbackText) {
 
 function normalizeRoomIdInput(value = '') {
   return String(value || '').replace(/\D+/g, '').slice(0, 4);
-}
-
-function speak(text) {
-  const line = String(text || '').trim();
-  if (!line || !('speechSynthesis' in window)) return;
-  const utterance = new SpeechSynthesisUtterance(line);
-  utterance.lang = 'th-TH';
-  utterance.rate = 1;
-  utterance.pitch = 1;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-}
-
-function getRandomAttackVoice() {
-  const lines = ['โดนไปหนึ่งดอก!', 'คะแนนมึงหายแล้ว!', 'รับดาเมจไปเลย!', 'มีหนาวแน่รอบนี้!'];
-  return lines[Math.floor(Math.random() * lines.length)];
 }
 
 function renderHp(el, hp) {
@@ -239,23 +219,6 @@ function renderBattle(room) {
   }
 }
 
-function showEventPopup(title, detail) {
-  if (!duelEventModal || !duelEventTitle || !duelEventText) return;
-  if (state.eventTimerId) {
-    window.clearTimeout(state.eventTimerId);
-    state.eventTimerId = null;
-  }
-  duelEventTitle.textContent = title;
-  duelEventText.textContent = detail;
-  duelEventModal.classList.remove('hidden');
-  duelEventModal.classList.remove('is-animate');
-  void duelEventModal.offsetWidth;
-  duelEventModal.classList.add('is-animate');
-  state.eventTimerId = window.setTimeout(() => {
-    duelEventModal.classList.add('hidden');
-  }, 1300);
-}
-
 function ensureTimer(room) {
   if (state.timerId) {
     window.clearInterval(state.timerId);
@@ -301,20 +264,17 @@ function applyVoiceEvent(room) {
   state.lastEventId = event.id;
 
   if (event.type === 'attack' && event.actorUid === state.uid) {
-    showEventPopup('⚡ โจมตีเข้าเป้า!', `${oppNameText} โดนหักพลัง 1 แต้ม`);
-    speak(getRandomAttackVoice());
+    setStatus(`⚡ โจมตีเข้าเป้า! ${oppNameText} โดนหักพลัง 1 แต้ม`);
     return;
   }
 
   if (event.type === 'penalty' && event.targetUid === state.uid) {
-    showEventPopup('💥 พลาดติดกัน!', 'คุณโดนหักพลังตัวเอง 1 แต้ม');
-    speak('โง่ซ้ำซ้อน! โดนหักคะแนนตัวเองเลยเห็นไหม?');
+    setStatus('💥 พลาดติดกัน! คุณโดนหักพลังตัวเอง 1 แต้ม');
     return;
   }
 
   if (event.type === 'critical') {
-    showEventPopup('🚨 จุดวิกฤต', 'ใครพลังเหลือน้อยกว่า 3 ต้องรีบพลิกเกม');
-    speak('ระวัง! มึงจะตายแล้ว!');
+    setStatus('🚨 จุดวิกฤต: ใครพลังเหลือน้อยกว่า 3 ต้องรีบพลิกเกม');
   }
 }
 
