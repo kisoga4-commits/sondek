@@ -323,6 +323,13 @@ export async function getLeaderboard(courseId) {
     .slice(0, 5);
 }
 
+export async function getPlayCountByCourse(courseId) {
+  await ensureAuthReady();
+  const q = query(collection(db, 'leads'), where('courseId', '==', courseId));
+  const snap = await getDocs(q);
+  return snap.size;
+}
+
 export async function saveProfile(profile) {
   await ensureWriteAccess();
   await setDoc(doc(db, 'profile', 'tutor_profile'), {

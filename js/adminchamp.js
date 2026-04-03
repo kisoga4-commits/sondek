@@ -1,5 +1,6 @@
 import {
   deleteCourseWithQuestions,
+  getPlayCountByCourse,
   getResultFeedbackConfig,
   saveResultFeedbackConfig,
   subscribeAuthStatus,
@@ -37,6 +38,14 @@ function buildQuizLink(course) {
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
     : '/';
   return `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(course?.courseId || '')}`;
+}
+
+function buildTop5Link(course) {
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}top.html?id=${encodeURIComponent(course?.courseId || '')}`;
 }
 
 function downloadQrFromImage(qrSrc, courseId) {
@@ -184,7 +193,7 @@ async function onSaveFeedbackConfig() {
   }
 }
 
-function renderCourses(courses) {
+async function renderCourses(courses) {
   quizLibrary.innerHTML = '';
 
   if (!courses.length) {
@@ -192,11 +201,27 @@ function renderCourses(courses) {
     return;
   }
 
+  const playCountsByCourseId = {};
+  const playCounts = await Promise.all(courses.map(async (course) => {
+    try {
+      return await getPlayCountByCourse(course.courseId);
+    } catch (error) {
+      console.warn('โหลดจำนวนครั้งที่เล่นไม่สำเร็จ', course.courseId, error);
+      return 0;
+    }
+  }));
+
+  courses.forEach((course, index) => {
+    playCountsByCourseId[course.courseId] = playCounts[index];
+  });
+
   courses.forEach((course) => {
     const title = course.title ? escapeHtml(course.title) : escapeHtml(course.courseId);
     const courseId = escapeHtml(course.courseId);
     const editLink = `template.html?courseId=${encodeURIComponent(course.courseId)}`;
     const quizLink = buildQuizLink(course);
+    const top5Link = buildTop5Link(course);
+    const playCount = Number(playCountsByCourseId[course.courseId] || 0);
 
     const card = document.createElement('article');
     card.className = 'library-item library-item-grid';
@@ -208,6 +233,7 @@ function renderCourses(courses) {
         </div>
         <span class="status-pill status-active">พร้อมใช้งาน</span>
       </div>
+      <p class="muted item-sub">มีผู้เล่นแล้ว ${playCount.toLocaleString('th-TH')} ครั้ง</p>
       <div class="share-box">
         <p class="link-label">ลิงก์แบบทดสอบ</p>
         <div class="share-inline">
@@ -221,6 +247,7 @@ function renderCourses(courses) {
       <div class="action-row">
         <div class="item-actions item-actions-main primary-actions">
           <a class="btn" href="${quizLink}" target="_blank" rel="noopener noreferrer">เปิดแบบทดสอบ</a>
+          <a class="btn btn-secondary" href="${top5Link}" target="_blank" rel="noopener noreferrer">ดู TOP 5</a>
           <a class="btn btn-success" href="${editLink}">จัดการ</a>
         </div>
         <div class="item-actions item-actions-secondary menu-actions">
@@ -272,7 +299,9 @@ function initQuizLibrary() {
 
   quizLibrary.innerHTML = '<p class="muted">กำลังโหลดบททดสอบ...</p>';
 
-  subscribeCourses(renderCourses, (error) => {
+  subscribeCourses((courses) => {
+    void renderCourses(courses);
+  }, (error) => {
     console.error(error);
     quizLibrary.innerHTML = '<p class="muted">โหลดคลังบททดสอบไม่สำเร็จ</p>';
   });

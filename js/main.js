@@ -1,6 +1,7 @@
 import {
   getCourse,
   getLeaderboard,
+  getPlayCountByCourse,
   getProfile,
   getQuestionsByCourse,
   getResultFeedbackConfig,
@@ -33,6 +34,7 @@ const progressText = document.getElementById('progressText');
 const scoreText = document.getElementById('scoreText');
 const progressFill = document.getElementById('progressFill');
 const courseInfo = document.getElementById('courseInfo');
+const playCountInfo = document.getElementById('playCountInfo');
 const resultScore = document.getElementById('resultScore');
 const resultMessage = document.getElementById('resultMessage');
 const leaderboardList = document.getElementById('leaderboardList');
@@ -222,13 +224,15 @@ function getQuestionTypeLabel(type) {
 async function init() {
   if (!courseId) {
     courseInfo.textContent = 'ไม่พบรหัสแบบทดสอบในลิงก์ ตัวอย่าง: quiz.html?id=quiz_xxx';
+    playCountInfo.textContent = 'ไม่พบข้อมูลจำนวนผู้เล่น';
     return;
   }
 
   try {
-    const [course, questions] = await Promise.all([
+    const [course, questions, playCount] = await Promise.all([
       getCourse(courseId),
       getQuestionsByCourse(courseId),
+      getPlayCountByCourse(courseId),
     ]);
 
     const optionalResults = await Promise.allSettled([
@@ -253,6 +257,7 @@ async function init() {
 
     if (!course || course.status === 'deleted' || !questions.length) {
       courseInfo.textContent = `ไม่พบแบบทดสอบ: ${courseId}`;
+      playCountInfo.textContent = 'ไม่พบข้อมูลจำนวนผู้เล่น';
       return;
     }
 
@@ -261,6 +266,7 @@ async function init() {
     quizTitle.textContent = course.title || 'แบบทดสอบ';
     quizDescription.textContent = course.description || 'ตอบคำถามให้ครบ แล้วไปดูอันดับ TOP';
     courseInfo.textContent = `คลังคำถาม ${state.allQuestions.length} ข้อ | สุ่มต่อครั้ง ${Math.min(state.drawCount, state.allQuestions.length)} ข้อ`;
+    playCountInfo.textContent = `มีผู้เล่นทำแบบทดสอบนี้แล้ว ${Number(playCount || 0).toLocaleString('th-TH')} ครั้ง`;
 
     const baseUrl = getBasePathUrl(window.location.pathname);
     profileCta.href = profile?.profileUrl || `${baseUrl}adminchamp.html#profile-destination`;
@@ -269,6 +275,7 @@ async function init() {
   } catch (error) {
     console.error(error);
     courseInfo.textContent = 'โหลดไม่สำเร็จ กรุณารีเฟรชอีกครั้ง';
+    playCountInfo.textContent = 'ไม่สามารถโหลดจำนวนผู้เล่นได้ในขณะนี้';
   }
 }
 
