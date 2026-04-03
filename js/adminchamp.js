@@ -1,4 +1,6 @@
 import {
+  deleteCourseEnrollment,
+  deleteCourseOffering,
   deleteCourseWithQuestions,
   getProfile,
   getPlayCountByCourse,
@@ -11,6 +13,8 @@ import {
   subscribeCourseOfferings,
   subscribeCourses,
   toggleCourseOfferingStatus,
+  updateCourseEnrollment,
+  updateCourseOffering,
 } from './db.js';
 import { getDefaultFeedbackMap } from './quiz.js';
 
@@ -36,6 +40,10 @@ const courseOfferForm = document.getElementById('courseOfferForm');
 const offerTitleInput = document.getElementById('offerTitleInput');
 const offerDayInput = document.getElementById('offerDayInput');
 const offerTimeInput = document.getElementById('offerTimeInput');
+const offerDaysPicker = document.getElementById('offerDaysPicker');
+const offerStartTimeInput = document.getElementById('offerStartTimeInput');
+const offerEndTimeInput = document.getElementById('offerEndTimeInput');
+const offerCustomDayInput = document.getElementById('offerCustomDayInput');
 const offerPriceInput = document.getElementById('offerPriceInput');
 const offerContentInput = document.getElementById('offerContentInput');
 const saveCourseOfferBtn = document.getElementById('saveCourseOfferBtn');
@@ -43,6 +51,15 @@ const courseOfferStatus = document.getElementById('courseOfferStatus');
 const courseOfferList = document.getElementById('courseOfferList');
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+const COURSE_DAY_LABELS = {
+  mon: 'จันทร์',
+  tue: 'อังคาร',
+  wed: 'พุธ',
+  thu: 'พฤหัสบดี',
+  fri: 'ศุกร์',
+  sat: 'เสาร์',
+  sun: 'อาทิตย์',
+};
 
 function getBucketRangeLabel(bucket) {
   if (bucket === 100) return '100';
@@ -122,6 +139,23 @@ function parseMultilineUrls(value) {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function hydrateCourseScheduleFields() {
+  if (!offerDayInput || !offerTimeInput) return;
+
+  const pickedDays = Array.from(offerDaysPicker?.querySelectorAll('input[type="checkbox"]:checked') || [])
+    .map((checkbox) => COURSE_DAY_LABELS[checkbox.value] || checkbox.value)
+    .filter(Boolean);
+  const customDay = String(offerCustomDayInput?.value || '').trim();
+  const dayLabel = [pickedDays.join(', '), customDay].filter(Boolean).join(' / ');
+
+  const startTime = String(offerStartTimeInput?.value || '').trim();
+  const endTime = String(offerEndTimeInput?.value || '').trim();
+  const timeLabel = startTime && endTime ? `${startTime} - ${endTime}` : [startTime, endTime].filter(Boolean).join(' - ');
+
+  offerDayInput.value = dayLabel;
+  offerTimeInput.value = timeLabel;
 }
 
 function formatDateTime(value) {
@@ -256,6 +290,83 @@ async function onEnrollCourse(event) {
   }
 }
 
+async function onEditCourseOffering(course) {
+  const title = window.prompt('แก้ชื่อคอร์ส', String(course?.title || '').trim());
+  if (title === null) return;
+  const day = window.prompt('แก้วันเรียน', String(course?.day || '').trim());
+  if (day === null) return;
+  const time = window.prompt('แก้เวลาเรียน', String(course?.time || '').trim());
+  if (time === null) return;
+  const price = window.prompt('แก้ราคา', String(course?.price || '').trim());
+  if (price === null) return;
+  const content = window.prompt('แก้เนื้อหา', String(course?.content || '').trim());
+  if (content === null) return;
+
+  if (!String(title).trim() || !String(day).trim() || !String(time).trim() || !String(price).trim()) {
+    alert('ต้องกรอกชื่อคอร์ส วัน เวลา และราคาให้ครบ');
+    return;
+  }
+
+  try {
+    await updateCourseOffering(course.courseId, { title, day, time, price, content });
+    alert('แก้ไขข้อมูลคอร์สเรียบร้อย');
+  } catch (error) {
+    console.error(error);
+    alert('แก้ไขข้อมูลคอร์สไม่สำเร็จ');
+  }
+}
+
+async function onDeleteCourseOffering(course) {
+  if (!window.confirm(`ยืนยันลบคอร์ส "${course?.title || course?.courseId}" ?`)) return;
+  try {
+    await deleteCourseOffering(course.courseId);
+    alert('ลบคอร์สเรียบร้อย');
+  } catch (error) {
+    console.error(error);
+    alert('ลบคอร์สไม่สำเร็จ');
+  }
+}
+
+async function onAcceptEnrollment(courseId, enrollment) {
+  try {
+    await updateCourseEnrollment(courseId, enrollment.enrollmentId, { status: 'accepted' });
+  } catch (error) {
+    console.error(error);
+    alert('ยอมรับผู้สมัครไม่สำเร็จ');
+  }
+}
+
+async function onEditEnrollment(courseId, enrollment) {
+  const studentName = window.prompt('แก้ชื่อนักเรียน', String(enrollment?.studentName || '').trim());
+  if (studentName === null) return;
+  const studentPhone = window.prompt('แก้เบอร์โทรนักเรียน', String(enrollment?.studentPhone || '').trim());
+  if (studentPhone === null) return;
+  if (!String(studentName).trim() || !String(studentPhone).trim()) {
+    alert('ชื่อและเบอร์โทรห้ามว่าง');
+    return;
+  }
+
+  try {
+    await updateCourseEnrollment(courseId, enrollment.enrollmentId, {
+      studentName,
+      studentPhone,
+    });
+  } catch (error) {
+    console.error(error);
+    alert('แก้ไขผู้สมัครไม่สำเร็จ');
+  }
+}
+
+async function onDeleteEnrollment(courseId, enrollment) {
+  if (!window.confirm(`ยืนยันลบผู้สมัคร ${enrollment?.studentName || '-'} ?`)) return;
+  try {
+    await deleteCourseEnrollment(courseId, enrollment.enrollmentId);
+  } catch (error) {
+    console.error(error);
+    alert('ลบผู้สมัครไม่สำเร็จ');
+  }
+}
+
 function renderCourseOfferings(courseOffers) {
   if (!courseOfferList) return;
   courseOfferList.innerHTML = '';
@@ -268,6 +379,12 @@ function renderCourseOfferings(courseOffers) {
   courseOffers.forEach((course) => {
     const isOpen = String(course?.status || 'open') === 'open';
     const enrollments = Array.isArray(course?.enrollments) ? course.enrollments : [];
+    const enrollmentItems = enrollments.slice(0, 12).map((item, index) => ({
+      ...item,
+      enrollmentId: String(item?.enrollmentId || `${course.courseId}_idx_${index}`),
+      status: String(item?.status || 'pending') === 'accepted' ? 'accepted' : 'pending',
+    }));
+
     const card = document.createElement('article');
     card.className = `course-card ${isOpen ? 'is-open' : 'is-closed'}`;
     card.innerHTML = `
@@ -281,30 +398,58 @@ function renderCourseOfferings(courseOffers) {
       </header>
       <p class="muted">${escapeHtml(course?.content || 'ยังไม่ได้ระบุเนื้อหา')}</p>
       <div class="item-actions">
+        <button class="btn btn-secondary btn-compact" type="button" data-action="edit-course">แก้ไขคอร์ส</button>
         <button class="btn btn-secondary btn-compact" type="button" data-action="toggle-status">
           ${isOpen ? 'ปิดคอร์ส' : 'เปิดคอร์ส'}
         </button>
+        <button class="btn btn-secondary btn-compact btn-danger-soft" type="button" data-action="delete-course">ลบคอร์ส</button>
       </div>
-      <form class="course-enroll-form ${isOpen ? '' : 'is-hidden'}" data-course-id="${escapeHtml(course.courseId)}">
-        <p class="student-title">สมัครคอร์ส (ชื่อ + เบอร์โทร)</p>
-        <div class="form-split">
-          <input type="text" name="studentName" placeholder="ชื่อนักเรียน" required />
-          <input type="tel" name="studentPhone" placeholder="เบอร์โทร" required />
-        </div>
-        <button class="btn btn-compact" type="submit">บันทึกผู้สนใจ</button>
-      </form>
-      <div>
+      <details class="course-detail-panel">
+        <summary>ดูรายละเอียด / สมัครคอร์ส</summary>
+        <form class="course-enroll-form ${isOpen ? '' : 'is-hidden'}" data-course-id="${escapeHtml(course.courseId)}">
+          <p class="student-title">สมัครคอร์ส (ชื่อ + เบอร์โทร)</p>
+          <div class="form-split">
+            <input type="text" name="studentName" placeholder="ชื่อนักเรียน" required />
+            <input type="tel" name="studentPhone" placeholder="เบอร์โทร" required />
+          </div>
+          <button class="btn btn-compact" type="submit">บันทึกผู้สนใจ</button>
+        </form>
+      </details>
+      <div class="enrollment-admin-box">
         <p class="student-title">นักเรียนที่สนใจล่าสุด (${enrollments.length})</p>
         ${
-  enrollments.length
+  enrollmentItems.length
     ? `<ul>${enrollments
-      .slice(0, 8)
-      .map((item) => `<li>${escapeHtml(item.studentName)} (${escapeHtml(item.studentPhone)}) · ${escapeHtml(formatDateTime(item.createdAt))}</li>`)
+      .slice(0, 12)
+      .map((item, index) => {
+        const enrollmentId = escapeHtml(String(item?.enrollmentId || `${course.courseId}_idx_${index}`));
+        const enrollmentStatus = String(item?.status || 'pending') === 'accepted' ? 'accepted' : 'pending';
+        const statusText = enrollmentStatus === 'accepted' ? 'ยอมรับแล้ว' : 'รอยืนยัน';
+        const statusClass = enrollmentStatus === 'accepted' ? 'status-pill status-active' : 'status-pill';
+        return `<li class="enrollment-item">
+          <div>
+            <strong>${escapeHtml(item.studentName)}</strong> (${escapeHtml(item.studentPhone)}) · ${escapeHtml(formatDateTime(item.createdAt))}
+            <span class="${statusClass}">${statusText}</span>
+          </div>
+          <div class="enrollment-actions">
+            <button class="btn btn-secondary btn-compact" type="button" data-action="accept-enrollment" data-enrollment-id="${enrollmentId}" ${enrollmentStatus === 'accepted' ? 'disabled' : ''}>ยอมรับ</button>
+            <button class="btn btn-secondary btn-compact" type="button" data-action="edit-enrollment" data-enrollment-id="${enrollmentId}">แก้ไข</button>
+            <button class="btn btn-secondary btn-compact btn-danger-soft" type="button" data-action="delete-enrollment" data-enrollment-id="${enrollmentId}">ลบ</button>
+          </div>
+        </li>`;
+      })
       .join('')}</ul>`
     : '<p class="muted">ยังไม่มีผู้สมัคร</p>'
 }
       </div>
     `;
+
+    const editCourseBtn = card.querySelector('[data-action="edit-course"]');
+    if (editCourseBtn) {
+      editCourseBtn.addEventListener('click', () => {
+        void onEditCourseOffering(course);
+      });
+    }
 
     const toggleBtn = card.querySelector('[data-action="toggle-status"]');
     if (toggleBtn) {
@@ -321,12 +466,46 @@ function renderCourseOfferings(courseOffers) {
       });
     }
 
+    const deleteCourseBtn = card.querySelector('[data-action="delete-course"]');
+    if (deleteCourseBtn) {
+      deleteCourseBtn.addEventListener('click', () => {
+        void onDeleteCourseOffering(course);
+      });
+    }
+
     const enrollForm = card.querySelector('.course-enroll-form');
     if (enrollForm) {
       enrollForm.addEventListener('submit', (event) => {
         void onEnrollCourse(event);
       });
     }
+
+    card.querySelectorAll('[data-action="accept-enrollment"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const enrollmentId = String(btn.dataset.enrollmentId || '');
+        const target = enrollmentItems.find((item) => item.enrollmentId === enrollmentId);
+        if (!target) return;
+        void onAcceptEnrollment(course.courseId, target);
+      });
+    });
+
+    card.querySelectorAll('[data-action="edit-enrollment"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const enrollmentId = String(btn.dataset.enrollmentId || '');
+        const target = enrollmentItems.find((item) => item.enrollmentId === enrollmentId);
+        if (!target) return;
+        void onEditEnrollment(course.courseId, target);
+      });
+    });
+
+    card.querySelectorAll('[data-action="delete-enrollment"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const enrollmentId = String(btn.dataset.enrollmentId || '');
+        const target = enrollmentItems.find((item) => item.enrollmentId === enrollmentId);
+        if (!target) return;
+        void onDeleteEnrollment(course.courseId, target);
+      });
+    });
 
     courseOfferList.appendChild(card);
   });
@@ -689,7 +868,12 @@ if (openCourseDestinationBtn) {
 }
 
 if (courseOfferForm) {
+  offerDaysPicker?.addEventListener('change', hydrateCourseScheduleFields);
+  offerStartTimeInput?.addEventListener('input', hydrateCourseScheduleFields);
+  offerEndTimeInput?.addEventListener('input', hydrateCourseScheduleFields);
+  offerCustomDayInput?.addEventListener('input', hydrateCourseScheduleFields);
   courseOfferForm.addEventListener('submit', (event) => {
+    hydrateCourseScheduleFields();
     void onSaveCourseOffering(event);
   });
 }
