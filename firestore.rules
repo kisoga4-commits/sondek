@@ -13,22 +13,22 @@ service cloud.firestore {
     // อ่านได้สาธารณะ
     // เขียนได้เฉพาะคนที่ login แล้ว
     // -----------------------------
-    match /courses/{document=**} {
+    match /courses/{courseId} {
       allow read: if true;
       allow write: if isAuthenticated();
     }
 
-    match /questions/{document=**} {
+    match /questions/{questionId} {
       allow read: if true;
       allow write: if isAuthenticated();
     }
 
-    match /settings/{document=**} {
+    match /settings/{settingId} {
       allow read: if true;
       allow write: if isAuthenticated();
     }
 
-    match /profile/{document=**} {
+    match /profile/{profileId} {
       allow read: if true;
       allow write: if isAuthenticated();
     }
@@ -37,7 +37,7 @@ service cloud.firestore {
     // 2) leads = รายชื่อผู้เข้าสอบ / คะแนน / leaderboard
     // ตามโหมดง่าย: ต้อง login ก่อน ถึงจะอ่าน/เขียนได้
     // -----------------------------
-    match /leads/{document=**} {
+    match /leads/{leadId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }
