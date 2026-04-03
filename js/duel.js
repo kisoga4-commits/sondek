@@ -51,6 +51,8 @@ const state = {
   hasShownFinalResult: false,
   finalResultTimerId: null,
   eventTimerId: null,
+  isSubmitting: false,
+  hasRequestedFinalize: false,
 };
 
 function setStatus(text) {
@@ -174,8 +176,9 @@ function renderBattle(room) {
   renderHp(meHpFill, me.hp);
   meHpText.textContent = `${Number(me.hp || 0)} / ${START_HP}`;
 
-  submitBtn.disabled = room.status !== 'active';
-  skipBtn.disabled = room.status !== 'active';
+  const isActionLocked = state.isSubmitting || room.status !== 'active';
+  submitBtn.disabled = isActionLocked;
+  skipBtn.disabled = isActionLocked;
 
   if (room.status === 'waiting') {
     const playerCount = Object.keys(room?.players || {}).length;
@@ -241,7 +244,16 @@ function ensureTimer(room) {
     timerText.textContent = formatTime(remainSec);
 
     if (remainSec <= 0) {
-      void finalizeDuelByTimeout(state.roomId);
+      if (state.hasRequestedFinalize) return;
+      state.hasRequestedFinalize = true;
+      void finalizeDuelByTimeout(state.roomId).catch((error) => {
+        setStatus(toDuelErrorMessage(error, 'หมดเวลาแล้ว แต่สรุปผลดวลไม่สำเร็จ'));
+      });
+      return;
+    }
+
+    if (state.hasRequestedFinalize) {
+      state.hasRequestedFinalize = false;
     }
   };
 
@@ -432,7 +444,7 @@ async function handleJoinRoom() {
 
 async function submitCurrentAnswer(forceWrong = false) {
   const room = state.room;
-  if (!room || room.status !== 'active') return;
+  if (!room || room.status !== 'active' || state.isSubmitting) return;
   const question = getCurrentQuestion();
   if (!question) return;
 
@@ -441,9 +453,38 @@ async function submitCurrentAnswer(forceWrong = false) {
     isCorrect = isQuestionCorrect(question, state.selectedAnswer);
   }
 
-  await submitDuelAnswer(state.roomId, { isCorrect });
-  state.currentIndex = (state.currentIndex + 1) % Math.max(1, state.questionSequence.length);
-  renderQuestion();
+  state.isSubmitting = true;
+  submitBtn.disabled = true;
+  skipBtn.disabled = true;
+
+  try {
+    const timeoutMs = 8000;
+    const submitResult = await Promise.race([
+      submitDuelAnswer(state.roomId, { isCorrect }),
+      new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error('ส่งคำตอบช้าเกินไป กรุณาลองใหม่')), timeoutMs);
+      }),
+    ]);
+
+    if (submitResult?.accepted) {
+      state.currentIndex = (state.currentIndex + 1) % Math.max(1, state.questionSequence.length);
+      renderQuestion();
+      return;
+    }
+
+    const reason = String(submitResult?.reason || '');
+    if (reason && reason !== 'room_not_active') {
+      setStatus(`ส่งคำตอบไม่สำเร็จ (${reason})`);
+    }
+  } catch (error) {
+    setStatus(toDuelErrorMessage(error, 'ส่งคำตอบไม่สำเร็จ'));
+  } finally {
+    state.isSubmitting = false;
+    if (state.room?.status === 'active') {
+      submitBtn.disabled = !Number.isInteger(state.selectedAnswer);
+      skipBtn.disabled = false;
+    }
+  }
 }
 
 function initFromQuery() {
