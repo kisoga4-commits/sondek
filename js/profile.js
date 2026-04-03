@@ -13,6 +13,9 @@ const profileName = document.getElementById('profileName');
 const profileBio = document.getElementById('profileBio');
 const teachingGallery = document.getElementById('teachingGallery');
 const enrollLink = document.getElementById('enrollLink');
+const teachingImageModal = document.getElementById('teachingImageModal');
+const closeTeachingImageModal = document.getElementById('closeTeachingImageModal');
+const teachingImageModalPreview = document.getElementById('teachingImageModalPreview');
 
 function getBasePathUrl(pathname) {
   const basePath = pathname.includes('/')
@@ -27,6 +30,21 @@ function optimizeTeachingImageUrl(rawUrl) {
 
 function optimizeProfileImageUrl(rawUrl) {
   return optimizePublicImageUrl(rawUrl, { maxWidth: 640 });
+}
+
+function openTeachingImageModal(imageUrl, altText) {
+  if (!teachingImageModal || !teachingImageModalPreview) return;
+  teachingImageModalPreview.src = optimizeTeachingImageUrl(imageUrl);
+  teachingImageModalPreview.alt = altText || 'ภาพการสอนแบบขยาย';
+  teachingImageModal.classList.remove('hidden');
+  teachingImageModal.classList.add('flex');
+}
+
+function hideTeachingImageModal() {
+  if (!teachingImageModal || !teachingImageModalPreview) return;
+  teachingImageModal.classList.add('hidden');
+  teachingImageModal.classList.remove('flex');
+  teachingImageModalPreview.removeAttribute('src');
 }
 
 function renderTeachingGallery(images = []) {
@@ -52,7 +70,10 @@ function renderTeachingGallery(images = []) {
     img.alt = `รูปการสอน ${index + 1}`;
     img.loading = 'lazy';
     img.decoding = 'async';
-    img.className = 'aspect-[4/3] w-full object-cover object-center';
+    img.className = 'aspect-[4/3] w-full cursor-zoom-in object-cover object-center';
+    img.addEventListener('click', () => {
+      openTeachingImageModal(url, `รูปการสอน ${index + 1} แบบขยาย`);
+    });
 
     wrap.appendChild(img);
     teachingGallery.appendChild(wrap);
@@ -113,6 +134,18 @@ closeBtn?.addEventListener('click', () => {
 
   const baseUrl = getBasePathUrl(window.location.pathname);
   window.location.href = `${baseUrl}quiz.html`;
+});
+
+closeTeachingImageModal?.addEventListener('click', hideTeachingImageModal);
+teachingImageModal?.addEventListener('click', (event) => {
+  if (event.target === teachingImageModal) {
+    hideTeachingImageModal();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    hideTeachingImageModal();
+  }
 });
 
 init();
