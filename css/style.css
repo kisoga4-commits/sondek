@@ -1407,3 +1407,51 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+.duel-setup-grid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  margin-bottom: 0.9rem;
+}
+
+.duel-scoreboard {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.duel-player-panel {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+}
+
+.duel-hp-bar {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.duel-hp-bar > div {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  transition: width 0.2s ease;
+}
+
+.duel-hp-bar > div.is-critical {
+  background: linear-gradient(90deg, #ef4444, #b91c1c);
+}
+
+.duel-timer-box {
+  min-width: 120px;
+  text-align: center;
+}
+
+#duelTimerText {
+  font-size: 1.7rem;
+  font-weight: 800;
+}

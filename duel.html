@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pakdu Duel Mode</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <main class="container home-layout">
+      <section class="card">
+        <div class="hero-badge">DUEL MODE</div>
+        <h1>⚔️ Attack &amp; Survive</h1>
+        <p class="muted">ตอบถูก = ตัดคะแนนคู่ต่อสู้ / ตอบผิดติดกัน 3 ครั้ง = โดนหักคะแนนตัวเอง</p>
+
+        <div class="duel-setup-grid">
+          <label>ชื่อผู้เล่น
+            <input id="duelPlayerName" type="text" minlength="2" placeholder="เช่น แชมป์" />
+          </label>
+          <label>Course ID (ใช้ดึงคลังโจทย์)
+            <input id="duelCourseId" type="text" placeholder="เช่น math01" />
+          </label>
+          <label>เวลา (Host)
+            <select id="duelDuration">
+              <option value="120">2 นาที</option>
+              <option value="180">3 นาที</option>
+            </select>
+          </label>
+          <label>Room ID
+            <input id="duelRoomId" type="text" placeholder="กรอกรหัสห้องเพื่อ Join" />
+          </label>
+        </div>
+
+        <div class="quiz-actions">
+          <button id="createRoomBtn" class="btn" type="button">สร้างห้องดวล</button>
+          <button id="joinRoomBtn" class="btn btn-secondary" type="button">เข้าห้องดวล</button>
+          <a class="btn" href="index.html">กลับหน้า Home</a>
+        </div>
+
+        <p id="duelStatusText" class="muted"></p>
+      </section>
+
+      <section class="card hidden" id="duelBattleSection">
+        <div class="duel-scoreboard">
+          <div class="duel-player-panel">
+            <h3 id="meName">ฉัน</h3>
+            <div class="duel-hp-bar"><div id="meHpFill"></div></div>
+            <p id="meHpText">10 / 10</p>
+            <p id="meStats">ถูก: 0 | ผิด: 0 | พลาดติดกัน: 0</p>
+          </div>
+          <div class="duel-timer-box">
+            <div id="duelTimerText">00:00</div>
+            <small id="duelResultHint">รอเริ่มเกม...</small>
+          </div>
+          <div class="duel-player-panel">
+            <h3 id="oppName">คู่ต่อสู้</h3>
+            <div class="duel-hp-bar"><div id="oppHpFill"></div></div>
+            <p id="oppHpText">10 / 10</p>
+            <p id="oppStats">ถูก: 0 | ผิด: 0 | พลาดติดกัน: 0</p>
+          </div>
+        </div>
+
+        <hr />
+
+        <h2 id="duelQuestionTitle">กำลังรอคำถาม...</h2>
+        <div id="duelChoices" class="choices"></div>
+
+        <div class="quiz-actions">
+          <button id="duelSubmitBtn" class="btn" type="button" disabled>ยืนยันคำตอบ</button>
+          <button id="duelSkipBtn" class="btn btn-secondary" type="button">ข้ามข้อนี้</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="js/duel.js"></script>
+  </body>
+</html>

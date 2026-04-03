@@ -43,6 +43,15 @@ service cloud.firestore {
     }
 
     // -----------------------------
+    // โหมดดวลเรียลไทม์
+    // -----------------------------
+
+    match /duel_rooms/{roomId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // -----------------------------
     // 3) ปิดทุก collection อื่นที่ไม่ได้ระบุ
     // -----------------------------
     match /{document=**} {

@@ -21,6 +21,7 @@ import {
   updateDoc,
   where,
   writeBatch,
+  runTransaction,
 } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import {
@@ -695,5 +696,287 @@ export function subscribeAuthStatus(callback) {
       isAuthenticated: Boolean(user),
       isAnonymous: Boolean(user?.isAnonymous),
     });
+  });
+}
+
+
+function sanitizeDuelName(name, fallback = 'ผู้เล่น') {
+  const cleaned = String(name || '').trim();
+  return cleaned || fallback;
+}
+
+function buildDuelPlayerPayload(name) {
+  return {
+    name: sanitizeDuelName(name),
+    hp: 10,
+    correctCount: 0,
+    wrongCount: 0,
+    wrongStreak: 0,
+    updatedAt: Date.now(),
+  };
+}
+
+function pickDuelWinner(playersByUid = {}) {
+  const entries = Object.entries(playersByUid);
+  if (entries.length < 2) return { winnerUid: '', reason: 'insufficient_players' };
+
+  const [aUid, a] = entries[0];
+  const [bUid, b] = entries[1];
+  const aHp = Number(a?.hp || 0);
+  const bHp = Number(b?.hp || 0);
+
+  if (aHp !== bHp) {
+    return { winnerUid: aHp > bHp ? aUid : bUid, reason: 'hp' };
+  }
+
+  const aCorrect = Number(a?.correctCount || 0);
+  const bCorrect = Number(b?.correctCount || 0);
+  if (aCorrect !== bCorrect) {
+    return { winnerUid: aCorrect > bCorrect ? aUid : bUid, reason: 'correct_count' };
+  }
+
+  const aWrong = Number(a?.wrongCount || 0);
+  const bWrong = Number(b?.wrongCount || 0);
+  if (aWrong !== bWrong) {
+    return { winnerUid: aWrong < bWrong ? aUid : bUid, reason: 'wrong_count' };
+  }
+
+  return { winnerUid: '', reason: 'draw' };
+}
+
+export async function createDuelRoom(payload) {
+  await ensureWriteAccess();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('ไม่สามารถยืนยันตัวตนผู้เล่นได้');
+
+  const roomId = `duel_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const durationSeconds = Number(payload?.durationSeconds) === 180 ? 180 : 120;
+
+  const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
+
+  await setDoc(doc(db, 'duel_rooms', roomId), {
+    roomId,
+    courseId: String(payload?.courseId || '').trim(),
+    status: 'waiting',
+    hostUid: uid,
+    hostName: hostPlayer.name,
+    durationSeconds,
+    maxPlayers: 2,
+    questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
+    players: {
+      [uid]: hostPlayer,
+    },
+    winnerUid: '',
+    winReason: '',
+    eventCounter: 0,
+    updatedAtMs: Date.now(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return { roomId, uid };
+}
+
+export async function joinDuelRoom(roomId, playerName) {
+  await ensureWriteAccess();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('ไม่สามารถยืนยันตัวตนผู้เล่นได้');
+
+  const ref = doc(db, 'duel_rooms', roomId);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
+
+    const data = snap.data() || {};
+    const players = data.players || {};
+    const existingUids = Object.keys(players);
+
+    if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
+
+    if (!players[uid] && existingUids.length >= 2) {
+      throw new Error('ห้องเต็มแล้ว');
+    }
+
+    const nextPlayers = {
+      ...players,
+      [uid]: players[uid] ? {
+        ...players[uid],
+        name: sanitizeDuelName(playerName, players[uid].name || 'ผู้เล่น'),
+        updatedAt: Date.now(),
+      } : buildDuelPlayerPayload(playerName),
+    };
+
+    const playerCount = Object.keys(nextPlayers).length;
+    const becomeActive = playerCount === 2 && data.status !== 'active';
+
+    tx.update(ref, {
+      players: nextPlayers,
+      status: becomeActive ? 'active' : data.status || 'waiting',
+      startedAtMs: becomeActive ? Date.now() : data.startedAtMs || null,
+      updatedAtMs: Date.now(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  return { roomId, uid };
+}
+
+export function subscribeDuelRoom(roomId, callback, onError) {
+  let unsubscribe = () => {};
+  ensureAuthReady()
+    .then(() => {
+      unsubscribe = onSnapshot(doc(db, 'duel_rooms', roomId), (snap) => {
+        callback(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      }, onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+
+  return () => unsubscribe();
+}
+
+export async function submitDuelAnswer(roomId, payload) {
+  await ensureWriteAccess();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('ไม่สามารถยืนยันตัวตนผู้เล่นได้');
+
+  const ref = doc(db, 'duel_rooms', roomId);
+
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
+
+    const data = snap.data() || {};
+    if (data.status !== 'active') {
+      return { accepted: false, reason: 'room_not_active' };
+    }
+
+    const players = { ...(data.players || {}) };
+    const me = { ...(players[uid] || {}) };
+    const opponentUid = Object.keys(players).find((id) => id !== uid);
+    if (!opponentUid) throw new Error('กำลังรอคู่ดวลเข้าห้อง');
+
+    const opponent = { ...(players[opponentUid] || {}) };
+
+    let eventType = '';
+    let eventMessage = '';
+    let eventTargetUid = '';
+
+    const isCorrect = Boolean(payload?.isCorrect);
+    const nowMs = Date.now();
+
+    if (isCorrect) {
+      me.correctCount = Number(me.correctCount || 0) + 1;
+      me.wrongStreak = 0;
+      opponent.hp = Math.max(0, Number(opponent.hp || 0) - 1);
+      eventType = 'attack';
+      eventMessage = 'โดนไปหนึ่งดอก!';
+      eventTargetUid = opponentUid;
+    } else {
+      me.wrongCount = Number(me.wrongCount || 0) + 1;
+      const nextStreak = Number(me.wrongStreak || 0) + 1;
+      if (nextStreak >= 3) {
+        me.wrongStreak = 0;
+        me.hp = Math.max(0, Number(me.hp || 0) - 1);
+        eventType = 'penalty';
+        eventMessage = 'โง่ซ้ำซ้อน! โดนหักคะแนนตัวเองเลยเห็นไหม?';
+        eventTargetUid = uid;
+      } else {
+        me.wrongStreak = nextStreak;
+      }
+    }
+
+    me.updatedAt = nowMs;
+    opponent.updatedAt = nowMs;
+
+    players[uid] = me;
+    players[opponentUid] = opponent;
+
+    let nextStatus = data.status;
+    let winnerUid = data.winnerUid || '';
+    let winReason = data.winReason || '';
+
+    if (Number(me.hp || 0) <= 0 || Number(opponent.hp || 0) <= 0) {
+      nextStatus = 'finished';
+      winnerUid = Number(me.hp || 0) > 0 ? uid : opponentUid;
+      winReason = 'knockout';
+      eventType = 'knockout';
+      eventMessage = winnerUid === uid ? 'น็อคไปแล้ว! ชนะทันที!' : 'โดนน็อค! แพ้ทันที!';
+    } else if (!eventType && (Number(me.hp || 0) < 3 || Number(opponent.hp || 0) < 3)) {
+      eventType = 'critical';
+      eventMessage = 'ระวัง! มึงจะตายแล้ว!';
+      eventTargetUid = Number(me.hp || 0) < 3 ? uid : opponentUid;
+    }
+
+    const eventCounter = Number(data.eventCounter || 0) + (eventType ? 1 : 0);
+
+    tx.update(ref, {
+      players,
+      status: nextStatus,
+      winnerUid,
+      winReason,
+      eventCounter,
+      lastEvent: eventType ? {
+        id: `${eventCounter}_${nowMs}`,
+        type: eventType,
+        message: eventMessage,
+        actorUid: uid,
+        targetUid: eventTargetUid,
+        atMs: nowMs,
+      } : null,
+      endedAtMs: nextStatus === 'finished' ? nowMs : data.endedAtMs || null,
+      updatedAtMs: nowMs,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { accepted: true };
+  });
+}
+
+export async function finalizeDuelByTimeout(roomId) {
+  await ensureWriteAccess();
+  const ref = doc(db, 'duel_rooms', roomId);
+
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('ไม่พบห้องดวลนี้');
+    const data = snap.data() || {};
+
+    if (data.status !== 'active') return { accepted: false, reason: 'room_not_active' };
+
+    const startedAtMs = Number(data.startedAtMs || 0);
+    const durationSeconds = Number(data.durationSeconds || 120);
+    const nowMs = Date.now();
+    const deadlineMs = startedAtMs + (durationSeconds * 1000);
+
+    if (!startedAtMs || nowMs < deadlineMs) {
+      return { accepted: false, reason: 'still_running' };
+    }
+
+    const players = data.players || {};
+    const result = pickDuelWinner(players);
+    const eventCounter = Number(data.eventCounter || 0) + 1;
+
+    tx.update(ref, {
+      status: 'finished',
+      winnerUid: result.winnerUid,
+      winReason: `timeout_${result.reason}`,
+      eventCounter,
+      lastEvent: {
+        id: `${eventCounter}_${nowMs}`,
+        type: 'timeout',
+        message: 'หมดเวลาแล้ว! ระบบกำลังตัดสินผล',
+        actorUid: '',
+        targetUid: '',
+        atMs: nowMs,
+      },
+      endedAtMs: nowMs,
+      updatedAtMs: nowMs,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { accepted: true, ...result };
   });
 }
