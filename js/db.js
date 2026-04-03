@@ -70,6 +70,16 @@ function isPermissionDeniedError(error) {
     || errorMessage.includes('Missing or insufficient permissions');
 }
 
+const DUEL_PERMISSION_HINT = 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode ใน Realtime Database (Missing or insufficient permissions) — เปิด Firebase Auth แบบ Anonymous และ publish RTDB Rules ที่อนุญาต auth != null บน path duel_rooms/{roomId}';
+
+function toDuelPermissionDeniedError(error, fallbackMessage) {
+  if (!isPermissionDeniedError(error)) return error;
+  const nextError = new Error(fallbackMessage || DUEL_PERMISSION_HINT);
+  nextError.code = 'permission-denied';
+  nextError.cause = error;
+  return nextError;
+}
+
 
 async function ensureAuthReady() {
   if (!authInitPromise) {
@@ -842,7 +852,7 @@ export async function createDuelRoom(payload) {
   }
 
   if (isPermissionDeniedError(lastError)) {
-    throw new Error('ยังไม่มีสิทธิ์สร้างห้องดวลใน Realtime Database (Missing or insufficient permissions)');
+    throw toDuelPermissionDeniedError(lastError);
   }
 
   throw lastError || new Error('สร้างห้องไม่สำเร็จ กรุณาลองอีกครั้ง');
@@ -856,34 +866,39 @@ export async function joinDuelRoom(roomId, playerName) {
   if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
 
   const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
-  const tx = await runRtdbTransaction(roomRef, (data) => {
-    if (!data) throw new Error('ไม่พบห้องดวลนี้');
-    const players = data.players || {};
-    const existingUids = Object.keys(players);
+  let tx;
+  try {
+    tx = await runRtdbTransaction(roomRef, (data) => {
+      if (!data) throw new Error('ไม่พบห้องดวลนี้');
+      const players = data.players || {};
+      const existingUids = Object.keys(players);
 
-    if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
+      if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
 
-    if (!players[uid] && existingUids.length >= 2) {
-      throw new Error('ห้องเต็มแล้ว');
-    }
+      if (!players[uid] && existingUids.length >= 2) {
+        throw new Error('ห้องเต็มแล้ว');
+      }
 
-    const nextPlayers = {
-      ...players,
-      [uid]: players[uid] ? {
-        ...players[uid],
-        name: sanitizeDuelName(playerName, players[uid].name || 'ผู้เล่น'),
-        updatedAt: Date.now(),
-      } : buildDuelPlayerPayload(playerName),
-    };
+      const nextPlayers = {
+        ...players,
+        [uid]: players[uid] ? {
+          ...players[uid],
+          name: sanitizeDuelName(playerName, players[uid].name || 'ผู้เล่น'),
+          updatedAt: Date.now(),
+        } : buildDuelPlayerPayload(playerName),
+      };
 
-    return {
-      ...data,
-      players: nextPlayers,
-      status: data.status || 'waiting',
-      startedAtMs: data.startedAtMs || null,
-      updatedAtMs: Date.now(),
-    };
-  });
+      return {
+        ...data,
+        players: nextPlayers,
+        status: data.status || 'waiting',
+        startedAtMs: data.startedAtMs || null,
+        updatedAtMs: Date.now(),
+      };
+    });
+  } catch (error) {
+    throw toDuelPermissionDeniedError(error);
+  }
   if (!tx.committed) throw new Error('เข้าห้องดวลไม่สำเร็จ กรุณาลองอีกครั้ง');
 
   return { roomId: safeRoomId, uid };
@@ -896,24 +911,29 @@ export async function startDuelRoom(roomId) {
   if (safeRoomId.length !== 4) throw new Error('รหัสห้องต้องเป็นตัวเลข 4 หลัก');
 
   const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
-  const tx = await runRtdbTransaction(roomRef, (data) => {
-    if (!data) throw new Error('ไม่พบห้องดวลนี้');
-    if (String(data.hostUid || '') !== uid) throw new Error('เฉพาะ Host เท่านั้นที่เริ่มดวลได้');
-    if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
-    if (data.status === 'active') return data;
+  let tx;
+  try {
+    tx = await runRtdbTransaction(roomRef, (data) => {
+      if (!data) throw new Error('ไม่พบห้องดวลนี้');
+      if (String(data.hostUid || '') !== uid) throw new Error('เฉพาะ Host เท่านั้นที่เริ่มดวลได้');
+      if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
+      if (data.status === 'active') return data;
 
-    const players = data.players || {};
-    if (Object.keys(players).length < 2) {
-      throw new Error('ต้องมีผู้เล่นครบ 2 คนก่อนเริ่มดวล');
-    }
+      const players = data.players || {};
+      if (Object.keys(players).length < 2) {
+        throw new Error('ต้องมีผู้เล่นครบ 2 คนก่อนเริ่มดวล');
+      }
 
-    return {
-      ...data,
-      status: 'active',
-      startedAtMs: Date.now(),
-      updatedAtMs: Date.now(),
-    };
-  });
+      return {
+        ...data,
+        status: 'active',
+        startedAtMs: Date.now(),
+        updatedAtMs: Date.now(),
+      };
+    });
+  } catch (error) {
+    throw toDuelPermissionDeniedError(error);
+  }
   if (!tx.committed) throw new Error('เริ่มดวลไม่สำเร็จ กรุณาลองอีกครั้ง');
 
   return { roomId: safeRoomId, uid };
@@ -944,11 +964,13 @@ export async function submitDuelAnswer(roomId, payload) {
 
   const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
 
-  const tx = await runRtdbTransaction(roomRef, (data) => {
-    if (!data) throw new Error('ไม่พบห้องดวลนี้');
-    if (data.status !== 'active') {
-      return data;
-    }
+  let tx;
+  try {
+    tx = await runRtdbTransaction(roomRef, (data) => {
+      if (!data) throw new Error('ไม่พบห้องดวลนี้');
+      if (data.status !== 'active') {
+        return data;
+      }
 
     const players = { ...(data.players || {}) };
     const me = { ...(players[uid] || {}) };
@@ -1007,25 +1029,28 @@ export async function submitDuelAnswer(roomId, payload) {
 
     const eventCounter = Number(data.eventCounter || 0) + (eventType ? 1 : 0);
 
-    return {
-      ...data,
-      players,
-      status: nextStatus,
-      winnerUid,
-      winReason,
-      eventCounter,
-      lastEvent: eventType ? {
-        id: `${eventCounter}_${nowMs}`,
-        type: eventType,
-        message: eventMessage,
-        actorUid: uid,
-        targetUid: eventTargetUid,
-        atMs: nowMs,
-      } : null,
-      endedAtMs: nextStatus === 'finished' ? nowMs : data.endedAtMs || null,
-      updatedAtMs: nowMs,
-    };
-  });
+      return {
+        ...data,
+        players,
+        status: nextStatus,
+        winnerUid,
+        winReason,
+        eventCounter,
+        lastEvent: eventType ? {
+          id: `${eventCounter}_${nowMs}`,
+          type: eventType,
+          message: eventMessage,
+          actorUid: uid,
+          targetUid: eventTargetUid,
+          atMs: nowMs,
+        } : null,
+        endedAtMs: nextStatus === 'finished' ? nowMs : data.endedAtMs || null,
+        updatedAtMs: nowMs,
+      };
+    });
+  } catch (error) {
+    throw toDuelPermissionDeniedError(error);
+  }
 
   if (!tx.committed) return { accepted: false, reason: 'transaction_not_committed' };
   const nextData = tx.snapshot.val();
@@ -1040,46 +1065,51 @@ export async function finalizeDuelByTimeout(roomId) {
   const roomRef = rtdbRef(rtdb, `duel_rooms/${normalizeDuelRoomId(roomId)}`);
   let finalizeReason = '';
 
-  const tx = await runRtdbTransaction(roomRef, (data) => {
-    if (!data) throw new Error('ไม่พบห้องดวลนี้');
+  let tx;
+  try {
+    tx = await runRtdbTransaction(roomRef, (data) => {
+      if (!data) throw new Error('ไม่พบห้องดวลนี้');
 
-    if (data.status !== 'active') {
-      finalizeReason = 'room_not_active';
-      return data;
-    }
+      if (data.status !== 'active') {
+        finalizeReason = 'room_not_active';
+        return data;
+      }
 
-    const startedAtMs = Number(data.startedAtMs || 0);
-    const durationSeconds = Number(data.durationSeconds || 120);
-    const nowMs = Date.now();
-    const deadlineMs = startedAtMs + (durationSeconds * 1000);
+      const startedAtMs = Number(data.startedAtMs || 0);
+      const durationSeconds = Number(data.durationSeconds || 120);
+      const nowMs = Date.now();
+      const deadlineMs = startedAtMs + (durationSeconds * 1000);
 
-    if (!startedAtMs || nowMs < deadlineMs) {
-      finalizeReason = 'still_running';
-      return data;
-    }
+      if (!startedAtMs || nowMs < deadlineMs) {
+        finalizeReason = 'still_running';
+        return data;
+      }
 
-    const players = data.players || {};
-    const result = pickDuelWinner(players);
-    const eventCounter = Number(data.eventCounter || 0) + 1;
+      const players = data.players || {};
+      const result = pickDuelWinner(players);
+      const eventCounter = Number(data.eventCounter || 0) + 1;
 
-    return {
-      ...data,
-      status: 'finished',
-      winnerUid: result.winnerUid,
-      winReason: `timeout_${result.reason}`,
-      eventCounter,
-      lastEvent: {
-        id: `${eventCounter}_${nowMs}`,
-        type: 'timeout',
-        message: 'หมดเวลาแล้ว! ระบบกำลังตัดสินผล',
-        actorUid: '',
-        targetUid: '',
-        atMs: nowMs,
-      },
-      endedAtMs: nowMs,
-      updatedAtMs: nowMs,
-    };
-  });
+      return {
+        ...data,
+        status: 'finished',
+        winnerUid: result.winnerUid,
+        winReason: `timeout_${result.reason}`,
+        eventCounter,
+        lastEvent: {
+          id: `${eventCounter}_${nowMs}`,
+          type: 'timeout',
+          message: 'หมดเวลาแล้ว! ระบบกำลังตัดสินผล',
+          actorUid: '',
+          targetUid: '',
+          atMs: nowMs,
+        },
+        endedAtMs: nowMs,
+        updatedAtMs: nowMs,
+      };
+    });
+  } catch (error) {
+    throw toDuelPermissionDeniedError(error);
+  }
 
   if (!tx.committed) return { accepted: false, reason: 'transaction_not_committed' };
   if (finalizeReason) return { accepted: false, reason: finalizeReason };
