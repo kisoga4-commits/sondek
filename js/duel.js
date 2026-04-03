@@ -21,11 +21,16 @@ const roomIdInput = document.getElementById('duelRoomId');
 const createRoomBtn = document.getElementById('createRoomBtn');
 const joinRoomBtn = document.getElementById('joinRoomBtn');
 const statusText = document.getElementById('duelStatusText');
+const lobbySection = document.getElementById('duelLobbySection');
+const lobbyRoomIdText = document.getElementById('duelLobbyRoomId');
+const lobbyHint = document.getElementById('duelLobbyHint');
+const lobbyPlayers = document.getElementById('duelLobbyPlayers');
 const battleSection = document.getElementById('duelBattleSection');
 
 const meName = document.getElementById('meName');
 const meHpFill = document.getElementById('meHpFill');
 const meHpText = document.getElementById('meHpText');
+const othersHpWrap = document.getElementById('duelOthersHp');
 const timerText = document.getElementById('duelTimerText');
 const resultHint = document.getElementById('duelResultHint');
 const questionTitle = document.getElementById('duelQuestionTitle');
@@ -50,6 +55,7 @@ const state = {
   isSubmitting: false,
   hasRequestedFinalize: false,
   currentQuestionId: '',
+  lastQuestionId: '',
   questionLoadPromise: null,
   questionLoadCourseId: '',
 };
@@ -99,18 +105,27 @@ function formatTime(seconds) {
 function getPlayerEntries(room) {
   const players = room?.players || {};
   const me = players[state.uid] || null;
-  const opponentEntry = Object.entries(players).find(([id]) => id !== state.uid);
-  const oppUid = opponentEntry?.[0] || '';
-  const opp = opponentEntry?.[1] || null;
-  return { me, opp, oppUid };
+  const opponents = Object.entries(players)
+    .filter(([uid]) => uid !== state.uid)
+    .map(([uid, payload]) => ({ uid, ...payload }));
+  return { me, opponents };
 }
 
 function findQuestionById(questionId) {
   return state.questionBank.find((q) => String(q.id) === String(questionId));
 }
 
+function pickNextQuestionId() {
+  const ids = state.questionBank.map((q) => String(q.id));
+  if (!ids.length) return '';
+  if (ids.length === 1) return ids[0];
+  const filtered = ids.filter((id) => id !== state.lastQuestionId);
+  const pool = filtered.length ? filtered : ids;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function getCurrentQuestion() {
-  const questionId = state.questionSequence[state.currentIndex];
+  const questionId = state.currentQuestionId || state.questionSequence[state.currentIndex];
   const raw = findQuestionById(questionId);
   if (!raw) return null;
   return normalizeQuestion(raw);
@@ -167,9 +182,6 @@ async function ensureQuestionBankLoaded(courseId) {
 
   state.questionLoadCourseId = safeCourseId;
   state.questionLoadPromise = loadQuestionBank(safeCourseId)
-    .catch((error) => {
-      throw error;
-    })
     .finally(() => {
       state.questionLoadPromise = null;
       state.questionLoadCourseId = '';
@@ -179,24 +191,51 @@ async function ensureQuestionBankLoaded(courseId) {
 }
 
 function renderBattle(room) {
-  const { me, opp } = getPlayerEntries(room);
+  const { me, opponents } = getPlayerEntries(room);
   if (!me) return;
 
-  battleSection.classList.remove('hidden');
+  const playerCount = Object.keys(room?.players || {}).length;
+  if (lobbySection) lobbySection.classList.toggle('hidden', room.status !== 'waiting');
+  if (battleSection) battleSection.classList.toggle('hidden', room.status === 'waiting');
+
+  if (lobbyRoomIdText) lobbyRoomIdText.textContent = String(room.roomId || state.roomId || '----');
+  if (lobbyHint) lobbyHint.textContent = `ผู้เล่น ${playerCount}/4 คน (อย่างน้อย 2 คนถึงจะเริ่มได้)`;
+  if (lobbyPlayers) {
+    lobbyPlayers.innerHTML = '';
+    Object.values(room?.players || {}).forEach((player) => {
+      const chip = document.createElement('div');
+      chip.className = 'duel-lobby-chip';
+      chip.textContent = `${player?.name || 'ผู้เล่น'} (HP ${Number(player?.hp || 0)})`;
+      lobbyPlayers.appendChild(chip);
+    });
+  }
 
   meName.textContent = me.name || 'ฉัน';
   renderHp(meHpFill, me.hp);
   meHpText.textContent = `${Number(me.hp || 0)} / ${START_HP}`;
+
+  if (othersHpWrap) {
+    othersHpWrap.innerHTML = '';
+    opponents.forEach((opponent) => {
+      const row = document.createElement('div');
+      row.className = 'duel-mini-opponent';
+      row.innerHTML = `
+        <div class="duel-mini-opponent-name">${opponent.name || 'ผู้เล่น'}</div>
+        <div class="duel-mini-opponent-bar"><span style="width:${Math.max(0, Math.min(100, (Number(opponent.hp || 0) / START_HP) * 100))}%"></span></div>
+        <small>${Number(opponent.hp || 0)} / ${START_HP}</small>
+      `;
+      othersHpWrap.appendChild(row);
+    });
+  }
 
   const isActionLocked = state.isSubmitting || room.status !== 'active';
   submitBtn.disabled = isActionLocked;
   skipBtn.disabled = isActionLocked;
 
   if (room.status === 'waiting') {
-    const playerCount = Object.keys(room?.players || {}).length;
     resultHint.textContent = playerCount < 2
-      ? 'รอผู้เล่นคนที่ 2 เข้าห้อง...'
-      : 'ครบ 2 คนแล้ว รอ Host กดเริ่มดวล';
+      ? 'รอผู้เล่นอย่างน้อย 2 คนเข้าห้อง...'
+      : `พร้อมลุยแล้ว (${playerCount}/4 คน) รอ Host กดเริ่ม`;
   }
 
   if (room.status === 'finished') {
@@ -214,8 +253,8 @@ function renderBattle(room) {
 
   if (room.status === 'active') {
     const myHp = Number(me.hp || 0);
-    const oppHp = Number(opp?.hp ?? START_HP);
-    resultHint.textContent = `พลังเรา ${myHp} | พลังคู่ต่อสู้ ${oppHp}`;
+    const oppSummary = opponents.map((opponent) => `${opponent.name || 'คู่ต่อสู้'} ${Number(opponent.hp || 0)}`).join(' | ');
+    resultHint.textContent = `พลังเรา ${myHp}${oppSummary ? ` | ${oppSummary}` : ''}`;
   }
 }
 
@@ -258,23 +297,28 @@ function ensureTimer(room) {
 
 function applyVoiceEvent(room) {
   const event = room?.lastEvent;
-  const { opp } = getPlayerEntries(room);
-  const oppNameText = String(opp?.name || 'คู่ต่อสู้');
+  const { opponents } = getPlayerEntries(room);
+  const oppNameText = String(opponents[0]?.name || 'คู่ต่อสู้');
   if (!event || !event.id || event.id === state.lastEventId) return;
   state.lastEventId = event.id;
 
   if (event.type === 'attack' && event.actorUid === state.uid) {
-    setStatus(`⚡ โจมตีเข้าเป้า! ${oppNameText} โดนหักพลัง 1 แต้ม`);
+    setStatus(`⚡ ป้าบบบ! ${oppNameText} โดนดูด HP ไปแล้ว 1`);
+    return;
+  }
+
+  if (event.type === 'streak_bonus' && event.targetUid === state.uid) {
+    setStatus('🔥 โหมดเทพ! ตอบถูก 3 ติด ฟื้น HP +1 ให้ตัวเอง');
     return;
   }
 
   if (event.type === 'penalty' && event.targetUid === state.uid) {
-    setStatus('💥 พลาดติดกัน! คุณโดนหักพลังตัวเอง 1 แต้ม');
+    setStatus('💥 มึนจัด ตอบผิด 3 ติด! HP ตัวเองหาย 1');
     return;
   }
 
   if (event.type === 'critical') {
-    setStatus('🚨 จุดวิกฤต: ใครพลังเหลือน้อยกว่า 3 ต้องรีบพลิกเกม');
+    setStatus('🚨 เลือดแดงทั้งห้อง! ใครพลาดอีกมีนอน');
   }
 }
 
@@ -316,6 +360,7 @@ function handleRoomUpdate(room) {
     void ensureQuestionBankLoaded(roomCourseId)
       .then(() => {
         if (!courseIdInput.value) courseIdInput.value = roomCourseId;
+        if (!state.currentQuestionId) state.currentQuestionId = pickNextQuestionId();
         if (state.room?.status === 'active') renderQuestion(true);
       })
       .catch((error) => {
@@ -330,6 +375,7 @@ function handleRoomUpdate(room) {
 
   if (room.status === 'active') {
     if (state.questionBank.length) {
+      if (!state.currentQuestionId) state.currentQuestionId = pickNextQuestionId();
       renderQuestion();
     } else {
       state.currentQuestionId = '';
@@ -341,7 +387,7 @@ function handleRoomUpdate(room) {
   const { me } = getPlayerEntries(room);
   const playerCount = Object.keys(room?.players || {}).length;
   const canStart = room.status === 'waiting'
-    && playerCount === 2
+    && playerCount >= 2
     && String(room.hostUid || '') === state.uid
     && Boolean(me);
   createRoomBtn.textContent = canStart ? 'เริ่มดวล' : 'Host';
@@ -353,6 +399,7 @@ async function loadQuestionBank(courseId) {
   state.questionBank = rows;
   state.loadedCourseId = String(courseId || '').trim();
   state.currentQuestionId = '';
+  state.lastQuestionId = '';
 }
 
 function buildQuestionLoop(questionBank) {
@@ -374,6 +421,7 @@ async function startSubscribeRoom(roomId) {
   state.isSubmitting = false;
   state.hasRequestedFinalize = false;
   state.currentQuestionId = '';
+  state.lastQuestionId = '';
   if (state.finalResultTimerId) {
     window.clearTimeout(state.finalResultTimerId);
     state.finalResultTimerId = null;
@@ -388,7 +436,7 @@ async function handleCreateRoom() {
     const canStartExistingRoom = state.room
       && state.room.status === 'waiting'
       && String(state.room.hostUid || '') === state.uid
-      && Object.keys(state.room.players || {}).length === 2;
+      && Object.keys(state.room.players || {}).length >= 2;
     if (canStartExistingRoom) {
       await startDuelRoom(state.roomId);
       setStatus(`เริ่มดวลห้อง ${state.roomId} แล้ว`);
@@ -422,7 +470,7 @@ async function handleCreateRoom() {
     state.roomId = created.roomId;
     state.uid = created.uid || state.uid;
     roomIdInput.value = created.roomId;
-    setStatus(`สร้างห้องสำเร็จ: ${created.roomId} (ส่งรหัสนี้ให้เพื่อน)`);
+    setStatus(`สร้างห้องสำเร็จ: ${created.roomId} (ส่งรหัสนี้ให้เพื่อนได้ สูงสุด 4 คน)`);
     await startSubscribeRoom(created.roomId);
   } catch (error) {
     setStatus(toDuelErrorMessage(error, 'สร้างห้องไม่สำเร็จ'));
@@ -473,8 +521,10 @@ async function submitCurrentAnswer(forceWrong = false) {
     ]);
 
     if (submitResult?.accepted) {
-      state.currentIndex = (state.currentIndex + 1) % Math.max(1, state.questionSequence.length);
-      renderQuestion();
+      state.lastQuestionId = state.currentQuestionId;
+      state.currentQuestionId = pickNextQuestionId();
+      state.currentIndex = (state.currentIndex + 1) % Math.max(1, state.questionSequence.length || 1);
+      renderQuestion(true);
       return;
     }
 

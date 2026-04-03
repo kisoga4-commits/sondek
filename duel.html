@@ -42,6 +42,12 @@
         <p id="duelStatusText" class="muted"></p>
       </section>
 
+      <section class="card hidden" id="duelLobbySection">
+        <h2>ห้อง <span id="duelLobbyRoomId">----</span></h2>
+        <p class="muted" id="duelLobbyHint">รอผู้เล่นเข้าห้อง...</p>
+        <div id="duelLobbyPlayers" class="duel-lobby-players"></div>
+      </section>
+
       <section class="card hidden" id="duelBattleSection">
         <div class="duel-mini-hud">
           <div class="duel-player-panel duel-player-panel--me">
@@ -53,6 +59,7 @@
             <p id="meHpText">10 / 10</p>
           </div>
         </div>
+        <div id="duelOthersHp" class="duel-others-hp"></div>
         <small id="duelResultHint" class="duel-result-hint">รอเริ่มเกม...</small>
 
         <hr />

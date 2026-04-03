@@ -1468,6 +1468,54 @@ select:focus {
   color: #334155;
 }
 
+.duel-lobby-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.duel-lobby-chip {
+  border: 1px solid #99f6e4;
+  background: #f0fdfa;
+  color: #134e4a;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.duel-others-hp {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
+.duel-mini-opponent {
+  border: 1px solid #dbeafe;
+  border-radius: 0.65rem;
+  background: #f8fafc;
+  padding: 0.45rem 0.55rem;
+}
+
+.duel-mini-opponent-name {
+  font-size: 0.83rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.duel-mini-opponent-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.duel-mini-opponent-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+}
+
 .app-home {
   width: min(720px, 100% - 1.25rem);
   margin: 1rem auto 2rem;

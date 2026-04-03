@@ -79,6 +79,7 @@ function isAnonymousAuthConfigError(error) {
 
 const DUEL_PERMISSION_HINT = 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode ใน Realtime Database (Missing or insufficient permissions) — เปิด Firebase Auth แบบ Anonymous และ publish RTDB Rules ที่อนุญาต auth != null บน path duel_rooms/{roomId}';
 const DUEL_AUTH_HINT = 'ล็อกอินแบบ Anonymous ไม่สำเร็จ — เปิด Firebase Authentication > Sign-in method > Anonymous และเพิ่มโดเมนปัจจุบันใน Authorized domains';
+const DUEL_DAMAGE_COOLDOWN_MS = 1800;
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
@@ -766,7 +767,16 @@ function normalizeDuelRoomId(value = '') {
 function ensureAvailableDuelRoomId(preferredRoomId = '') {
   const preferred = normalizeDuelRoomId(preferredRoomId);
   if (preferred.length === 4) return preferred;
-  return String(Math.floor(1000 + Math.random() * 9000));
+  const key = 'duel_last_room_id';
+  const previous = typeof window !== 'undefined' ? String(window.localStorage.getItem(key) || '') : '';
+  let next = String(Math.floor(1000 + Math.random() * 9000));
+  if (next === previous) {
+    next = String(((Number(next) + Math.floor(Math.random() * 8000) + 1000) % 9000) + 1000).slice(0, 4);
+  }
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(key, next);
+  }
+  return next;
 }
 
 function buildDuelPlayerPayload(name) {
@@ -776,36 +786,31 @@ function buildDuelPlayerPayload(name) {
     correctCount: 0,
     wrongCount: 0,
     wrongStreak: 0,
+    correctStreak: 0,
+    lastDamageAtMs: 0,
     updatedAt: Date.now(),
   };
 }
 
 function pickDuelWinner(playersByUid = {}) {
   const entries = Object.entries(playersByUid);
-  if (entries.length < 2) return { winnerUid: '', reason: 'insufficient_players' };
-
-  const [aUid, a] = entries[0];
-  const [bUid, b] = entries[1];
-  const aHp = Number(a?.hp || 0);
-  const bHp = Number(b?.hp || 0);
-
-  if (aHp !== bHp) {
-    return { winnerUid: aHp > bHp ? aUid : bUid, reason: 'hp' };
-  }
-
-  const aCorrect = Number(a?.correctCount || 0);
-  const bCorrect = Number(b?.correctCount || 0);
-  if (aCorrect !== bCorrect) {
-    return { winnerUid: aCorrect > bCorrect ? aUid : bUid, reason: 'correct_count' };
-  }
-
-  const aWrong = Number(a?.wrongCount || 0);
-  const bWrong = Number(b?.wrongCount || 0);
-  if (aWrong !== bWrong) {
-    return { winnerUid: aWrong < bWrong ? aUid : bUid, reason: 'wrong_count' };
-  }
-
-  return { winnerUid: '', reason: 'draw' };
+  if (!entries.length) return { winnerUid: '', reason: 'insufficient_players' };
+  const ranked = [...entries].sort((aEntry, bEntry) => {
+    const [, a] = aEntry;
+    const [, b] = bEntry;
+    const hpDiff = Number(b?.hp || 0) - Number(a?.hp || 0);
+    if (hpDiff !== 0) return hpDiff;
+    const correctDiff = Number(b?.correctCount || 0) - Number(a?.correctCount || 0);
+    if (correctDiff !== 0) return correctDiff;
+    return Number(a?.wrongCount || 0) - Number(b?.wrongCount || 0);
+  });
+  const [winnerUid, winner] = ranked[0];
+  const [, runnerUp] = ranked[1] || [];
+  const hasClearWinner = !runnerUp
+    || Number(winner?.hp || 0) !== Number(runnerUp?.hp || 0)
+    || Number(winner?.correctCount || 0) !== Number(runnerUp?.correctCount || 0)
+    || Number(winner?.wrongCount || 0) !== Number(runnerUp?.wrongCount || 0);
+  return { winnerUid: hasClearWinner ? winnerUid : '', reason: hasClearWinner ? 'hp' : 'draw' };
 }
 
 export async function createDuelRoom(payload) {
@@ -836,7 +841,7 @@ export async function createDuelRoom(payload) {
           hostUid: uid,
           hostName: hostPlayer.name,
           durationSeconds,
-          maxPlayers: 2,
+          maxPlayers: 4,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
           players: {
             [uid]: hostPlayer,
@@ -891,7 +896,8 @@ export async function joinDuelRoom(roomId, playerName) {
 
       if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
 
-      if (!players[uid] && existingUids.length >= 2) {
+      const maxPlayers = Math.max(2, Number(data.maxPlayers || 4));
+      if (!players[uid] && existingUids.length >= maxPlayers) {
         throw new Error('ห้องเต็มแล้ว');
       }
 
@@ -937,7 +943,7 @@ export async function startDuelRoom(roomId) {
 
       const players = data.players || {};
       if (Object.keys(players).length < 2) {
-        throw new Error('ต้องมีผู้เล่นครบ 2 คนก่อนเริ่มดวล');
+        throw new Error('ต้องมีผู้เล่นอย่างน้อย 2 คนก่อนเริ่มดวล');
       }
 
       return {
@@ -990,10 +996,8 @@ export async function submitDuelAnswer(roomId, payload) {
 
     const players = { ...(data.players || {}) };
     const me = { ...(players[uid] || {}) };
-    const opponentUid = Object.keys(players).find((id) => id !== uid);
-    if (!opponentUid) throw new Error('กำลังรอคู่ดวลเข้าห้อง');
-
-    const opponent = { ...(players[opponentUid] || {}) };
+    const opponentUids = Object.keys(players).filter((id) => id !== uid);
+    if (!opponentUids.length) throw new Error('กำลังรอคู่ดวลเข้าห้อง');
 
     let eventType = '';
     let eventMessage = '';
@@ -1004,14 +1008,38 @@ export async function submitDuelAnswer(roomId, payload) {
 
     if (isCorrect) {
       me.correctCount = Number(me.correctCount || 0) + 1;
+      me.correctStreak = Number(me.correctStreak || 0) + 1;
       me.wrongStreak = 0;
-      opponent.hp = Math.max(0, Number(opponent.hp || 0) - 1);
-      eventType = 'attack';
-      eventMessage = 'โดนไปหนึ่งดอก!';
-      eventTargetUid = opponentUid;
+      let damagedCount = 0;
+      opponentUids.forEach((opponentUid) => {
+        const opponent = { ...(players[opponentUid] || {}) };
+        const lastDamageAtMs = Number(opponent.lastDamageAtMs || 0);
+        const canTakeDamage = (nowMs - lastDamageAtMs) >= DUEL_DAMAGE_COOLDOWN_MS;
+        if (canTakeDamage) {
+          opponent.hp = Math.max(0, Number(opponent.hp || 0) - 1);
+          opponent.lastDamageAtMs = nowMs;
+          damagedCount += 1;
+        }
+        opponent.updatedAt = nowMs;
+        players[opponentUid] = opponent;
+      });
+      if (me.correctStreak >= 3) {
+        me.correctStreak = 0;
+        me.hp = Math.min(10, Number(me.hp || 0) + 1);
+        eventType = 'streak_bonus';
+        eventMessage = 'ตอบถูกติดกัน 3 ข้อ! ฟื้น HP +1';
+        eventTargetUid = uid;
+      } else {
+        eventType = 'attack';
+        eventMessage = damagedCount > 0
+          ? `โจมตีโดน ${damagedCount} คน!`
+          : 'คู่ต่อสู้กันดาเมจไว้ทัน!';
+        eventTargetUid = opponentUids[0] || '';
+      }
     } else {
       me.wrongCount = Number(me.wrongCount || 0) + 1;
       me.wrongStreak = Number(me.wrongStreak || 0) + 1;
+      me.correctStreak = 0;
       if (me.wrongStreak >= 3) {
         me.wrongStreak = 0;
         me.hp = Math.max(0, Number(me.hp || 0) - 1);
@@ -1022,25 +1050,26 @@ export async function submitDuelAnswer(roomId, payload) {
     }
 
     me.updatedAt = nowMs;
-    opponent.updatedAt = nowMs;
 
     players[uid] = me;
-    players[opponentUid] = opponent;
 
     let nextStatus = data.status;
     let winnerUid = data.winnerUid || '';
     let winReason = data.winReason || '';
 
-    if (Number(me.hp || 0) <= 0 || Number(opponent.hp || 0) <= 0) {
+    const aliveUids = Object.entries(players)
+      .filter(([, player]) => Number(player?.hp || 0) > 0)
+      .map(([playerUid]) => playerUid);
+    if (aliveUids.length <= 1) {
       nextStatus = 'finished';
-      winnerUid = Number(me.hp || 0) > 0 ? uid : opponentUid;
+      winnerUid = aliveUids[0] || '';
       winReason = 'knockout';
       eventType = 'knockout';
-      eventMessage = winnerUid === uid ? 'น็อคไปแล้ว! ชนะทันที!' : 'โดนน็อค! แพ้ทันที!';
-    } else if (!eventType && (Number(me.hp || 0) < 3 || Number(opponent.hp || 0) < 3)) {
+      eventMessage = winnerUid === uid ? 'เก็บเรียบ! น็อคทั้งห้อง!' : 'โดนน็อคยับ!';
+    } else if (!eventType && Object.values(players).some((player) => Number(player?.hp || 0) < 3)) {
       eventType = 'critical';
       eventMessage = 'ระวัง! มึงจะตายแล้ว!';
-      eventTargetUid = Number(me.hp || 0) < 3 ? uid : opponentUid;
+      eventTargetUid = Object.keys(players).find((playerUid) => Number(players[playerUid]?.hp || 0) < 3) || uid;
     }
 
     const eventCounter = Number(data.eventCounter || 0) + (eventType ? 1 : 0);
