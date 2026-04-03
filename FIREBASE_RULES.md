@@ -14,3 +14,13 @@
 - เปิดหน้า `adminchamp.html`
 - ดูข้อความสถานะที่หัวหน้า Dashboard จะเห็น `uid`
 - นำ UID ไปแทนที่ `REPLACE_WITH_ADMIN_UID_1` ใน `firestore.rules`
+
+## Realtime Database Rules (licenses read-only)
+- ไฟล์ `database.rules.json` ใน repo นี้ตั้งค่าไว้ดังนี้:
+  - ปิดสิทธิ์อ่าน/เขียนทั้งหมดทั้งระบบ
+  - อนุญาตให้อ่าน path `licenses` ได้แบบสาธารณะ
+  - ไม่อนุญาตเขียน `licenses`
+- การนำไปใช้:
+  1. เปิด Firebase Console > Realtime Database > Rules
+  2. วางเนื้อหาใน `database.rules.json`
+  3. กด Publish

@@ -1,9 +1,12 @@
 import {
+  createDuelRoom,
   deleteCourseEnrollment,
   deleteCourseOffering,
   deleteCourseWithQuestions,
+  forceFinishDuelRoom,
   getProfile,
   getPlayCountByCourse,
+  getQuestionsByCourse,
   getResultFeedbackConfig,
   saveCourseEnrollment,
   saveCourseOffering,
@@ -12,11 +15,12 @@ import {
   subscribeAuthStatus,
   subscribeCourseOfferings,
   subscribeCourses,
+  subscribeRecentDuelRooms,
   toggleCourseOfferingStatus,
   updateCourseEnrollment,
   updateCourseOffering,
 } from './db.js';
-import { getDefaultFeedbackMap } from './quiz.js';
+import { getDefaultFeedbackMap, shuffleArray } from './quiz.js';
 
 const quizLibrary = document.getElementById('quizLibrary');
 const authStatusNotice = document.getElementById('authStatusNotice');
@@ -44,6 +48,17 @@ const offerContentInput = document.getElementById('offerContentInput');
 const saveCourseOfferBtn = document.getElementById('saveCourseOfferBtn');
 const courseOfferStatus = document.getElementById('courseOfferStatus');
 const courseOfferList = document.getElementById('courseOfferList');
+const duelAdminForm = document.getElementById('duelAdminForm');
+const duelAdminHostNameInput = document.getElementById('duelAdminHostNameInput');
+const duelAdminCourseIdInput = document.getElementById('duelAdminCourseIdInput');
+const duelAdminDurationInput = document.getElementById('duelAdminDurationInput');
+const duelAdminOpenPageBtn = document.getElementById('duelAdminOpenPageBtn');
+const duelAdminStatus = document.getElementById('duelAdminStatus');
+const duelAdminRoomLinkInput = document.getElementById('duelAdminRoomLinkInput');
+const duelAdminCopyRoomLinkBtn = document.getElementById('duelAdminCopyRoomLinkBtn');
+const duelAdminRoomList = document.getElementById('duelAdminRoomList');
+
+const DUEL_QUESTION_LOOP_COUNT = 50;
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 function getBucketRangeLabel(bucket) {
@@ -90,6 +105,175 @@ function buildCourseDestinationLink() {
     ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
     : '/';
   return `${window.location.origin}${basePath}courses.html`;
+}
+
+function buildDuelLink(roomId = '', courseId = '') {
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  const params = new URLSearchParams();
+  if (courseId) params.set('courseId', courseId);
+  if (roomId) params.set('roomId', roomId);
+  const query = params.toString();
+  return `${window.location.origin}${basePath}duel.html${query ? `?${query}` : ''}`;
+}
+
+function setDuelAdminStatus(text) {
+  if (duelAdminStatus) {
+    duelAdminStatus.textContent = text;
+  }
+}
+
+function buildDuelQuestionLoop(rows) {
+  const ids = rows.map((item) => String(item.id)).filter(Boolean);
+  if (!ids.length) return [];
+
+  const loop = [];
+  while (loop.length < DUEL_QUESTION_LOOP_COUNT) {
+    loop.push(...shuffleArray(ids));
+  }
+  return loop.slice(0, DUEL_QUESTION_LOOP_COUNT);
+}
+
+async function onCreateDuelRoom(event) {
+  event.preventDefault();
+  const hostName = String(duelAdminHostNameInput?.value || '').trim();
+  const courseId = String(duelAdminCourseIdInput?.value || '').trim();
+  const durationSeconds = Number(duelAdminDurationInput?.value) === 180 ? 180 : 120;
+  const createBtn = document.getElementById('duelAdminCreateRoomBtn');
+
+  if (!hostName || !courseId) {
+    alert('กรอกชื่อ Host และ Course ID ก่อนสร้างห้อง');
+    return;
+  }
+
+  try {
+    if (createBtn) createBtn.disabled = true;
+    setDuelAdminStatus('กำลังโหลดคลังโจทย์...');
+    const questionBank = await getQuestionsByCourse(courseId);
+    if (!questionBank.length) throw new Error('ไม่พบข้อสอบของ Course ID นี้');
+
+    const questionSequence = buildDuelQuestionLoop(questionBank);
+    if (!questionSequence.length) throw new Error('ไม่สามารถสร้างชุดคำถามดวลได้');
+
+    const created = await createDuelRoom({
+      hostName,
+      courseId,
+      durationSeconds,
+      questionSequence,
+    });
+    const roomLink = buildDuelLink(created.roomId, courseId);
+    if (duelAdminRoomLinkInput) duelAdminRoomLinkInput.value = roomLink;
+    setDuelAdminStatus(`สร้างห้องสำเร็จ: ${created.roomId} (พร้อมแชร์ให้ผู้เล่น)`);
+  } catch (error) {
+    console.error(error);
+    setDuelAdminStatus(error?.message || 'สร้างห้องดวลไม่สำเร็จ');
+  } finally {
+    if (createBtn) createBtn.disabled = false;
+  }
+}
+
+function getDuelPlayerCount(room) {
+  return Object.keys(room?.players || {}).length;
+}
+
+function renderDuelRoomList(rooms) {
+  if (!duelAdminRoomList) return;
+  duelAdminRoomList.innerHTML = '';
+
+  if (!rooms.length) {
+    duelAdminRoomList.innerHTML = '<p class="muted">ยังไม่มีห้องดวล</p>';
+    return;
+  }
+
+  rooms.forEach((room) => {
+    const card = document.createElement('article');
+    card.className = 'course-card';
+    const roomId = escapeHtml(room?.roomId || room?.id || '-');
+    const courseId = escapeHtml(room?.courseId || '-');
+    const status = String(room?.status || 'waiting');
+    const statusText = status === 'active' ? 'กำลังเล่น' : status === 'finished' ? 'จบแล้ว' : 'รอผู้เล่น';
+    const winnerUid = String(room?.winnerUid || '');
+
+    card.innerHTML = `
+      <header class="course-card-head">
+        <div>
+          <h3>ห้อง ${roomId}</h3>
+          <p class="muted">Course: ${courseId} · ผู้เล่น ${getDuelPlayerCount(room)}/2</p>
+        </div>
+        <span class="status-pill ${status === 'finished' ? 'status-closed' : status === 'active' ? 'status-active' : ''}">${escapeHtml(statusText)}</span>
+      </header>
+      <p class="muted">ผู้ชนะ: ${escapeHtml(winnerUid || '-')}</p>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-compact" type="button" data-action="open-room">เปิดหน้า Duel</button>
+        <button class="btn btn-secondary btn-compact" type="button" data-action="copy-room-link">คัดลอกลิงก์</button>
+        <button class="btn btn-secondary btn-compact btn-danger-soft" type="button" data-action="force-finish" ${status === 'finished' ? 'disabled' : ''}>สั่งจบเกม</button>
+      </div>
+    `;
+
+    card.querySelector('[data-action="open-room"]')?.addEventListener('click', () => {
+      window.open(buildDuelLink(room.roomId, room.courseId), '_blank', 'noopener,noreferrer');
+    });
+
+    card.querySelector('[data-action="copy-room-link"]')?.addEventListener('click', () => {
+      void copyLink(buildDuelLink(room.roomId, room.courseId));
+    });
+
+    card.querySelector('[data-action="force-finish"]')?.addEventListener('click', async () => {
+      if (!window.confirm(`ยืนยันสั่งจบห้อง ${room.roomId}?`)) return;
+      try {
+        await forceFinishDuelRoom(room.roomId);
+      } catch (error) {
+        console.error(error);
+        alert('สั่งจบเกมไม่สำเร็จ');
+      }
+    });
+
+    duelAdminRoomList.appendChild(card);
+  });
+}
+
+function initDuelAdminSection() {
+  if (!duelAdminForm) return;
+
+  subscribeRecentDuelRooms((rooms) => {
+    renderDuelRoomList(rooms);
+  }, (error) => {
+    console.error(error);
+    if (duelAdminRoomList) {
+      duelAdminRoomList.innerHTML = '<p class="muted">โหลดรายการห้องดวลไม่สำเร็จ</p>';
+    }
+  });
+
+  duelAdminForm.addEventListener('submit', (event) => {
+    void onCreateDuelRoom(event);
+  });
+
+  if (duelAdminOpenPageBtn) {
+    duelAdminOpenPageBtn.addEventListener('click', () => {
+      const courseId = String(duelAdminCourseIdInput?.value || '').trim();
+      let roomId = '';
+      try {
+        const parsed = new URL(String(duelAdminRoomLinkInput?.value || ''), window.location.origin);
+        roomId = String(parsed.searchParams.get('roomId') || '').trim();
+      } catch (error) {
+        roomId = '';
+      }
+      window.open(buildDuelLink(roomId, courseId), '_blank', 'noopener,noreferrer');
+    });
+  }
+
+  if (duelAdminCopyRoomLinkBtn) {
+    duelAdminCopyRoomLinkBtn.addEventListener('click', () => {
+      const value = String(duelAdminRoomLinkInput?.value || '').trim();
+      if (!value) {
+        alert('ยังไม่มีลิงก์ห้องให้คัดลอก');
+        return;
+      }
+      void copyLink(value);
+    });
+  }
 }
 
 function getFriendlyProfileSaveError(error) {
@@ -812,6 +996,7 @@ initQuizLibrary();
 void loadFeedbackConfig();
 void loadProfileForm();
 initCourseOfferingSection();
+initDuelAdminSection();
 subscribeAuthStatus(renderAuthStatus);
 updateProfileImagePreviewStatus();
 
