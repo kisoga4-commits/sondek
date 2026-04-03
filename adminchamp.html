@@ -10,9 +10,6 @@
     <main class="container adminchamp-layout">
       <section class="card adminchamp-hero">
         <h1>Admin Champion Dashboard</h1>
-        <p class="muted">
-          จัดการบททดสอบ คอร์สที่เปิดสอน และกำหนดปลายทางหลังนักเรียนทำข้อสอบเสร็จในหน้าเดียว
-        </p>
         <p class="muted" id="authStatusNotice">กำลังตรวจสอบสถานะผู้ดูแล...</p>
       </section>
 
@@ -20,9 +17,9 @@
         <section class="card adminchamp-section" id="test-manager">
           <div class="section-head">
             <h2>สร้างบททดสอบ</h2>
-            <span class="section-note">ส่วนหลัก</span>
+            <span class="section-note">Quick Create</span>
           </div>
-          <p class="muted">กดปุ่มสร้างบททดสอบใหม่เพื่อไปกำหนดประเภทคำถามในหน้า Template</p>
+          <p class="muted">สร้างบททดสอบใหม่อย่างรวดเร็วจากหน้า Template</p>
 
           <a class="adminchamp-cta" href="template.html">
             <strong>+ สร้างบททดสอบใหม่</strong>
@@ -44,7 +41,7 @@
         <section class="card adminchamp-section" id="course-destination">
           <div class="section-head">
             <h2>คอร์สที่เปิดสอน</h2>
-            <span class="section-note">ส่วนที่ 2</span>
+            <span class="section-note">Active Courses</span>
           </div>
           <p class="muted">ปลายทางสำหรับปุ่ม <strong>ดูคอร์สที่เปิด / สมัครคอร์สใหม่</strong></p>
 
@@ -88,24 +85,34 @@
 
         <section class="card adminchamp-section" id="after-exam-destination">
           <div class="section-head">
-            <h2>ปลายทางหลังสอบเสร็จ</h2>
-            <span class="section-note">ส่วนที่ 3</span>
+            <h2>รายการส่งข้อสอบล่าสุด</h2>
+            <span class="section-note">Activity</span>
           </div>
-          <p class="muted">เลือกหน้าที่นักเรียนจะไปต่อหลังจากเห็นผลคะแนน</p>
+          <p class="muted">สรุปรายการล่าสุดเพื่อเข้าตรวจคำตอบได้เร็วขึ้น</p>
+
+          <div class="activity-list">
+            <article class="activity-item">
+              <p class="activity-title">ธนภัทร จันทร์ดี</p>
+              <p class="activity-meta">ส่งแบบทดสอบ: คณิตฯ พื้นฐาน ม.ต้น · เวลา 10:42</p>
+              <div class="activity-foot">
+                <span class="status-pill">รอตรวจ</span>
+                <button class="btn btn-compact" type="button">ตรวจคำตอบ</button>
+              </div>
+            </article>
+            <article class="activity-item">
+              <p class="activity-title">มลฤดี สุขใจ</p>
+              <p class="activity-meta">ส่งแบบทดสอบ: วิทย์เร่งรัด ม.ปลาย · เวลา 09:58</p>
+              <div class="activity-foot">
+                <span class="status-pill status-closed">ตรวจแล้ว</span>
+                <button class="btn btn-secondary btn-compact" type="button">ดูผล</button>
+              </div>
+            </article>
+          </div>
 
           <div class="destination-actions">
             <button class="btn destination-btn" type="button">ไปไฟล์ของฉัน</button>
             <button class="btn btn-secondary destination-btn" type="button">ไปดูคอร์สที่เปิด / สมัครคอร์สใหม่</button>
           </div>
-
-          <article class="profile-card">
-            <p><strong>ชื่อ:</strong> ครูต้น ตัวอย่าง</p>
-            <p><strong>ข้อมูลทั่วไป:</strong> สอนคณิตศาสตร์และวิทยาศาสตร์ เตรียมสอบเข้า ม.ปลาย</p>
-            <div class="profile-actions">
-              <button class="btn" type="button">แก้ไขโปรไฟล์</button>
-              <a class="btn btn-secondary" href="index.html">ดูหน้าฝั่งนักเรียน</a>
-            </div>
-          </article>
         </section>
       </section>
 

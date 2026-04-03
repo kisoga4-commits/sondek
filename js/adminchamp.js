@@ -209,25 +209,29 @@ function renderCourses(courses) {
         <span class="status-pill status-active">พร้อมใช้งาน</span>
       </div>
       <div class="share-box">
+        <p class="link-label">ลิงก์แบบทดสอบ</p>
         <div class="share-inline">
-          <input value="${escapeHtml(quizLink)}" readonly />
-          <a class="btn btn-success" href="${editLink}">แก้ไข</a>
+          <a class="quiz-link-text" href="${quizLink}" target="_blank" rel="noopener noreferrer">${escapeHtml(quizLink)}</a>
+          <button class="btn btn-secondary btn-compact" type="button" data-action="copy">คัดลอก</button>
         </div>
         <div class="qr-box hidden" data-role="qr-wrap">
           <img alt="QR ${title}" src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(quizLink)}" />
         </div>
       </div>
       <div class="action-row">
-        <div class="item-actions item-actions-main">
+        <div class="item-actions item-actions-main primary-actions">
           <a class="btn" href="${quizLink}" target="_blank" rel="noopener noreferrer">เปิดแบบทดสอบ</a>
+          <a class="btn btn-success" href="${editLink}">จัดการ</a>
         </div>
-        <div class="item-actions item-actions-secondary">
-          <button class="btn" type="button" data-action="copy">คัดลอกลิงก์</button>
-          <button class="btn" type="button" data-action="toggle-qr">แสดง QR</button>
-          <button class="btn" type="button" data-action="download-qr">บันทึก QR</button>
-        </div>
-        <div class="item-actions item-actions-danger">
-          <button class="btn btn-danger" type="button" data-action="delete">ลบ</button>
+        <div class="item-actions item-actions-secondary menu-actions">
+          <details class="action-menu">
+            <summary class="btn btn-secondary btn-compact">เพิ่มเติม</summary>
+            <div class="action-menu-list">
+              <button class="btn btn-secondary btn-compact" type="button" data-action="toggle-qr">แสดง QR</button>
+              <button class="btn btn-secondary btn-compact" type="button" data-action="download-qr">บันทึก QR</button>
+              <button class="btn btn-danger btn-compact" type="button" data-action="delete">ลบแบบทดสอบ</button>
+            </div>
+          </details>
         </div>
       </div>
     `;
@@ -278,16 +282,16 @@ function renderAuthStatus(authStatus) {
   if (!authStatusNotice) return;
 
   if (!authStatus?.isAuthenticated) {
-    authStatusNotice.textContent = 'ยังไม่ได้ล็อกอิน: ระบบจะพยายามใช้ Anonymous auth อัตโนมัติสำหรับงานที่ต้องเขียนข้อมูล';
+    authStatusNotice.textContent = 'สถานะบัญชี: ยังไม่ได้ล็อกอิน';
     return;
   }
 
   if (authStatus.isAnonymous) {
-    authStatusNotice.innerHTML = `บัญชีปัจจุบัน: <strong>Anonymous</strong> (uid: <code>${escapeHtml(authStatus.uid)}</code>) — นี่คือสาเหตุที่ Firebase Console แสดงว่าเป็น anonymous`;
+    authStatusNotice.innerHTML = `สถานะบัญชี: <strong>Anonymous</strong> (uid: <code>${escapeHtml(authStatus.uid)}</code>)`;
     return;
   }
 
-  authStatusNotice.innerHTML = `บัญชีปัจจุบัน: <strong>Authenticated</strong> (uid: <code>${escapeHtml(authStatus.uid)}</code>)`;
+  authStatusNotice.innerHTML = `สถานะบัญชี: <strong>Authenticated</strong> (uid: <code>${escapeHtml(authStatus.uid)}</code>)`;
 }
 
 if (openFeedbackEditorBtn) {

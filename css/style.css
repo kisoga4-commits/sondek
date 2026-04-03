@@ -1171,3 +1171,160 @@ select:focus {
     width: 100%;
   }
 }
+
+/* adminchamp ui cleanup */
+.adminchamp-layout {
+  max-width: 1240px;
+  gap: 1.5rem;
+}
+
+.adminchamp-hero {
+  padding: 1rem 1.25rem;
+  box-shadow: none;
+  border-color: #dbeafe;
+  background: #f8fafc;
+}
+
+.adminchamp-section {
+  gap: 1.1rem;
+}
+
+.section-head h2 {
+  margin-bottom: 0;
+}
+
+.section-note {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.adminchamp-cta {
+  padding: 0.85rem 1rem;
+  border-color: #dbeafe;
+}
+
+.subsection-head {
+  margin-top: 0.2rem;
+}
+
+.library-item {
+  padding: 0.9rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+
+.item-title {
+  font-size: 1rem;
+}
+
+.item-sub,
+.link-label,
+.activity-meta {
+  font-size: 0.86rem;
+  color: #64748b;
+}
+
+.share-box {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 0.6rem 0.7rem;
+}
+
+.link-label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.quiz-link-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #0f766e;
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.primary-actions .btn {
+  min-height: 40px;
+}
+
+.menu-actions {
+  justify-content: flex-end;
+}
+
+.action-menu {
+  position: relative;
+}
+
+.action-menu summary {
+  list-style: none;
+}
+
+.action-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.action-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  display: grid;
+  gap: 0.35rem;
+  width: max-content;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.65rem;
+  padding: 0.45rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  z-index: 3;
+}
+
+.activity-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.activity-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+}
+
+.activity-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.activity-meta {
+  margin: 0.25rem 0 0;
+}
+
+.activity-foot {
+  margin-top: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.destination-actions {
+  margin-top: 0.2rem;
+}
+
+@media (min-width: 980px) {
+  .adminchamp-layout {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .menu-actions {
+    justify-content: flex-start;
+  }
+}
