@@ -36,6 +36,7 @@ const titlePromptModalEl = document.getElementById('titlePromptModal');
 const titlePromptFormEl = document.getElementById('titlePromptForm');
 const titlePromptInputEl = document.getElementById('titlePromptInput');
 const titlePromptExitBtnEl = document.getElementById('titlePromptExitBtn');
+const draftStatusNoticeEl = document.getElementById('draftStatusNotice');
 const LOCAL_SNAPSHOT_KEY = 'template_quiz_local_snapshot_v1';
 
 const params = new URLSearchParams(window.location.search);
@@ -189,6 +190,22 @@ function updateDrawCountHint() {
 function renderTemplateHealth() {
   if (!templateHealthEl) return;
   templateHealthEl.textContent = 'Template status: พร้อมใช้งาน (Autosave + บันทึก Firebase)';
+}
+
+function updateDraftStatusNotice(statusText, tone = 'normal') {
+  if (!draftStatusNoticeEl) return;
+  draftStatusNoticeEl.textContent = `สถานะ: ${statusText}`;
+  draftStatusNoticeEl.style.color = tone === 'success'
+    ? '#166534'
+    : (tone === 'error' ? '#b91c1c' : '');
+}
+
+function formatThaiDraftTime(timestampMs) {
+  return new Date(timestampMs).toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 function showAnswerEditor(answerMode, question = null) {
@@ -639,16 +656,28 @@ async function autoSaveDraft() {
 
   await replaceQuestionsForCourse(courseId, buildNormalizedQuestions());
   saveLocalSnapshot();
+  updateDraftStatusNotice(`บันทึกแบบร่างล่าสุด ${formatThaiDraftTime(Date.now())}`, 'success');
 }
 
-function queueAutoSave() {
+function queueAutoSave(immediate = false) {
   saveLocalSnapshot();
   if (autoSaveTimer) {
     window.clearTimeout(autoSaveTimer);
   }
 
+  if (immediate) {
+    void autoSaveDraft().catch((error) => {
+      console.error('autosave failed', error);
+      updateDraftStatusNotice('บันทึกแบบร่างไม่สำเร็จ กรุณาลองใหม่', 'error');
+    });
+    return;
+  }
+
   autoSaveTimer = window.setTimeout(() => {
-    void autoSaveDraft().catch((error) => console.error('autosave failed', error));
+    void autoSaveDraft().catch((error) => {
+      console.error('autosave failed', error);
+      updateDraftStatusNotice('บันทึกแบบร่างไม่สำเร็จ กรุณาลองใหม่', 'error');
+    });
   }, 600);
 }
 
@@ -682,6 +711,7 @@ async function saveToFirebase() {
     sharePanel.classList.remove('hidden');
     completionNotice.classList.remove('hidden');
     localStorage.removeItem(LOCAL_SNAPSHOT_KEY);
+    updateDraftStatusNotice('เผยแพร่เรียบร้อยแล้ว (ไม่ใช่แบบร่าง)', 'success');
 
     alert('ระบบอนุญาตให้นายทำควิซให้แล้ว และบันทึกขึ้น Firebase เรียบร้อย');
   } catch (error) {
@@ -698,6 +728,7 @@ async function loadCourseForEditing() {
     document.getElementById('quizCourseId').value = draftCourseId;
     renderQuestionBank();
     setBuilderLockedState();
+    updateDraftStatusNotice('ยังไม่ได้บันทึกแบบร่าง');
     return;
   }
 
@@ -745,6 +776,11 @@ async function loadCourseForEditing() {
 
     renderQuestionBank();
     setBuilderLockedState();
+    if (course.status === 'open') {
+      updateDraftStatusNotice('บททดสอบนี้ถูกเผยแพร่แล้ว (กด Next จะแก้ไขแบบร่างล่าสุด)');
+    } else {
+      updateDraftStatusNotice('บททดสอบนี้อยู่ในสถานะแบบร่าง');
+    }
   } catch (error) {
     console.error(error);
     alert('โหลดคอร์สเดิมไม่สำเร็จ');
@@ -775,7 +811,7 @@ questionEditor.addEventListener('submit', (event) => {
 
   renderQuestionBank();
   resetEditor();
-  queueAutoSave();
+  queueAutoSave(true);
 });
 
 cancelEditBtn.addEventListener('click', () => resetEditor());
