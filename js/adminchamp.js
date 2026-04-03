@@ -187,9 +187,12 @@ function renderCourses(courses) {
     const card = document.createElement('article');
     card.className = 'library-item library-item-grid';
     card.innerHTML = `
-      <div>
-        <p class="item-title">${title}</p>
-        <p class="muted item-sub">${courseId}</p>
+      <div class="library-head">
+        <div>
+          <p class="item-title">${title}</p>
+          <p class="muted item-sub">รหัสคอร์ส: ${courseId}</p>
+        </div>
+        <span class="status-pill status-active">พร้อมใช้งาน</span>
       </div>
       <div class="share-box">
         <div class="share-inline">
@@ -197,15 +200,21 @@ function renderCourses(courses) {
           <a class="btn btn-success" href="${editLink}">แก้ไข</a>
         </div>
         <div class="qr-box hidden" data-role="qr-wrap">
-          <img alt="QR ${title}" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(quizLink)}" />
+          <img alt="QR ${title}" src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(quizLink)}" />
         </div>
       </div>
-      <div class="item-actions">
-        <a class="btn btn-secondary" href="${quizLink}" target="_blank" rel="noopener noreferrer">เปิดแบบทดสอบ</a>
-        <button class="btn btn-secondary" type="button" data-action="copy">คัดลอกลิงก์</button>
-        <button class="btn btn-secondary" type="button" data-action="toggle-qr">แสดง QR</button>
-        <button class="btn btn-secondary" type="button" data-action="download-qr">บันทึก QR</button>
-        <button class="btn btn-danger" type="button" data-action="delete">ลบ</button>
+      <div class="action-row">
+        <div class="item-actions item-actions-main">
+          <a class="btn" href="${quizLink}" target="_blank" rel="noopener noreferrer">เปิดแบบทดสอบ</a>
+        </div>
+        <div class="item-actions item-actions-secondary">
+          <button class="btn" type="button" data-action="copy">คัดลอกลิงก์</button>
+          <button class="btn" type="button" data-action="toggle-qr">แสดง QR</button>
+          <button class="btn" type="button" data-action="download-qr">บันทึก QR</button>
+        </div>
+        <div class="item-actions item-actions-danger">
+          <button class="btn btn-danger" type="button" data-action="delete">ลบ</button>
+        </div>
       </div>
     `;
 

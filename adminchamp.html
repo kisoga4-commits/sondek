@@ -11,33 +11,113 @@
       <section class="card adminchamp-hero">
         <h1>Admin Champion Dashboard</h1>
         <p class="muted">
-          หน้าศูนย์กลางสำหรับจัดการบททดสอบ ลิงก์แชร์ และปลายทางหลังนักเรียนทำข้อสอบเสร็จ
+          จัดการบททดสอบ คอร์สที่เปิดสอน และกำหนดปลายทางหลังนักเรียนทำข้อสอบเสร็จในหน้าเดียว
         </p>
-        <div class="route-chip-row">
-          <span class="route-chip">ปลายทางปุ่มผลสอบ: โปรไฟล์ของฉัน</span>
-          <span class="route-chip">ปลายทางปุ่มผลสอบ: ดูคอร์สที่เปิด / สมัครคอร์สใหม่</span>
-        </div>
       </section>
 
-      <section class="card adminchamp-section" id="test-manager">
-        <div class="section-head">
-          <h2>สร้างบททดสอบ</h2>
-          <span class="section-note">ส่วนที่ 1</span>
-        </div>
+      <section class="adminchamp-col adminchamp-col-left">
+        <section class="card adminchamp-section" id="test-manager">
+          <div class="section-head">
+            <h2>สร้างบททดสอบ</h2>
+            <span class="section-note">ส่วนหลัก</span>
+          </div>
+          <p class="muted">เริ่มจากเลือกหมวดวิชา แล้วกดปุ่มสร้างบททดสอบใหม่</p>
 
-        <a class="adminchamp-cta" href="template.html">
-          <strong>ไปหน้า Template ทำแบบทดสอบ</strong>
-          <span>สร้างคอร์ส/บททดสอบใหม่ หรือแก้ไขคลังข้อสอบเดิม</span>
-        </a>
+          <div class="question-type-row">
+            <span class="question-type-label">ประเภทคำถาม</span>
+            <div class="question-type-pills" role="group" aria-label="หมวดคำถาม">
+              <button type="button" class="type-pill is-active">ไทย</button>
+              <button type="button" class="type-pill">English</button>
+              <button type="button" class="type-pill">คณิต</button>
+              <button type="button" class="type-pill">วิทย์</button>
+              <button type="button" class="type-pill">สังคม</button>
+              <button type="button" class="type-pill">ทั่วไป</button>
+            </div>
+          </div>
 
-        <div class="subsection-head">
-          <h3>คลังบททดสอบทั้งหมด</h3>
-          <button class="btn btn-secondary btn-compact" type="button" id="openFeedbackEditorBtn">แก้คำอวยพร/แซวผลคะแนน</button>
-        </div>
+          <a class="adminchamp-cta" href="template.html">
+            <strong>+ สร้างบททดสอบใหม่</strong>
+            <span>ไปหน้า Template เพื่อสร้างคอร์ส/บททดสอบใหม่ หรือแก้ไขคลังข้อสอบเดิม</span>
+          </a>
 
-        <div class="quiz-library" id="quizLibrary">
-          <p class="muted">กำลังโหลดบททดสอบ...</p>
-        </div>
+          <div class="subsection-head">
+            <h3>คลังบททดสอบทั้งหมด</h3>
+            <button class="btn btn-secondary btn-compact" type="button" id="openFeedbackEditorBtn">แก้คำอวยพร/แซวผลคะแนน</button>
+          </div>
+
+          <div class="quiz-library" id="quizLibrary">
+            <p class="muted">กำลังโหลดบททดสอบ...</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="adminchamp-col adminchamp-col-right">
+        <section class="card adminchamp-section" id="course-destination">
+          <div class="section-head">
+            <h2>คอร์สที่เปิดสอน</h2>
+            <span class="section-note">ส่วนที่ 2</span>
+          </div>
+          <p class="muted">ปลายทางสำหรับปุ่ม <strong>ดูคอร์สที่เปิด / สมัครคอร์สใหม่</strong></p>
+
+          <div class="course-list scroll-list" aria-label="รายการคอร์สที่เปิดสอน">
+            <article class="course-card is-open">
+              <header class="course-card-head">
+                <div>
+                  <h3>คอร์ส: คณิตฯ พื้นฐาน ม.ต้น</h3>
+                  <p class="muted">รหัสคอร์ส: MATH-101</p>
+                </div>
+                <span class="status-pill">เปิดรับสมัคร</span>
+              </header>
+              <div>
+                <p class="student-title">นักเรียนล่าสุด</p>
+                <ul>
+                  <li>ธนภัทร จันทร์ดี</li>
+                  <li>ภัทรวดี ศรีทอง</li>
+                  <li>ณัฐวุฒิ วงศ์งาม</li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="course-card is-closed">
+              <header class="course-card-head">
+                <div>
+                  <h3>คอร์ส: วิทย์เร่งรัด ม.ปลาย</h3>
+                  <p class="muted">รหัสคอร์ส: SCI-220</p>
+                </div>
+                <span class="status-pill status-closed">ปิดแล้ว</span>
+              </header>
+              <div>
+                <p class="student-title">นักเรียนล่าสุด</p>
+                <ul>
+                  <li>อภิชาติ รุ่งเรือง</li>
+                  <li>มลฤดี สุขใจ</li>
+                </ul>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="card adminchamp-section" id="after-exam-destination">
+          <div class="section-head">
+            <h2>ปลายทางหลังสอบเสร็จ</h2>
+            <span class="section-note">ส่วนที่ 3</span>
+          </div>
+          <p class="muted">เลือกหน้าที่นักเรียนจะไปต่อหลังจากเห็นผลคะแนน</p>
+
+          <div class="destination-actions">
+            <button class="btn destination-btn" type="button">ไปไฟล์ของฉัน</button>
+            <button class="btn btn-secondary destination-btn" type="button">ไปดูคอร์สที่เปิด / สมัครคอร์สใหม่</button>
+          </div>
+
+          <article class="profile-card">
+            <p><strong>ชื่อ:</strong> ครูต้น ตัวอย่าง</p>
+            <p><strong>ข้อมูลทั่วไป:</strong> สอนคณิตศาสตร์และวิทยาศาสตร์ เตรียมสอบเข้า ม.ปลาย</p>
+            <div class="profile-actions">
+              <button class="btn" type="button">แก้ไขโปรไฟล์</button>
+              <a class="btn btn-secondary" href="index.html">ดูหน้าฝั่งนักเรียน</a>
+            </div>
+          </article>
+        </section>
       </section>
 
       <div class="modal-backdrop hidden" id="feedbackModal" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
@@ -53,66 +133,6 @@
           </div>
         </section>
       </div>
-
-      <section class="card adminchamp-section" id="course-destination">
-        <div class="section-head">
-          <h2>คอร์ดที่เปิดสอน</h2>
-          <span class="section-note">ส่วนที่ 2</span>
-        </div>
-        <p class="muted">
-          ปลายทางสำหรับปุ่ม <strong>“ดูคอร์ดที่เปิด / สมัครคอร์ดใหม่”</strong> หลังนักเรียนทำข้อสอบเสร็จ
-        </p>
-
-        <div class="course-list">
-          <article class="course-card is-open">
-            <header>
-              <h3>คอร์ด: คณิตฯ พื้นฐาน ม.ต้น</h3>
-              <p class="muted">รหัสคอร์ด: MATH-101</p>
-              <span class="status-pill">เปิดรับสมัคร</span>
-            </header>
-            <div>
-              <p class="student-title">รายชื่อนักเรียนในคอร์ด</p>
-              <ul>
-                <li>ธนภัทร จันทร์ดี</li>
-                <li>ภัทรวดี ศรีทอง</li>
-                <li>ณัฐวุฒิ วงศ์งาม</li>
-              </ul>
-            </div>
-          </article>
-
-          <article class="course-card is-closed">
-            <header>
-              <h3>คอร์ด: วิทย์เร่งรัด ม.ปลาย</h3>
-              <p class="muted">รหัสคอร์ด: SCI-220</p>
-              <span class="status-pill status-closed">ปิดแล้ว</span>
-            </header>
-            <div>
-              <p class="student-title">รายชื่อนักเรียนในคอร์ด</p>
-              <ul>
-                <li>อภิชาติ รุ่งเรือง</li>
-                <li>มลฤดี สุขใจ</li>
-              </ul>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="card adminchamp-section adminchamp-profile" id="profile-destination">
-        <div class="section-head">
-          <h2>หน้าแก้ไขโปรไฟล์</h2>
-          <span class="section-note">ส่วนที่ 3</span>
-        </div>
-        <p class="muted">ปลายทางสำหรับปุ่ม <strong>“โปรไฟล์ของฉัน”</strong> หลังนักเรียนทำข้อสอบเสร็จ</p>
-
-        <article class="profile-card">
-          <p><strong>ชื่อ:</strong> ครูต้น ตัวอย่าง</p>
-          <p><strong>ข้อมูลทั่วไป:</strong> สอนคณิตศาสตร์และวิทยาศาสตร์ เตรียมสอบเข้า ม.ปลาย</p>
-          <div class="profile-actions">
-            <button class="btn" type="button">แก้ไขโปรไฟล์</button>
-            <a class="btn btn-secondary" href="index.html">ดูหน้าฝั่งนักเรียน</a>
-          </div>
-        </article>
-      </section>
     </main>
     <script type="module" src="js/adminchamp.js"></script>
   </body>
