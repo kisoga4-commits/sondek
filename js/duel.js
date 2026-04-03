@@ -5,6 +5,7 @@ import {
   joinDuelRoom,
   submitDuelAnswer,
   subscribeAuthStatus,
+  subscribeCourses,
   subscribeDuelRoom,
 } from './db.js';
 import { isQuestionCorrect, normalizeQuestion, shuffleArray } from './quiz.js';
@@ -15,6 +16,7 @@ const LOOP_QUESTION_COUNT = 50;
 const playerNameInput = document.getElementById('duelPlayerName');
 const courseIdInput = document.getElementById('duelCourseId');
 const durationInput = document.getElementById('duelDuration');
+const courseIdOptions = document.getElementById('duelCourseIdOptions');
 const roomIdInput = document.getElementById('duelRoomId');
 const createRoomBtn = document.getElementById('createRoomBtn');
 const joinRoomBtn = document.getElementById('joinRoomBtn');
@@ -346,11 +348,32 @@ function initFromQuery() {
   if (roomId) roomIdInput.value = roomId;
 }
 
+function renderCourseIdOptions(courses) {
+  if (!courseIdOptions) return;
+
+  const ids = Array.from(new Set(
+    (Array.isArray(courses) ? courses : [])
+      .map((course) => String(course?.courseId || '').trim())
+      .filter(Boolean),
+  )).sort((a, b) => a.localeCompare(b));
+
+  courseIdOptions.innerHTML = '';
+  ids.forEach((courseId) => {
+    const option = document.createElement('option');
+    option.value = courseId;
+    courseIdOptions.appendChild(option);
+  });
+}
+
 function init() {
   initFromQuery();
 
   subscribeAuthStatus((authState) => {
     state.uid = authState.uid || '';
+  });
+
+  subscribeCourses(renderCourseIdOptions, (error) => {
+    console.error('load course ids failed', error);
   });
 
   createRoomBtn.addEventListener('click', () => {
