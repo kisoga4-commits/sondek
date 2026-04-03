@@ -69,6 +69,12 @@ async function onDeleteCourse(courseId) {
     const errorMessage = String(error?.message || '');
     const isPermissionIssue = errorCode.includes('permission-denied')
       || errorMessage.includes('Missing or insufficient permissions');
+    const isAuthIssue = errorCode.includes('auth/not-authenticated');
+
+    if (isAuthIssue) {
+      alert('ลบไม่สำเร็จ: ยังไม่สามารถล็อกอินแบบ Anonymous ได้\n\nวิธีแก้:\n1) ไปที่ Firebase Console > Authentication > Sign-in method\n2) เปิด Anonymous ให้ใช้งาน\n3) ไปที่ Firestore Database > Rules แล้วอนุญาต delete ให้ request.auth != null\n4) Publish rules แล้วรีเฟรชหน้าเว็บ');
+      return;
+    }
 
     if (isPermissionIssue) {
       alert('ลบไม่สำเร็จ: บัญชีนี้ยังไม่มีสิทธิ์ลบข้อมูลใน Firestore (Missing or insufficient permissions)\n\nวิธีแก้:\n1) เปิด Firebase Console > Firestore Database > Rules\n2) อนุญาตสิทธิ์ delete ให้ผู้ใช้ที่ล็อกอิน (รวม anonymous ถ้าใช้)\n3) ไปที่ Firebase Console > Authentication > Sign-in method แล้วเปิด Anonymous ถ้ายังปิดอยู่\n4) Publish rules แล้วรีเฟรชหน้าเว็บ');
