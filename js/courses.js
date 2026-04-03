@@ -14,6 +14,30 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function formatDueDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '-';
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  return raw;
+}
+
+function buildQuizLink(quizCourseId) {
+  const currentPath = String(window.location.pathname || '/');
+  const basePath = currentPath.includes('/')
+    ? currentPath.slice(0, currentPath.lastIndexOf('/') + 1)
+    : '/';
+  return `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(String(quizCourseId || '').trim())}`;
+}
+
 async function onEnrollCourse(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -58,6 +82,10 @@ function renderOpenCourses(courseOffers) {
   }
 
   openCourses.forEach((course) => {
+    const quizCourseId = String(course?.quizCourseId || '').trim();
+    const hasQuizCourseId = Boolean(quizCourseId);
+    const quizLink = hasQuizCourseId ? buildQuizLink(quizCourseId) : '';
+
     const card = document.createElement('article');
     card.className = 'course-card is-open';
     card.innerHTML = `
@@ -66,10 +94,13 @@ function renderOpenCourses(courseOffers) {
           <h3>${escapeHtml(course?.title || 'ไม่ระบุชื่อคอร์ส')}</h3>
           <p class="muted">วันเรียน: ${escapeHtml(course?.scheduleDetails || course?.day || '-')}</p>
           <p class="muted">ราคา: ${escapeHtml(course?.price || '-')}</p>
+          <p class="muted">Course ID: ${escapeHtml(quizCourseId || '-')}</p>
+          <p class="muted">Due: ${escapeHtml(formatDueDate(course?.dueDate))}</p>
         </div>
         <span class="status-pill">เปิดรับสมัคร</span>
       </header>
       <p class="muted">${escapeHtml(course?.content || 'ยังไม่ได้ระบุเนื้อหา')}</p>
+      ${hasQuizCourseId ? `<p class="muted">คลังโจทย์: <a href="${escapeHtml(quizLink)}" target="_blank" rel="noopener noreferrer">${escapeHtml(quizCourseId)}</a></p>` : ''}
       <form class="course-enroll-form" data-course-id="${escapeHtml(course?.courseId || '')}">
         <p class="student-title">ส่งชื่อเพื่อรออนุมัติ</p>
         <div class="form-split">

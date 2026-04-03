@@ -81,6 +81,14 @@
             <label>รายละเอียดวันเรียน
               <textarea id="offerScheduleDetailsInput" rows="2" placeholder="เช่น เรียนทุกวันเสาร์ 09:00-11:00 (ฉันจะเขียนเอง)" required></textarea>
             </label>
+            <label>Course ID (ใช้ดึงคลังโจทย์)
+              <select id="offerQuizCourseIdInput" required>
+                <option value="">-- เลือกคอร์สข้อสอบ --</option>
+              </select>
+            </label>
+            <label>Due (กำหนดเส้นตาย)
+              <input type="date" id="offerDueInput" required />
+            </label>
             <label>ราคา
               <input type="text" id="offerPriceInput" placeholder="เช่น 2,500 บาท/คอร์ส" required />
             </label>
