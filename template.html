@@ -139,6 +139,22 @@
       </section>
     </main>
 
+    <div id="titlePromptModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="titlePromptHeading">
+      <section class="card title-prompt-card">
+        <h2 id="titlePromptHeading">ตั้งชื่อบททดสอบก่อนเริ่ม</h2>
+        <p class="muted">กรอกชื่อบททดสอบก่อน เพื่อปลดล็อกการเพิ่มคำถามและการบันทึก</p>
+        <form id="titlePromptForm" class="stack-form">
+          <label>ชื่อบททดสอบ
+            <input id="titlePromptInput" type="text" placeholder="เช่น Pre-test คณิตศาสตร์" required />
+          </label>
+          <div class="admin-actions">
+            <button type="submit" class="btn">เริ่มสร้างบททดสอบ</button>
+            <button type="button" class="btn btn-secondary" id="titlePromptExitBtn">ออก</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
     <script type="module" src="js/template.js"></script>
   </body>
 </html>

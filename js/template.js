@@ -32,6 +32,10 @@ const templateHealthEl = document.getElementById('templateHealth');
 const importPayloadEl = document.getElementById('importPayload');
 const importBtn = document.getElementById('importBtn');
 const titleFirstNoticeEl = document.getElementById('titleFirstNotice');
+const titlePromptModalEl = document.getElementById('titlePromptModal');
+const titlePromptFormEl = document.getElementById('titlePromptForm');
+const titlePromptInputEl = document.getElementById('titlePromptInput');
+const titlePromptExitBtnEl = document.getElementById('titlePromptExitBtn');
 const LOCAL_SNAPSHOT_KEY = 'template_quiz_local_snapshot_v1';
 
 const params = new URLSearchParams(window.location.search);
@@ -59,15 +63,30 @@ function promptQuizTitleIfMissing() {
   if (editingCourseId) return;
   const titleInput = document.getElementById('quizTitle');
   if (!titleInput || titleInput.value.trim()) return;
-
-  const title = window.prompt('กรอกชื่อบททดสอบก่อนเริ่มสร้างข้อสอบ', '') || '';
-  const normalizedTitle = title.trim();
-  if (!normalizedTitle) {
+  if (!titlePromptModalEl || !titlePromptInputEl) {
     titleInput.focus();
     return;
   }
+  titlePromptInputEl.value = '';
+  titlePromptModalEl.classList.remove('hidden');
+  window.setTimeout(() => titlePromptInputEl.focus(), 0);
+}
 
+function closeTitlePromptModal() {
+  if (!titlePromptModalEl) return;
+  titlePromptModalEl.classList.add('hidden');
+}
+
+function submitTitlePrompt() {
+  const titleInput = document.getElementById('quizTitle');
+  if (!titleInput || !titlePromptInputEl) return;
+  const normalizedTitle = titlePromptInputEl.value.trim();
+  if (!normalizedTitle) {
+    titlePromptInputEl.focus();
+    return;
+  }
   titleInput.value = normalizedTitle;
+  closeTitlePromptModal();
   setBuilderLockedState();
   queueAutoSave();
 }
@@ -797,6 +816,13 @@ downloadQrBtn.addEventListener('click', () => {
 quizMetaForm.addEventListener('input', () => {
   setBuilderLockedState();
   queueAutoSave();
+});
+titlePromptFormEl?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  submitTitlePrompt();
+});
+titlePromptExitBtnEl?.addEventListener('click', () => {
+  window.location.href = 'adminchamp.html';
 });
 
 drawCountPresetEls.forEach((item) => {
