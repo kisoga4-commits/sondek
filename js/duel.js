@@ -20,7 +20,6 @@ const durationInput = document.getElementById('duelDuration');
 const roomIdInput = document.getElementById('duelRoomId');
 const createRoomBtn = document.getElementById('createRoomBtn');
 const joinRoomBtn = document.getElementById('joinRoomBtn');
-const startDuelBtn = document.getElementById('startDuelBtn');
 const statusText = document.getElementById('duelStatusText');
 const battleSection = document.getElementById('duelBattleSection');
 
@@ -308,7 +307,7 @@ function handleRoomUpdate(room) {
     && playerCount === 2
     && String(room.hostUid || '') === state.uid
     && Boolean(me);
-  startDuelBtn.classList.toggle('hidden', !canStart);
+  createRoomBtn.textContent = canStart ? 'เริ่มดวล' : 'Host';
 }
 
 async function loadQuestionBank(courseId) {
@@ -343,6 +342,21 @@ async function startSubscribeRoom(roomId) {
 
 async function handleCreateRoom() {
   try {
+    const canStartExistingRoom = state.room
+      && state.room.status === 'waiting'
+      && String(state.room.hostUid || '') === state.uid
+      && Object.keys(state.room.players || {}).length === 2;
+    if (canStartExistingRoom) {
+      await startDuelRoom(state.roomId);
+      setStatus(`เริ่มดวลห้อง ${state.roomId} แล้ว`);
+      return;
+    }
+
+    if (state.room && state.room.status !== 'finished') {
+      const currentRoomId = String(state.room.roomId || state.roomId || '').trim();
+      throw new Error(`คุณอยู่ในห้อง ${currentRoomId || '(ไม่ทราบรหัส)'} อยู่แล้ว`);
+    }
+
     const playerName = String(playerNameInput.value || '').trim();
     const courseId = String(courseIdInput.value || '').trim();
     if (!playerName) throw new Error('กรอกชื่อผู้เล่นก่อน');
@@ -388,17 +402,6 @@ async function handleJoinRoom() {
     await startSubscribeRoom(roomId);
   } catch (error) {
     setStatus(toDuelErrorMessage(error, 'เข้าห้องไม่สำเร็จ'));
-  }
-}
-
-async function handleStartDuel() {
-  try {
-    const roomId = normalizeRoomIdInput(state.roomId || roomIdInput.value);
-    if (roomId.length !== 4) throw new Error('ไม่พบรหัสห้อง');
-    await startDuelRoom(roomId);
-    setStatus(`เริ่มดวลห้อง ${roomId} แล้ว`);
-  } catch (error) {
-    setStatus(toDuelErrorMessage(error, 'เริ่มดวลไม่สำเร็จ'));
   }
 }
 
@@ -474,10 +477,6 @@ function init() {
 
   joinRoomBtn.addEventListener('click', () => {
     void handleJoinRoom();
-  });
-
-  startDuelBtn.addEventListener('click', () => {
-    void handleStartDuel();
   });
 
   submitBtn.addEventListener('click', () => {
