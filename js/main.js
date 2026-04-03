@@ -285,7 +285,7 @@ async function init() {
     playCountInfo.textContent = `มีผู้เล่นทำแบบทดสอบนี้แล้ว ${Number(playCount || 0).toLocaleString('th-TH')} ครั้ง`;
 
     const baseUrl = getBasePathUrl(window.location.pathname);
-    profileCta.href = profile?.profileUrl || `${baseUrl}adminchamp.html#profile-destination`;
+    profileCta.href = `${baseUrl}profile.html?id=${encodeURIComponent(courseId)}`;
     enrollCta.href = course.enrollmentUrl || `${baseUrl}adminchamp.html#course-destination`;
     startBtn.disabled = false;
   } catch (error) {
