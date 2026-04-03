@@ -54,6 +54,23 @@ function isQuizTitleReady() {
   return Boolean(document.getElementById('quizTitle').value.trim());
 }
 
+
+function promptQuizTitleIfMissing() {
+  if (editingCourseId) return;
+  const titleInput = document.getElementById('quizTitle');
+  if (!titleInput || titleInput.value.trim()) return;
+
+  const title = window.prompt('กรอกชื่อบททดสอบก่อนเริ่มสร้างข้อสอบ', '') || '';
+  const normalizedTitle = title.trim();
+  if (!normalizedTitle) {
+    titleInput.focus();
+    return;
+  }
+
+  titleInput.value = normalizedTitle;
+  setBuilderLockedState();
+  queueAutoSave();
+}
 function setBuilderLockedState() {
   const canEdit = isQuizTitleReady();
   const lockTargets = Array.from(questionEditor.querySelectorAll('input, textarea, select, button'));
@@ -799,4 +816,6 @@ restoreLocalSnapshot();
 renderQuestionBank();
 updateDrawCountHint();
 setBuilderLockedState();
-void loadCourseForEditing();
+void loadCourseForEditing().then(() => {
+  promptQuizTitleIfMissing();
+});
