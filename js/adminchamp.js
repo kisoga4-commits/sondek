@@ -17,6 +17,11 @@ const saveFeedbackBtn = document.getElementById('saveFeedbackBtn');
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
+function getBucketRangeLabel(bucket) {
+  if (bucket === 100) return '100';
+  return `${bucket}-${bucket + 9}`;
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -124,7 +129,8 @@ function renderFeedbackForm(feedbackByBucket = {}) {
 
     const title = document.createElement('span');
     title.className = 'feedback-label';
-    title.textContent = `${bucket} คะแนน (${bucket}%)`;
+    const rangeLabel = getBucketRangeLabel(bucket);
+    title.textContent = `${rangeLabel} คะแนน (${rangeLabel}%)`;
 
     const textarea = document.createElement('textarea');
     textarea.dataset.bucket = String(bucket);
