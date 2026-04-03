@@ -51,6 +51,8 @@ const state = {
   currentIndex: 0,
   selectedAnswer: null,
   lastEventId: '',
+  hasShownFinalResult: false,
+  finalResultTimerId: null,
 };
 
 function setStatus(text) {
@@ -247,6 +249,27 @@ function applyVoiceEvent(room) {
   }
 }
 
+function scheduleReturnToHome() {
+  if (state.finalResultTimerId) return;
+  state.finalResultTimerId = window.setTimeout(() => {
+    window.location.href = 'index.html';
+  }, 3500);
+}
+
+function handleFinalResult(room) {
+  if (!room || room.status !== 'finished' || state.hasShownFinalResult) return;
+  state.hasShownFinalResult = true;
+
+  const winnerUid = String(room.winnerUid || '');
+  const isMeWinner = winnerUid && winnerUid === state.uid;
+  const title = isMeWinner ? '🎉 ยินดีด้วย! คุณชนะการดวล' : '💪 ไม่เป็นไร สู้ใหม่รอบหน้า!';
+  const subtitle = isMeWinner
+    ? 'ระบบจะพากลับหน้าแรกอัตโนมัติ'
+    : 'ครั้งหน้าเอาใหม่ ระบบจะพากลับหน้าแรกอัตโนมัติ';
+  setStatus(`${title} — ${subtitle}`);
+  scheduleReturnToHome();
+}
+
 function handleRoomUpdate(room) {
   if (!room) {
     setStatus('ห้องถูกลบหรือไม่พบข้อมูล');
@@ -272,6 +295,7 @@ function handleRoomUpdate(room) {
   renderBattle(room);
   ensureTimer(room);
   applyVoiceEvent(room);
+  handleFinalResult(room);
 
   if (room.status === 'active') {
     renderQuestion();
@@ -307,6 +331,11 @@ function buildQuestionLoop(questionBank) {
 
 async function startSubscribeRoom(roomId) {
   if (state.unsubRoom) state.unsubRoom();
+  state.hasShownFinalResult = false;
+  if (state.finalResultTimerId) {
+    window.clearTimeout(state.finalResultTimerId);
+    state.finalResultTimerId = null;
+  }
   state.unsubRoom = subscribeDuelRoom(roomId, handleRoomUpdate, (error) => {
     setStatus(`subscribe error: ${error.message}`);
   });

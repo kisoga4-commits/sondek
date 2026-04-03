@@ -46,9 +46,15 @@ service cloud.firestore {
     // โหมดดวลเรียลไทม์
     // -----------------------------
 
+    function isValidRoomId(roomId) {
+      return roomId.matches('^[0-9]{4}$');
+    }
+
     match /duel_rooms/{roomId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      // โหมดดวลต้องให้ Host/Join เข้าห้องได้ทันที
+      // อนุญาตทั้ง guest และ anonymous auth แต่บังคับ Room ID เป็นเลข 4 หลัก
+      allow read: if isValidRoomId(roomId);
+      allow create, update, delete: if isValidRoomId(roomId);
     }
 
     // -----------------------------
