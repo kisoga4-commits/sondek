@@ -7,6 +7,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteField,
   deleteDoc,
   doc,
   getDoc,
@@ -497,7 +498,6 @@ export async function saveProfile(profile) {
   const normalizedName = String(profile?.name || '').trim();
   const normalizedBio = String(profile?.bio || '').trim();
   const normalizedProfileImageUrl = normalizePublicImageUrl(profile?.profile_image_url || profile?.imageUrl || '');
-  const normalizedProfileUrl = String(profile?.profileUrl || '').trim();
   const normalizedTeachingImages = Array.isArray(profile?.teachingImages)
     ? profile.teachingImages.map((url) => normalizePublicImageUrl(url)).filter(Boolean)
     : [];
@@ -506,7 +506,7 @@ export async function saveProfile(profile) {
     name: normalizedName,
     bio: normalizedBio,
     profile_image_url: normalizedProfileImageUrl,
-    profileUrl: normalizedProfileUrl,
+    profileUrl: deleteField(),
     teachingImages: normalizedTeachingImages,
     updatedAt: serverTimestamp(),
   }, { merge: true });
