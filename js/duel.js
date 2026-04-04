@@ -225,7 +225,8 @@ function renderQuestion(room) {
   const isRunnerLocked = isPartyMode && !Boolean(me?.isActiveRunner);
   const serverAnsweredRound = Number(me?.answeredRound ?? -1);
   const effectiveAnsweredRound = Math.max(serverAnsweredRound, Number(state.optimisticAnsweredRound ?? -1));
-  const locked = roomStatus(room) !== 'playing' || rs.isReveal || effectiveAnsweredRound >= rs.roundIndex || isStunned || isRunnerLocked || state.isSubmitting;
+  const shouldLockBySubmit = !isWormMode && state.isSubmitting;
+  const locked = roomStatus(room) !== 'playing' || rs.isReveal || effectiveAnsweredRound >= rs.roundIndex || isStunned || isRunnerLocked || shouldLockBySubmit;
 
   if (!question) {
     el.questionTitle.textContent = 'กำลังรอคำถาม...';
@@ -271,25 +272,33 @@ async function submitAnswer() {
   const q = getQuestionByRound(room, rs.roundIndex);
   if (!q || !Number.isInteger(state.selectedAnswer)) return;
   const isCorrect = isQuestionCorrect(q, state.selectedAnswer);
+  const submittingRound = rs.roundIndex;
+  const serverAnsweredRound = Number(me?.answeredRound ?? -1);
 
-  state.isSubmitting = true;
+  if (!isWormSoloMode) {
+    state.isSubmitting = true;
+  } else {
+    state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
+    el.resultHint.textContent = isCorrect ? '✅ ตอบถูก เดิน +1' : '❌ ตอบผิด ไปข้อถัดไปทันที';
+    playAnswerFeedback(isCorrect);
+    renderQuestion(state.room || room);
+  }
   try {
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
     if (result?.accepted) {
-      state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), rs.roundIndex);
-      el.resultHint.textContent = isCorrect
-        ? '✅ ตอบถูก เดิน +1'
-        : (isWormMode ? '❌ ตอบผิด ไปข้อถัดไปทันที' : '❌ ตอบผิด รอข้อถัดไป');
-      playAnswerFeedback(isCorrect);
-      if (isWormSoloMode) {
-        // Solo worm mode must move to the next personal question immediately
-        // and must not wait for remote room snapshots.
-        state.isSubmitting = false;
-        renderQuestion(state.room || room);
-        return;
+      if (!isWormSoloMode) {
+        state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
+        el.resultHint.textContent = isCorrect
+          ? '✅ ตอบถูก เดิน +1'
+          : (isWormMode ? '❌ ตอบผิด ไปข้อถัดไปทันที' : '❌ ตอบผิด รอข้อถัดไป');
+        playAnswerFeedback(isCorrect);
       }
     } else if (String(result?.reason || '')) {
       el.resultHint.textContent = '⏳ ยังตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง';
+    }
+  } catch (_) {
+    if (isWormSoloMode) {
+      el.resultHint.textContent = '⚠️ ส่งคำตอบไม่สำเร็จ กำลังซิงก์ใหม่';
     }
   } finally {
     state.isSubmitting = false;
