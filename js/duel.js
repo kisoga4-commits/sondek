@@ -274,6 +274,7 @@ async function submitAnswer() {
   const isCorrect = isQuestionCorrect(q, state.selectedAnswer);
   const submittingRound = rs.roundIndex;
   const serverAnsweredRound = Number(me?.answeredRound ?? -1);
+  const prevOptimisticAnsweredRound = Number(state.optimisticAnsweredRound ?? -1);
 
   if (!isWormSoloMode) {
     state.isSubmitting = true;
@@ -294,10 +295,14 @@ async function submitAnswer() {
         playAnswerFeedback(isCorrect);
       }
     } else if (String(result?.reason || '')) {
+      if (isWormSoloMode) {
+        state.optimisticAnsweredRound = prevOptimisticAnsweredRound;
+      }
       el.resultHint.textContent = '⏳ ยังตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง';
     }
   } catch (_) {
     if (isWormSoloMode) {
+      state.optimisticAnsweredRound = prevOptimisticAnsweredRound;
       el.resultHint.textContent = '⚠️ ส่งคำตอบไม่สำเร็จ กำลังซิงก์ใหม่';
     }
   } finally {
