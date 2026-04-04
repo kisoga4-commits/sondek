@@ -19,6 +19,7 @@ import {
   normalizeRoomIdInput,
   ROOM_ID_LENGTH,
 } from './duelCore.js';
+import { getEffectiveFinishDistance } from './duelRules.js';
 
 const el = {
   showHostSetupBtn: document.getElementById('showHostSetupBtn'),
@@ -169,8 +170,9 @@ function getActiveRound(room) {
 
 function renderRace(room) {
   const players = room.players || {};
-  const finishDistance = Number(room?.modeConfig?.finishDistance || 10);
+  const finishDistance = getEffectiveFinishDistance(room?.modeConfig || {});
   const myTeamId = players[state.uid]?.teamId || null;
+  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
   const sorted = Object.entries(players).sort((a, b) => Number(b[1]?.distance || 0) - Number(a[1]?.distance || 0));
   el.raceBoard.innerHTML = '';
 
@@ -185,7 +187,7 @@ function renderRace(room) {
     if (Number(p?.correctStreak || 0) >= 2) badges.push(`Combo ${Number(p?.correctStreak || 0)}`);
     if (Number(p?.wrongStreak || 0) >= 2) badges.push('เสี่ยงโดนโทษ');
     if (Number(p?.stunUntilMs || 0) > Date.now()) badges.push('⛔ STUN');
-    if (room?.modeConfig?.matchType === 'party') badges.push(`Runner ${Number(p?.relayOrder || 1)}/${Number(room?.modeConfig?.teamSize || 2)}`);
+    if (gameMode !== 'worm' && room?.modeConfig?.matchType === 'party') badges.push(`Runner ${Number(p?.relayOrder || 1)}/${Number(room?.modeConfig?.teamSize || 2)}`);
 
     lane.innerHTML = `
       <div class="duel-race-top"><span class="duel-lane-runner">${isMe ? '🎯 ' : ''}${p?.name || uid}</span><span>${distance}/${finishDistance}</span></div>
@@ -291,7 +293,7 @@ function renderLobbyMeta(room) {
   const items = [
     `เกม: ${gameLabel}`,
     `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
-    `เส้นชัย: ${Number(room?.modeConfig?.finishDistance || 10)} ช่อง`,
+    `เส้นชัย: ${getEffectiveFinishDistance(room?.modeConfig || {})} ช่อง`,
     `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
     `สถานะ: ${roomStatus(room) === 'lobby' ? 'รอเริ่ม' : roomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม'}`,
   ];
