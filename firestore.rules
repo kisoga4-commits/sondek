@@ -52,7 +52,7 @@ service cloud.firestore {
     // -----------------------------
 
     function isValidRoomId(roomId) {
-      return roomId.matches('^[0-9]{4}$');
+      return roomId.matches('^[0-9]{4,6}$');
     }
 
     match /duel_rooms/{roomId} {

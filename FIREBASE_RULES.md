@@ -1,45 +1,48 @@
-# สาเหตุที่เห็นเป็น `(anonymous)` และแนวทางแก้
+# แนวทางแก้ `permission_denied` ของ Duel Mode (อัปเดต)
 
-## สาเหตุ
-- ฝั่งเว็บในโปรเจกต์นี้ใช้ `signInAnonymously()` สำหรับการอ่าน/เขียน Firestore อัตโนมัติ
-- ดังนั้นใน Firebase Authentication ผู้ใช้งานจะถูกแสดงเป็น **Anonymous user**
-- ถ้า Firestore Rules ไม่อนุญาตสิทธิ์ลบ (`delete`) ให้บัญชีที่ล็อกอินอยู่ จะเกิดอาการลบแบบทดสอบไม่สำเร็จ
+## ทำไมยังเจอ `permission_denied`
+สาเหตุที่เจอบ่อยในระบบนี้มี 4 ข้อ:
 
-## แนวทางใช้งาน Rules แบบปลอดภัยขึ้น
-1. เปิด `Firebase Console > Authentication > Sign-in method > Anonymous`
-2. Publish ไฟล์ `firestore.rules` ที่อยู่ใน repo นี้
-3. ค่อย ๆ ย้ายจากเงื่อนไข `|| signedIn()` ไปใช้ `isAdmin()` อย่างเดียว เมื่อมีระบบล็อกอินแอดมินจริง (เช่น Google Sign-In + custom claims)
+1. **ยังไม่ได้เปิด Anonymous Auth**
+   - ฝั่งเว็บใช้ `signInAnonymously()` ก่อนอ่าน/เขียน Firebase
+   - ถ้า Anonymous ปิดอยู่ จะเขียน RTDB ไม่ได้ทันที
 
-## Duel Mode ใช้ฐานข้อมูลอะไร?
-- Duel Mode ใช้ **Realtime Database** ที่ path `rooms/{roomId}`
-- ดังนั้น error `Missing or insufficient permissions` ของโหมดดวล จะเกี่ยวกับ **Realtime Database Rules** ไม่ใช่ `firestore.rules`
-- ควรเปิด Anonymous Auth และตั้ง RTDB Rules ให้ user ที่ล็อกอินแล้ว (รวม anonymous) อ่าน/เขียนห้องของ Duel ได้
+2. **Deploy ผิด Rules (Firestore อย่างเดียว แต่ Duel ใช้ RTDB)**
+   - Duel ใช้ **Realtime Database** เป็นหลักที่ path `rooms/{roomId}`
+   - ถ้า publish แค่ `firestore.rules` จะไม่ช่วยอาการดวล
 
-## วิธีแก้ `permission_denied` ของ Duel แบบเร็ว
-1. เปิด `Firebase Console > Authentication > Sign-in method > Anonymous` ให้เป็น **Enabled**
-2. Deploy RTDB rules จากไฟล์ `database.rules.json` ใน repo นี้:
-   ```bash
-   firebase deploy --only database
-   ```
-3. ทดสอบใหม่โดยเปิดหน้า `duel.html` แล้วสร้างห้องรหัสใหม่ (รองรับ 4-6 หลัก)
+3. **Path ใน Rules ไม่ตรงกับโค้ดจริง**
+   - โค้ดฝั่งเว็บเขียนที่ `rooms/{roomId}`
+   - แต่บางโปรเจกต์ตั้ง rules ไว้ที่ `duel_rooms/{roomId}` อย่างเดียว ทำให้โดนปฏิเสธสิทธิ์
 
-ไฟล์ `database.rules.json` ถูกตั้งค่าให้:
-- อนุญาต `read/write` เฉพาะ user ที่ login แล้ว (`auth != null`)
-- อนุญาตเฉพาะ `roomId` ที่เป็นตัวเลข 4-6 หลัก
-- ตั้ง validation แบบยืดหยุ่น (schema-light) เพื่อรองรับโหมดเกมใหม่ในอนาคต โดยไม่ผูกตายกับโครงสร้าง `settings/state` แบบเก่า
-- ยังมี guard ขั้นพื้นฐานกับฟิลด์หลักที่ใช้บ่อย เช่น `roomId`, `pin`, `hostUid`, `players`
+4. **Validation เข้มเกินไป/ล็อก schema ตายตัวเกิน**
+   - ถ้ากติกา `.validate` บังคับรูปแบบไม่ตรง payload ที่เกมเขียนจริง (เช่น transaction update รอบเกม)
+   - RTDB จะตอบกลับ `permission_denied`
 
-## ถ้ายังไม่หาย: รีเซ็ตระบบ Duel แล้วเริ่มใหม่
-ถ้าข้อมูลห้องเดิมค้าง/เพี้ยน ให้ลบ node `rooms` ทั้งหมดใน Realtime Database แล้วเริ่มสร้างห้องใหม่:
+---
 
-1. ไปที่ `Firebase Console > Realtime Database > Data`
-2. เลือก node `rooms`
-3. กดเมนู `⋮` แล้วเลือก **Delete node**
-4. กลับไปหน้าเว็บ แล้วสร้างห้อง Duel ใหม่
+## สรุปสั้น ๆ ว่าต้องแก้อะไร
+1. เปิด `Firebase Console > Authentication > Sign-in method > Anonymous` เป็น **Enabled**
+2. ใช้ไฟล์ `database.rules.json` ใน repo นี้ (รองรับทั้ง `rooms` และ `duel_rooms`)
+3. Deploy RTDB rules:
 
-> หมายเหตุ: การลบ `rooms` จะลบห้องดวลที่กำลังรอ/กำลังเล่นทั้งหมดทันที
+```bash
+firebase deploy --only database
+```
 
-## วิธีหา UID แอดมิน
-- เปิดหน้า `adminchamp.html`
-- ดูข้อความสถานะที่หัวหน้า Dashboard จะเห็น `uid`
-- นำ UID ไปแทนที่ `REPLACE_WITH_ADMIN_UID_1` ใน `firestore.rules`
+4. ทดสอบใหม่โดยสร้างห้องใหม่บน `duel.html`
+
+---
+
+## หมายเหตุเรื่อง Firestore
+- `firestore.rules` ยังจำเป็นสำหรับระบบคอร์ส/ข้อสอบ/โปรไฟล์/ลีดเดอร์บอร์ด
+- แต่ error `permission_denied` ของ Duel เกือบทั้งหมดจะชี้ไปที่ **RTDB Rules + Auth**
+
+---
+
+## ถ้ายังไม่หายหลัง deploy
+1. ไปที่ `Realtime Database > Data`
+2. ลบ node `rooms` (และ `duel_rooms` ถ้ามีของเก่าค้าง)
+3. รีเฟรชหน้าและสร้างห้องใหม่
+
+> การลบ node จะเคลียร์ห้องที่กำลังรอ/กำลังเล่นทั้งหมด
