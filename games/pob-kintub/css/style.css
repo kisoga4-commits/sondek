@@ -17,6 +17,7 @@ body {
   color: var(--text);
   background: radial-gradient(circle at top, #163529 0%, var(--bg) 55%, #020605 100%);
   min-height: 100vh;
+  transition: background .25s ease, color .25s ease;
 }
 
 .app { width: min(860px, 100% - 1.2rem); margin: 1rem auto 2rem; display: grid; gap: .8rem; }
@@ -44,6 +45,24 @@ body {
   background: linear-gradient(160deg, rgba(18,42,34,.97), rgba(8,23,18,.97));
 }
 .hidden { display: none; }
+
+body.is-day-phase {
+  --text: #1b2a25;
+  --muted: #566b63;
+  background: radial-gradient(circle at top, #ffffff 0%, #edf7f1 50%, #dcebe3 100%);
+}
+body.is-day-phase .topbar {
+  border-color: #b6d0c4;
+  background: rgba(255,255,255,.78);
+}
+body.is-day-phase .panel {
+  border-color: #b6d0c4;
+  background: linear-gradient(160deg, rgba(255,255,255,.95), rgba(235,246,239,.95));
+}
+body.is-day-phase .tag,
+body.is-day-phase .villager-card,
+body.is-day-phase .sheet-revealed,
+body.is-day-phase .identity-card { background: #f5fbf8; border-color: #b5d2c5; }
 
 h2 { margin: 0 0 .8rem; font-size: 1.15rem; }
 .muted { color: var(--muted); font-size: .92rem; }
