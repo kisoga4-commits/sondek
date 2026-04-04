@@ -19,6 +19,9 @@
         </div>
 
         <div id="duelHostSetup" class="duel-setup-grid hidden">
+          <label>ชื่อ Host
+            <input id="duelHostName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
+          </label>
           <label>บททดสอบ
             <select id="duelCourseId">
               <option value="">-- เลือกบททดสอบ --</option>
@@ -54,8 +57,11 @@
         </div>
 
         <div id="duelJoinSetup" class="duel-setup-grid hidden">
+          <label>ชื่อผู้เล่น
+            <input id="duelJoinName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
+          </label>
           <label>Room ID
-            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="4" placeholder="กรอกรหัส 4 หลัก" />
+            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 6 หลัก" />
           </label>
           <button id="joinRoomBtn" class="btn btn-secondary" type="button">เข้าห้อง</button>
         </div>
