@@ -43,6 +43,7 @@ import {
   validateProfileImageConstraints,
 } from './profileImagePolicy.js';
 import { normalizePublicImageUrl } from './imageUrl.js';
+import { getEffectiveFinishDistance } from './duelRules.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -1089,6 +1090,8 @@ export async function startDuelRoom(roomId) {
       const nowMs = Date.now();
       const playerEntries = Object.entries(players).slice(0, matchType === 'party' ? teamSize * 2 : 4);
       const normalizedPlayers = {};
+      const gameMode = String(data?.modeConfig?.gameMode || 'quick');
+      const isWormMode = gameMode === 'worm';
       let teams = null;
       if (matchType === 'party') {
         teams = { A: { members: [] }, B: { members: [] } };
@@ -1100,8 +1103,8 @@ export async function startDuelRoom(roomId) {
             ...player,
             teamId,
             relayOrder,
-            isActiveRunner: relayOrder === 1,
-            hasFinishedTurn: false,
+            isActiveRunner: isWormMode ? true : relayOrder === 1,
+            hasFinishedTurn: isWormMode,
             distance: 0,
             answeredRound: -1,
             correctStreak: 0,
@@ -1195,7 +1198,7 @@ export async function submitDuelAnswer(roomId, payload) {
       if (!me?.uid) return data;
       if (Number(me.stunUntilMs || 0) > nowMs) return data;
       if (Number(me.answeredRound ?? -1) >= roundIndex) return data;
-      if (String(data?.modeConfig?.matchType || 'solo') === 'party' && !me.isActiveRunner) return data;
+      if (!isWormMode && String(data?.modeConfig?.matchType || 'solo') === 'party' && !me.isActiveRunner) return data;
 
       const isCorrect = Boolean(payload?.isCorrect);
       me.answeredRound = roundIndex;
@@ -1209,8 +1212,15 @@ export async function submitDuelAnswer(roomId, payload) {
         me.wrongStreak = 0;
         me.distance = Math.max(0, Number(me.distance || 0) + 1);
         if (me.correctStreak >= 3) {
+          const isPartyMatch = String(data?.modeConfig?.matchType || 'solo') === 'party';
+          const myTeamId = String(me.teamId || '');
           const candidates = Object.entries(players)
-            .filter(([pid, p]) => pid !== uid && (data?.modeConfig?.matchType !== 'party' ? true : p?.isActiveRunner))
+            .filter(([pid, candidate]) => {
+              if (pid === uid) return false;
+              if (!isPartyMatch) return true;
+              if (isWormMode) return String(candidate?.teamId || '') !== myTeamId;
+              return Boolean(candidate?.isActiveRunner);
+            })
             .sort((a, b) => Number(b[1]?.distance || 0) - Number(a[1]?.distance || 0));
           const targetUid = candidates[0]?.[0] || '';
           if (targetUid) {
@@ -1242,7 +1252,7 @@ export async function submitDuelAnswer(roomId, payload) {
 
       players[uid] = { ...me, updatedAt: nowMs };
 
-      if (String(data?.modeConfig?.matchType || 'solo') === 'party') {
+      if (!isWormMode && String(data?.modeConfig?.matchType || 'solo') === 'party') {
         const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
         const finishDistance = Number(data?.modeConfig?.finishDistance || 10);
         const legDistance = Math.ceil(finishDistance / teamSize);
@@ -1259,9 +1269,11 @@ export async function submitDuelAnswer(roomId, payload) {
       let nextStatus = data.status;
       let winnerUid = data.winnerUid || '';
       let winReason = data.winReason || '';
-      const finishDistance = Number(data?.modeConfig?.finishDistance || 10);
+      const finishDistance = isWormMode
+        ? getEffectiveFinishDistance(data?.modeConfig || {})
+        : Number(data?.modeConfig?.finishDistance || 10);
       const matchType = String(data?.modeConfig?.matchType || 'solo');
-      if (matchType === 'party') {
+      if (!isWormMode && matchType === 'party') {
         const teamDistance = { A: 0, B: 0 };
         Object.values(players).forEach((p) => { if (p?.teamId === 'A' || p?.teamId === 'B') teamDistance[p.teamId] = Math.max(teamDistance[p.teamId], Number(p?.distance || 0)); });
         if (teamDistance.A >= finishDistance || teamDistance.B >= finishDistance) {
@@ -1341,7 +1353,9 @@ export async function finalizeDuelByTimeout(roomId) {
 
       const players = data.players || {};
       let result = pickDuelWinner(players);
-      if (String(data?.modeConfig?.matchType || 'solo') === 'party') {
+      const gameMode = String(data?.modeConfig?.gameMode || 'quick');
+      const isWormMode = gameMode === 'worm';
+      if (!isWormMode && String(data?.modeConfig?.matchType || 'solo') === 'party') {
         const teamDistance = { A: 0, B: 0 };
         Object.entries(players).forEach(([pid, p]) => {
           if (p?.teamId === 'A' || p?.teamId === 'B') {
