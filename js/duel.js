@@ -33,6 +33,7 @@ const el = {
   hostNameInput: document.getElementById('duelHostName'),
   joinNameInput: document.getElementById('duelJoinName'),
   durationInput: document.getElementById('duelDuration'),
+  matchTypeInput: document.getElementById('duelMatchType'),
   roomIdInput: document.getElementById('duelRoomId'),
   createRoomBtn: document.getElementById('createRoomBtn'),
   joinRoomBtn: document.getElementById('joinRoomBtn'),
@@ -202,6 +203,7 @@ async function handleCreateRoom() {
     const courseId = String(el.courseIdInput.value || '').trim();
     if (!courseId) throw new Error('เลือกบททดสอบก่อน');
     await loadQuestionBank(courseId);
+    const matchType = String(el.matchTypeInput?.value || 'solo').toLowerCase() === 'party' ? 'party' : 'solo';
     const questionSequence = buildQuestionLoop(state.questionBank, {
       loopQuestionCount: LOOP_QUESTION_COUNT,
       shuffleFn: (ids) => pickRandomQuestions(ids, ids.length),
@@ -210,6 +212,7 @@ async function handleCreateRoom() {
       hostName,
       courseId,
       durationSeconds: Number(el.durationInput.value || 120),
+      matchType,
       questionSequence,
     });
     state.roomId = created.roomId;
@@ -296,14 +299,16 @@ function ensureTimer(room) {
 function renderLobbyMeta(room) {
   const duration = `${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`;
   const courseId = String(room.courseId || '-');
+  const matchType = String(room?.modeConfig?.matchType || room?.settings?.competitionType || 'solo');
+  const matchLabel = matchType === 'party' ? 'Party' : 'Solo';
   const items = [
-    'โหมด: Duel (โจมตี)',
+    `โหมด: Duel (${matchLabel})`,
     `บททดสอบ: ${courseId}`,
     `เวลาเกม: ${duration}`,
     `สถานะ: ${getRoomStatus(room) === 'lobby' ? 'รอเริ่ม' : (getRoomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม')}`,
   ];
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
-  if (el.lobbyModeText) el.lobbyModeText.textContent = 'DUEL MODE';
+  if (el.lobbyModeText) el.lobbyModeText.textContent = `DUEL ${matchLabel.toUpperCase()}`;
 }
 
 function maybeShowFinishModal(room) {
@@ -342,8 +347,19 @@ function handleRoomUpdate(room) {
   renderLobbyMeta(room);
   const isHost = String(room.hostUid || '') === state.uid;
   const roomStatus = getRoomStatus(room);
-  el.startGameBtn.classList.toggle('hidden', !isHost || roomStatus !== 'lobby');
-  el.lobbyHint.textContent = players.length < 2 ? 'รอผู้เล่นเข้าห้อง...' : 'พร้อมเริ่มเกม';
+  const matchType = String(room?.modeConfig?.matchType || room?.settings?.competitionType || 'solo');
+  const needsPartyPlayers = matchType === 'party';
+  const canStart = isHost && roomStatus === 'lobby' && (!needsPartyPlayers || players.length >= 2);
+  el.startGameBtn.classList.toggle('hidden', !canStart);
+  if (roomStatus !== 'lobby') {
+    el.lobbyHint.textContent = 'กำลังแข่งขัน...';
+  } else if (needsPartyPlayers && players.length < 2) {
+    el.lobbyHint.textContent = 'โหมด Party ต้องมีผู้เล่นอย่างน้อย 2 คน';
+  } else if (!needsPartyPlayers) {
+    el.lobbyHint.textContent = 'โหมด Solo พร้อมเริ่มได้ทันที';
+  } else {
+    el.lobbyHint.textContent = 'พร้อมเริ่มเกม';
+  }
 
   if (roomStatus === 'finished') {
     const winnerUid = String(room.winnerUid || '');
