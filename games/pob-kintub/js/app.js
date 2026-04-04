@@ -42,6 +42,7 @@ const state = {
 };
 
 const els = {
+  home: document.getElementById('homePhase'),
   setup: document.getElementById('setupPhase'),
   identity: document.getElementById('identityPhase'),
   night: document.getElementById('nightPhase'),
@@ -121,6 +122,19 @@ function mountError(message) {
   Object.values(els).forEach((x) => x.classList.add('hidden'));
   els.setup.classList.remove('hidden');
   els.setup.innerHTML = `<h2>เกิดข้อผิดพลาด</h2><p class="muted">${message}</p>`;
+}
+
+function renderHome(message = '') {
+  Object.values(els).forEach((x) => x.classList.add('hidden'));
+  els.home.classList.remove('hidden');
+  els.home.innerHTML = `
+    <h2>Home</h2>
+    <p class="muted">เข้าโหมดปอบกินตับจากหน้า Duel เพื่อเชื่อมต่อห้องอัตโนมัติ</p>
+    ${message ? `<p class="muted">${message}</p>` : ''}
+    <div class="grid" style="margin-top:.7rem;">
+      <a class="btn" href="../../duel.html">🏠 กลับหน้า Duel</a>
+    </div>
+  `;
 }
 
 function phaseMetaHtml() {
@@ -499,7 +513,7 @@ function renderEnd() {
   document.getElementById('goHome')?.addEventListener('click', async () => {
     await tx(paths.privateAll, () => null);
     await tx(paths.public, () => null);
-    window.location.href = '../../../duel.html';
+    window.location.href = '../../duel.html';
   });
 }
 
@@ -573,7 +587,7 @@ function ensurePhaseTicker() {
 
 async function initCloud() {
   if (!roomId) {
-    mountError('ไม่พบ roomId กรุณาเข้าจากโหมด Duel Host/Join');
+    renderHome('ยังไม่พบ roomId ใน URL');
     return;
   }
 
