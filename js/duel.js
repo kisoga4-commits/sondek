@@ -206,8 +206,12 @@ function renderQuestion(room) {
   const question = getQuestionByRound(room, rs.roundIndex);
   const me = room.players?.[state.uid] || {};
   const isStunned = Number(me?.stunUntilMs || 0) > Date.now();
-  const answeredRound = Number(me?.answeredRound ?? -1);
-  const locked = roomStatus(room) !== 'playing' || rs.isReveal || answeredRound >= rs.roundIndex || isStunned || state.isSubmitting;
+  const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
+  const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
+  const isRunnerLocked = isWormMode && isPartyMode && !Boolean(me?.isActiveRunner);
+  const serverAnsweredRound = Number(me?.answeredRound ?? -1);
+  const effectiveAnsweredRound = Math.max(serverAnsweredRound, Number(state.optimisticAnsweredRound ?? -1));
+  const locked = roomStatus(room) !== 'playing' || rs.isReveal || effectiveAnsweredRound >= rs.roundIndex || isStunned || isRunnerLocked || state.isSubmitting;
 
   if (!question) {
     el.questionTitle.textContent = 'กำลังรอคำถาม...';
@@ -240,13 +244,18 @@ function renderQuestion(room) {
 async function submitAnswer() {
   const room = state.room;
   if (!room || state.isSubmitting) return;
+  const me = room.players?.[state.uid] || {};
+  const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
+  const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
+  if (isWormMode && isPartyMode && !Boolean(me?.isActiveRunner)) {
+    el.resultHint.textContent = '⏳ รอไม้จากเพื่อนร่วมทีมก่อน แล้วค่อยตอบ';
+    return;
+  }
   const rs = getActiveRound(room);
   if (rs.roundIndex < 0 || rs.isReveal) return;
   const q = getQuestionByRound(room, rs.roundIndex);
   if (!q || !Number.isInteger(state.selectedAnswer)) return;
   const isCorrect = isQuestionCorrect(q, state.selectedAnswer);
-  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
-  const isWormMode = gameMode === 'worm';
 
   state.isSubmitting = true;
   try {
@@ -328,7 +337,8 @@ function ensureTimer(room) {
 function handleRoomUpdate(room) {
   if (!room) return;
   state.room = room;
-  state.optimisticAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? state.optimisticAnsweredRound ?? -1);
+  const serverAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? -1);
+  state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), serverAnsweredRound);
   void ensureRoomQuestionBank(room);
   const players = Object.values(room.players || {});
   const isHost = String(room.hostUid || '') === state.uid;
