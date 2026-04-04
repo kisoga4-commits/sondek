@@ -87,6 +87,9 @@ const GAME_DEFINITIONS = {
   },
 };
 
+const PRAISE_LINES = ['โคตรคม!', 'สุดจัด!', 'แม่นมาก!', 'เก่งเว่อร์!', 'เครื่องติดแล้ว!'];
+const ROAST_LINES = ['หลับอยู่ปะเนี่ย?', 'พลาดอีกแล้ว!', 'ฮึบอีกนิด!', 'สมาธิหน่อย!', 'อย่าเพิ่งยอม!'];
+
 const getSelectedGameMode = () => {
   const requested = String(el.gameModeInput?.value || 'quick');
   return Object.prototype.hasOwnProperty.call(GAME_DEFINITIONS, requested) ? requested : 'quick';
@@ -151,8 +154,9 @@ function getPersonalQuestionSequence(room) {
 function getActiveRound(room) {
   const gameMode = String(room?.modeConfig?.gameMode || 'quick');
   if (gameMode === 'worm') {
+    const myRound = Math.max(0, Number(room?.players?.[state.uid]?.answeredRound ?? -1) + 1);
     return {
-      roundIndex: Math.max(0, Number(room?.currentRoundIndex || 0)),
+      roundIndex: myRound,
       isReveal: false,
     };
   }
@@ -242,10 +246,42 @@ async function submitAnswer() {
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
     if (result?.accepted) {
       el.resultHint.textContent = isCorrect ? '✅ ตอบถูก เดิน +1' : '❌ ตอบผิด รอข้อถัดไป';
+      playAnswerFeedback(isCorrect);
     }
   } finally {
     state.isSubmitting = false;
   }
+}
+
+function playAnswerFeedback(isCorrect) {
+  const linePool = isCorrect ? PRAISE_LINES : ROAST_LINES;
+  const picked = linePool[Math.floor(Math.random() * linePool.length)] || '';
+  if (picked && 'speechSynthesis' in window) {
+    try {
+      const utterance = new SpeechSynthesisUtterance(picked);
+      utterance.lang = 'th-TH';
+      utterance.rate = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } catch (_) {}
+  }
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = isCorrect ? 880 : 220;
+    gain.gain.value = 0.001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.start(now);
+    osc.stop(now + 0.24);
+  } catch (_) {}
 }
 
 function renderLobbyMeta(room) {
@@ -301,7 +337,7 @@ function handleRoomUpdate(room) {
   if (roomStatus(room) === 'playing' && currentQuestion) {
     const gameMode = String(room?.modeConfig?.gameMode || 'quick');
     el.resultHint.textContent = gameMode === 'worm'
-      ? 'โหมดหนอนกระดื้บ: ระบบจะเปลี่ยนข้อทันทีเมื่อมีการตอบ'
+      ? 'โหมดหนอนกระดื้บ: ตอบใครตอบมัน ตอบแล้วไปข้อใหม่ทันที'
       : 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
 

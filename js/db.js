@@ -1183,14 +1183,15 @@ export async function submitDuelAnswer(roomId, payload) {
       const revealSeconds = Math.max(0.3, Number(data.revealSeconds || DUEL_REVEAL_SECONDS));
       const roundMs = Math.round((questionSeconds + revealSeconds) * 1000);
       const elapsedMs = Math.max(0, nowMs - Number(data.startedAtMs || 0));
+      const players = { ...(data.players || {}) };
+      const me = { ...(players[uid] || {}) };
+      const wormRoundIndex = Math.max(0, Number(me.answeredRound ?? -1) + 1);
       const roundIndex = isWormMode
-        ? Math.max(0, Number(data.currentRoundIndex || 0))
+        ? wormRoundIndex
         : Math.floor(elapsedMs / roundMs);
       const inReveal = !isWormMode && (elapsedMs % roundMs) >= questionSeconds * 1000;
       if (inReveal) return data;
 
-      const players = { ...(data.players || {}) };
-      const me = { ...(players[uid] || {}) };
       if (!me?.uid) return data;
       if (Number(me.stunUntilMs || 0) > nowMs) return data;
       if (Number(me.answeredRound ?? -1) >= roundIndex) return data;
@@ -1283,7 +1284,9 @@ export async function submitDuelAnswer(roomId, payload) {
         ...syncDuelRoomShape(data),
         players,
         status: nextStatus,
-        currentRoundIndex: isWormMode ? (roundIndex + 1) : Number(data.currentRoundIndex || 0),
+        currentRoundIndex: isWormMode
+          ? Math.max(Number(data.currentRoundIndex || 0), roundIndex)
+          : Number(data.currentRoundIndex || 0),
         winnerUid,
         winReason,
         eventCounter,
