@@ -6,16 +6,24 @@
       "$roomId": {
         ".read": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
         ".write": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
+        ".validate": "newData.hasChildren(['roomId', 'pin', 'courseId', 'status', 'hostUid', 'players', 'updatedAtMs', 'createdAtMs'])",
+        "roomId": {
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4,6}$/)"
+        },
+        "pin": {
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4,6}$/)"
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() === 'lobby' || newData.val() === 'playing' || newData.val() === 'finished')"
+        },
+        "hostUid": {
+          ".validate": "newData.isString() && newData.val().length > 0"
+        },
         "players": {
+          ".validate": "newData.hasChildren()",
           "$uid": {
-            ".validate": "newData.hasChildren(['name'])"
+            ".validate": "newData.hasChildren(['uid', 'name']) && newData.child('uid').isString() && newData.child('name').isString()"
           }
-        },
-        "settings": {
-          ".validate": "newData.hasChildren(['mode','competitionType','durationMinutes','quizId'])"
-        },
-        "state": {
-          ".validate": "newData.hasChildren(['status'])"
         }
       }
     },
