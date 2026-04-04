@@ -1647,3 +1647,267 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Duel/Race lightweight game UI refresh */
+.duel-page {
+  max-width: 980px;
+}
+
+.duel-entry-card,
+.duel-lobby-card,
+.duel-battle-shell,
+.duel-modal-card {
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+}
+
+.duel-entry-actions {
+  margin-top: 1rem;
+}
+
+.duel-big-btn {
+  flex: 1;
+  min-width: 150px;
+  font-size: 1.05rem;
+  padding: 0.95rem 1rem;
+}
+
+.duel-ghost-btn {
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+}
+
+.duel-lobby-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.duel-lobby-pin {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.duel-mode-label {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #0f766e;
+  letter-spacing: 0.06em;
+}
+
+.duel-lobby-meta {
+  margin: 0.7rem 0;
+}
+
+.duel-lobby-chip {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.duel-lobby-chip.is-host {
+  border-color: #0f766e;
+  color: #0f766e;
+}
+
+.duel-lobby-players {
+  min-height: 46px;
+}
+
+.duel-empty-state {
+  width: 100%;
+  text-align: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.7rem;
+  padding: 0.7rem;
+  color: #64748b;
+}
+
+.duel-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+  flex-wrap: wrap;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.8rem;
+  padding: 0.65rem 0.8rem;
+  background: #f8fafc;
+  margin-bottom: 0.8rem;
+}
+
+.duel-room-label {
+  margin: 0.2rem 0 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.duel-topbar-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.duel-state-badge,
+.duel-time-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.62rem;
+  font-weight: 800;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.duel-time-badge {
+  color: #1d4ed8;
+}
+
+.duel-exit-btn {
+  padding: 0.42rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.84rem;
+}
+
+.duel-race-arena {
+  border: 1px solid #dbeafe;
+  border-radius: 0.95rem;
+  padding: 0.7rem;
+  background: #f8fbff;
+}
+
+.duel-race-board {
+  gap: 0.6rem;
+}
+
+.duel-race-lane {
+  border-radius: 0.8rem;
+  padding: 0.55rem 0.6rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+}
+
+.duel-race-track {
+  height: 22px;
+  border-radius: 0.7rem;
+  background:
+    linear-gradient(to right, transparent 24%, #cbd5e1 24%, #cbd5e1 25%, transparent 25%, transparent 49%, #cbd5e1 49%, #cbd5e1 50%, transparent 50%, transparent 74%, #cbd5e1 74%, #cbd5e1 75%, transparent 75%),
+    #ecfeff;
+  border: 1px solid #bae6fd;
+}
+
+.duel-race-track > span {
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+  background: #14b8a6;
+}
+
+.duel-lane-runner {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.duel-lane-runner.is-stunned {
+  color: #b91c1c;
+}
+
+.duel-lane-runner.is-active {
+  color: #1d4ed8;
+}
+
+.duel-lane-team {
+  margin-top: 0.28rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.duel-member-pill {
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+  background: #f8fafc;
+}
+
+.duel-member-pill.is-active {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.duel-member-pill.is-passed {
+  opacity: 0.55;
+}
+
+.duel-member-pill.is-stunned {
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.duel-question-card {
+  margin-top: 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.9rem;
+  background: #fff;
+  padding: 0.8rem;
+}
+
+.duel-answer-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.duel-answer-btn {
+  min-height: 46px;
+}
+
+.duel-stun-hint {
+  margin: 0.2rem 0 0.6rem;
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.duel-audio-row {
+  margin-top: 0.6rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.duel-audio-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.duel-setup-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.choice {
+  padding: 0.8rem;
+}
+
+.choice span {
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .duel-answer-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .duel-big-btn {
+    width: 100%;
+  }
+}
