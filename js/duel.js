@@ -222,7 +222,7 @@ function renderQuestion(room) {
   const isStunned = Number(me?.stunUntilMs || 0) > Date.now();
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
-  const isRunnerLocked = !isWormMode && isPartyMode && !Boolean(me?.isActiveRunner);
+  const isRunnerLocked = isPartyMode && !Boolean(me?.isActiveRunner);
   const serverAnsweredRound = Number(me?.answeredRound ?? -1);
   const effectiveAnsweredRound = Math.max(serverAnsweredRound, Number(state.optimisticAnsweredRound ?? -1));
   const locked = roomStatus(room) !== 'playing' || rs.isReveal || effectiveAnsweredRound >= rs.roundIndex || isStunned || isRunnerLocked || state.isSubmitting;
@@ -262,7 +262,7 @@ async function submitAnswer() {
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
   const isWormSoloMode = isWormMode && !isPartyMode;
-  if (!isWormMode && isPartyMode && !Boolean(me?.isActiveRunner)) {
+  if (isPartyMode && !Boolean(me?.isActiveRunner)) {
     el.resultHint.textContent = '⏳ รอไม้จากเพื่อนร่วมทีมก่อน แล้วค่อยตอบ';
     return;
   }
@@ -350,6 +350,10 @@ function ensureTimer(room) {
     const rs = getActiveRound(room);
     el.timerText.textContent = `${String(Math.max(0, Math.floor(remainSec / 60))).padStart(2, '0')}:${String(Math.max(0, remainSec % 60)).padStart(2, '0')}`;
     el.roundText.textContent = rs.isReveal ? 'เฉลย / เปลี่ยนข้อ' : `ข้อที่ ${Math.max(1, rs.roundIndex + 1)}`;
+    // Re-render per-tick so stun lock/unlock is driven by each player's own timer
+    // (especially important in worm solo mode where both players can be stunned).
+    renderQuestion(room);
+    renderRace(room);
     if (remainSec <= 0) void finalizeDuelByTimeout(state.roomId);
   };
   tick();
@@ -391,7 +395,7 @@ function handleRoomUpdate(room) {
   if (roomStatus(room) === 'playing' && currentQuestion) {
     el.resultHint.textContent = isWormMode
       ? (matchType === 'party'
-        ? 'โหมดหนอนกระดื้บ TEAM: แต่ละคนตอบอิสระของตัวเอง ตอบแล้วรู้ผลทันทีและไปข้อต่อไปได้เลย'
+        ? 'โหมดหนอนกระดื้บ TEAM: เช็คเฉพาะ active runner ของทีม ตอบแล้วไปข้อต่อไปของตัวเองได้เลย'
         : 'โหมดหนอนกระดื้บ SOLO: ตอบใครตอบมัน ไปข้อถัดไปทันที ไม่ต้องรอใคร')
       : 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
