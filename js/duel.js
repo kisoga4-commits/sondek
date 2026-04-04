@@ -138,6 +138,7 @@ const state = {
   personalLoopKey: '',
   personalQuestionSequence: [],
   optimisticAnsweredRound: -1,
+  soloSubmitQueue: Promise.resolve(),
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -257,10 +258,12 @@ function renderQuestion(room) {
 
 async function submitAnswer() {
   const room = state.room;
-  if (!room || state.isSubmitting) return;
+  if (!room) return;
   const me = room.players?.[state.uid] || {};
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
+  const isWormSoloMode = isWormMode && !isPartyMode;
+  if (!isWormSoloMode && state.isSubmitting) return;
   if (!isWormMode && isPartyMode && !Boolean(me?.isActiveRunner)) {
     el.resultHint.textContent = '⏳ รอไม้จากเพื่อนร่วมทีมก่อน แล้วค่อยตอบ';
     return;
@@ -271,6 +274,26 @@ async function submitAnswer() {
   if (!q || !Number.isInteger(state.selectedAnswer)) return;
   const isCorrect = isQuestionCorrect(q, state.selectedAnswer);
 
+  if (isWormSoloMode) {
+    state.selectedAnswer = null;
+    state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), rs.roundIndex);
+    el.resultHint.textContent = isCorrect ? '✅ ตอบถูก เดิน +1' : '❌ ตอบผิด ไปข้อต่อไปทันที';
+    playAnswerFeedback(isCorrect);
+    renderQuestion(state.room || room);
+    state.soloSubmitQueue = state.soloSubmitQueue
+      .catch(() => {})
+      .then(async () => {
+        const result = await submitDuelAnswer(state.roomId, { isCorrect });
+        if (!result?.accepted && String(result?.reason || '')) {
+          el.resultHint.textContent = '⏳ ยังตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง';
+        }
+      })
+      .catch(() => {
+        el.resultHint.textContent = 'เชื่อมต่อช้า กำลังซิงก์ผลให้อัตโนมัติ';
+      });
+    return;
+  }
+
   state.isSubmitting = true;
   try {
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
@@ -280,12 +303,12 @@ async function submitAnswer() {
         ? '✅ ตอบถูก เดิน +1'
         : (isWormMode ? '❌ ตอบผิด ไปข้อถัดไปทันที' : '❌ ตอบผิด รอข้อถัดไป');
       playAnswerFeedback(isCorrect);
-      renderQuestion(room);
     } else if (String(result?.reason || '')) {
       el.resultHint.textContent = '⏳ ยังตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง';
     }
   } finally {
     state.isSubmitting = false;
+    renderQuestion(state.room || room);
   }
 }
 
