@@ -139,6 +139,8 @@ const state = {
   personalQuestionSequence: [],
   optimisticAnsweredRound: -1,
   renderedQuestionKey: '',
+  audioCtx: null,
+  audioUnlocked: false,
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -295,9 +297,17 @@ async function submitAnswer() {
     renderQuestion(state.room || room);
   }
   try {
-    let result = await submitDuelAnswer(state.roomId, { isCorrect });
+    let result = await submitDuelAnswer(state.roomId, {
+      isCorrect,
+      answerIndex: Number(state.selectedAnswer),
+      questionId: String(q.id || ''),
+    });
     if (useOptimisticWormSubmit && String(result?.reason || '') === 'transaction_not_committed') {
-      result = await submitDuelAnswer(state.roomId, { isCorrect });
+      result = await submitDuelAnswer(state.roomId, {
+        isCorrect,
+        answerIndex: Number(state.selectedAnswer),
+        questionId: String(q.id || ''),
+      });
     }
     if (result?.accepted) {
       state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
@@ -337,7 +347,12 @@ function playAnswerFeedback(isCorrect) {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
-    const ctx = new Ctx();
+    if (!state.audioCtx) state.audioCtx = new Ctx();
+    const ctx = state.audioCtx;
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
+      if (ctx.state === 'suspended') return;
+    }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'triangle';
@@ -350,6 +365,17 @@ function playAnswerFeedback(isCorrect) {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
     osc.start(now);
     osc.stop(now + 0.24);
+  } catch (_) {}
+}
+
+function unlockAudio() {
+  if (state.audioUnlocked) return;
+  state.audioUnlocked = true;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!state.audioCtx) state.audioCtx = new Ctx();
+    if (state.audioCtx.state === 'suspended') void state.audioCtx.resume();
   } catch (_) {}
 }
 
@@ -420,7 +446,7 @@ function handleRoomUpdate(room) {
   if (roomStatus(room) === 'playing' && currentQuestion) {
     el.resultHint.textContent = isWormMode
       ? (matchType === 'party'
-        ? 'โหมดหนอนกระดื้บ TEAM: ทุกคนตอบได้อิสระ ไปข้อต่อไปของตัวเองทันที คะแนนรวมตามทีม'
+        ? 'โหมดหนอนกระดื้บ TEAM: ทุกคนตอบได้อิสระ ไปข้อต่อไปของตัวเองทันที ระยะตัดสินจากคนที่นำสุดของแต่ละทีม'
         : 'โหมดหนอนกระดื้บ SOLO: ตอบใครตอบมัน ไปข้อถัดไปทันที ไม่ต้องรอใคร')
       : 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
@@ -504,6 +530,16 @@ async function handleCreateRoom() {
       await loadQuestionBank(courseId);
       questionSequence = buildQuestionLoop(state.questionBank, { loopQuestionCount: LOOP_QUESTION_COUNT, shuffleFn: (ids) => pickRandomQuestions(ids, ids.length) });
     }
+    const questionAnswerKey = {};
+    const questionPoolIds = [];
+    if (!isPobMode) {
+      state.questionBank.forEach((question) => {
+        const qid = String(question?.id || '');
+        if (!qid) return;
+        questionPoolIds.push(qid);
+        questionAnswerKey[qid] = Number(question?.answerIndex ?? -1);
+      });
+    }
 
     const created = await createDuelRoom({
       hostName: String(el.hostNameInput.value || '').trim() || 'Host',
@@ -515,6 +551,8 @@ async function handleCreateRoom() {
       teamSize: Number(modeConfig.teamSize || 2),
       finishDistance: Number(modeConfig.finishDistance || 10),
       questionSequence,
+      questionPoolIds,
+      questionAnswerKey,
     });
     state.roomId = created.roomId;
     closeModal(el.hostModal);
@@ -557,6 +595,8 @@ async function init() {
 
   el.showHostSetupBtn.addEventListener('click', () => { syncHostModeOptions(); openModal(el.hostModal); });
   el.showJoinSetupBtn.addEventListener('click', () => openModal(el.joinModal));
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('keydown', unlockAudio, { once: true });
   el.createRoomBtn.addEventListener('click', () => void handleCreateRoom());
   el.joinRoomBtn.addEventListener('click', () => void handleJoinRoom());
   el.gameModeInput?.addEventListener('change', syncHostModeOptions);
