@@ -454,8 +454,6 @@ export async function saveCourseOffering(courseOffer) {
     day: scheduleDetails,
     time: '',
     price: String(courseOffer?.price || '').trim(),
-    quizCourseId: String(courseOffer?.quizCourseId || '').trim(),
-    dueDate: String(courseOffer?.dueDate || '').trim(),
     content: String(courseOffer?.content || '').trim(),
     status: 'open',
     enrollments: [],
@@ -473,9 +471,9 @@ export async function updateCourseOffering(courseId, payload) {
     day: scheduleDetails,
     time: '',
     price: String(payload?.price || '').trim(),
-    quizCourseId: String(payload?.quizCourseId || '').trim(),
-    dueDate: String(payload?.dueDate || '').trim(),
     content: String(payload?.content || '').trim(),
+    quizCourseId: deleteField(),
+    dueDate: deleteField(),
     updatedAt: serverTimestamp(),
   });
 }

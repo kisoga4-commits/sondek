@@ -39,8 +39,6 @@ const openCourseDestinationBtn = document.getElementById('openCourseDestinationB
 const courseOfferForm = document.getElementById('courseOfferForm');
 const offerTitleInput = document.getElementById('offerTitleInput');
 const offerScheduleDetailsInput = document.getElementById('offerScheduleDetailsInput');
-const offerQuizCourseIdInput = document.getElementById('offerQuizCourseIdInput');
-const offerDueInput = document.getElementById('offerDueInput');
 const offerPriceInput = document.getElementById('offerPriceInput');
 const offerContentInput = document.getElementById('offerContentInput');
 const saveCourseOfferBtn = document.getElementById('saveCourseOfferBtn');
@@ -142,42 +140,6 @@ function formatDateTime(value) {
   return '-';
 }
 
-function formatDueDate(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '-';
-
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  }
-
-  return raw;
-}
-
-function renderQuizCourseOptions(courses = []) {
-  if (!offerQuizCourseIdInput) return;
-
-  const previousValue = String(offerQuizCourseIdInput.value || '').trim();
-  const options = ['<option value="">-- เลือกคอร์สข้อสอบ --</option>'];
-
-  courses.forEach((course) => {
-    const courseId = String(course?.courseId || '').trim();
-    if (!courseId) return;
-    const title = String(course?.title || '').trim();
-    options.push(`<option value="${escapeHtml(courseId)}">${escapeHtml(courseId)}${title ? ` — ${escapeHtml(title)}` : ''}</option>`);
-  });
-
-  offerQuizCourseIdInput.innerHTML = options.join('');
-
-  if (previousValue) {
-    offerQuizCourseIdInput.value = previousValue;
-  }
-}
-
 async function loadProfileForm() {
   if (!profileForm) return;
 
@@ -240,14 +202,12 @@ async function onSaveCourseOffering(event) {
   const payload = {
     title: String(offerTitleInput?.value || '').trim(),
     scheduleDetails: String(offerScheduleDetailsInput?.value || '').trim(),
-    quizCourseId: String(offerQuizCourseIdInput?.value || '').trim(),
-    dueDate: String(offerDueInput?.value || '').trim(),
     price: String(offerPriceInput?.value || '').trim(),
     content: String(offerContentInput?.value || '').trim(),
   };
 
-  if (!payload.title || !payload.scheduleDetails || !payload.price || !payload.quizCourseId || !payload.dueDate) {
-    alert('กรุณากรอกชื่อคอร์ส รายละเอียดวันเรียน ราคา Course ID และ Due ให้ครบ');
+  if (!payload.title || !payload.scheduleDetails || !payload.price) {
+    alert('กรุณากรอกชื่อคอร์ส รายละเอียดวันเรียน และราคาให้ครบ');
     return;
   }
 
@@ -304,15 +264,11 @@ async function onEditCourseOffering(course) {
   if (scheduleDetails === null) return;
   const price = window.prompt('แก้ราคา', String(course?.price || '').trim());
   if (price === null) return;
-  const quizCourseId = window.prompt('แก้ Course ID (คลังโจทย์)', String(course?.quizCourseId || '').trim());
-  if (quizCourseId === null) return;
-  const dueDate = window.prompt('แก้ Due (YYYY-MM-DD)', String(course?.dueDate || '').trim());
-  if (dueDate === null) return;
   const content = window.prompt('แก้เนื้อหา', String(course?.content || '').trim());
   if (content === null) return;
 
-  if (!String(title).trim() || !String(scheduleDetails).trim() || !String(price).trim() || !String(quizCourseId).trim() || !String(dueDate).trim()) {
-    alert('ต้องกรอกชื่อคอร์ส รายละเอียดวันเรียน ราคา Course ID และ Due ให้ครบ');
+  if (!String(title).trim() || !String(scheduleDetails).trim() || !String(price).trim()) {
+    alert('ต้องกรอกชื่อคอร์ส รายละเอียดวันเรียน และราคาให้ครบ');
     return;
   }
 
@@ -321,8 +277,6 @@ async function onEditCourseOffering(course) {
       title,
       scheduleDetails,
       price,
-      quizCourseId,
-      dueDate,
       content,
     });
     alert('แก้ไขข้อมูลคอร์สเรียบร้อย');
@@ -409,8 +363,6 @@ function renderCourseOfferings(courseOffers) {
           <h3>${escapeHtml(course?.title || 'ไม่ระบุชื่อคอร์ส')}</h3>
           <p class="muted">วันเรียน: ${escapeHtml(course?.scheduleDetails || course?.day || '-')}</p>
           <p class="muted">ราคา: ${escapeHtml(course?.price || '-')}</p>
-          <p class="muted">Course ID: ${escapeHtml(course?.quizCourseId || '-')}</p>
-          <p class="muted">Due: ${escapeHtml(formatDueDate(course?.dueDate))}</p>
         </div>
         <span class="status-pill ${isOpen ? '' : 'status-closed'}">${isOpen ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}</span>
       </header>
@@ -534,12 +486,6 @@ function initCourseOfferingSection() {
   if (courseOfferStatus) {
     courseOfferStatus.textContent = 'กำลังโหลดรายการคอร์ส...';
   }
-
-  subscribeCourses((courses) => {
-    renderQuizCourseOptions(courses);
-  }, (error) => {
-    console.error(error);
-  });
 
   subscribeCourseOfferings((courseOffers) => {
     if (courseOfferStatus) {
