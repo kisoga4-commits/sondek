@@ -39,6 +39,7 @@ const el = {
   matchTypeInput: document.getElementById('duelMatchType'),
   quickMatchTypeInput: document.getElementById('duelQuickMatchType'),
   teamSizeInput: document.getElementById('duelTeamSize'),
+  teamSizeLabel: document.getElementById('duelTeamSizeLabel'),
   quickTeamSizeInput: document.getElementById('duelQuickTeamSize'),
   finishDistanceInput: document.getElementById('duelFinishDistance'),
   roomIdInput: document.getElementById('duelRoomId'),
@@ -95,6 +96,12 @@ function syncHostModeOptions() {
   const mode = getSelectedGameMode();
   el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
+  syncWormMatchOptions();
+}
+
+function syncWormMatchOptions() {
+  const isParty = String(el.matchTypeInput?.value || 'solo') === 'party';
+  el.teamSizeLabel?.classList.toggle('hidden', !isParty);
 }
 
 const state = {
@@ -247,7 +254,7 @@ function renderLobbyMeta(room) {
   const teamSize = Number(room?.modeConfig?.teamSize || 2);
   const items = [
     `เกม: ${gameLabel}`,
-    `โหมด: ${matchType === 'party' ? `Party Team x${teamSize}` : 'Solo'}`,
+    `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
     `เส้นชัย: ${Number(room?.modeConfig?.finishDistance || 10)} ช่อง`,
     `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
     `สถานะ: ${roomStatus(room) === 'lobby' ? 'รอเริ่ม' : roomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม'}`,
@@ -281,7 +288,8 @@ function handleRoomUpdate(room) {
   el.lobbyPlayers.innerHTML = players.map((p) => `<div class="duel-lobby-chip${p?.isHost ? ' is-host' : ''}">${p?.name || 'ผู้เล่น'}${p?.isHost ? ' • HOST' : ''}</div>`).join('');
   renderLobbyMeta(room);
 
-  const minPlayers = String(room?.modeConfig?.matchType || 'solo') === 'party' ? 4 : 2;
+  const partyRequiredPlayers = Math.max(4, Number(room?.modeConfig?.teamSize || 2) * 2);
+  const minPlayers = String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2;
   el.startGameBtn.classList.toggle('hidden', !(isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers));
   el.lobbyHint.textContent = players.length < minPlayers ? `ต้องมีผู้เล่นอย่างน้อย ${minPlayers} คน` : 'พร้อมเริ่มเกม';
 
@@ -411,10 +419,12 @@ async function init() {
   el.createRoomBtn.addEventListener('click', () => void handleCreateRoom());
   el.joinRoomBtn.addEventListener('click', () => void handleJoinRoom());
   el.gameModeInput?.addEventListener('change', syncHostModeOptions);
+  el.matchTypeInput?.addEventListener('change', syncWormMatchOptions);
   el.startGameBtn.addEventListener('click', () => void startDuelRoom(state.roomId));
   el.roomIdInput.addEventListener('input', () => { el.roomIdInput.value = normalizeRoomIdInput(el.roomIdInput.value); });
   document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', () => closeModal(document.getElementById(btn.dataset.closeModal))));
   syncHostModeOptions();
+  syncWormMatchOptions();
 }
 
 void init();
