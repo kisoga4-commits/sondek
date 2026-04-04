@@ -225,7 +225,7 @@ function renderQuestion(room) {
   const isRunnerLocked = !isWormMode && isPartyMode && !Boolean(me?.isActiveRunner);
   const serverAnsweredRound = Number(me?.answeredRound ?? -1);
   const effectiveAnsweredRound = Math.max(serverAnsweredRound, Number(state.optimisticAnsweredRound ?? -1));
-  const shouldLockBySubmit = !isWormMode && state.isSubmitting;
+  const shouldLockBySubmit = state.isSubmitting;
   const locked = roomStatus(room) !== 'playing' || rs.isReveal || effectiveAnsweredRound >= rs.roundIndex || isStunned || isRunnerLocked || shouldLockBySubmit;
 
   if (!question) {
@@ -262,7 +262,7 @@ async function submitAnswer() {
   const me = room.players?.[state.uid] || {};
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
-  if (!isWormMode && state.isSubmitting) return;
+  if (state.isSubmitting) return;
   if (!isWormMode && isPartyMode && !Boolean(me?.isActiveRunner)) {
     el.resultHint.textContent = '⏳ รอไม้จากเพื่อนร่วมทีมก่อน แล้วค่อยตอบ';
     return;
@@ -277,16 +277,18 @@ async function submitAnswer() {
   const prevOptimisticAnsweredRound = Number(state.optimisticAnsweredRound ?? -1);
   const useOptimisticWormSubmit = isWormMode;
 
-  if (!useOptimisticWormSubmit) {
-    state.isSubmitting = true;
-  } else {
+  state.isSubmitting = true;
+  if (useOptimisticWormSubmit) {
     state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
     el.resultHint.textContent = isCorrect ? '✅ ตอบถูก เดิน +1' : '❌ ตอบผิด ไปข้อถัดไปทันที';
     playAnswerFeedback(isCorrect);
     renderQuestion(state.room || room);
   }
   try {
-    const result = await submitDuelAnswer(state.roomId, { isCorrect });
+    let result = await submitDuelAnswer(state.roomId, { isCorrect });
+    if (useOptimisticWormSubmit && String(result?.reason || '') === 'transaction_not_committed') {
+      result = await submitDuelAnswer(state.roomId, { isCorrect });
+    }
     if (result?.accepted) {
       state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
       el.resultHint.textContent = isCorrect
