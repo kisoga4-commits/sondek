@@ -1079,13 +1079,14 @@ export async function startDuelRoom(roomId) {
       if (data.status === 'playing') return data;
 
       const players = data.players || {};
-      if (Object.keys(players).length < 2) {
-        throw new Error('ต้องมีผู้เล่นอย่างน้อย 2 คนก่อนเริ่มดวล');
+      const matchType = String(data?.modeConfig?.matchType || 'solo');
+      const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
+      const requiredPlayers = matchType === 'party' ? teamSize * 2 : 2;
+      if (Object.keys(players).length < requiredPlayers) {
+        throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${requiredPlayers} คนก่อนเริ่มดวล`);
       }
 
       const nowMs = Date.now();
-      const matchType = String(data?.modeConfig?.matchType || 'solo');
-      const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
       const playerEntries = Object.entries(players).slice(0, matchType === 'party' ? teamSize * 2 : 4);
       const normalizedPlayers = {};
       let teams = null;
