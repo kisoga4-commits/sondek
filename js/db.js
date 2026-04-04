@@ -77,7 +77,7 @@ function isAnonymousAuthConfigError(error) {
     || errorCode.includes('auth/unauthorized-domain');
 }
 
-const DUEL_PERMISSION_HINT = 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode ใน Realtime Database (Missing or insufficient permissions) — เปิด Firebase Auth แบบ Anonymous และ publish RTDB Rules ที่อนุญาต auth != null บน path duel_rooms/{roomId}';
+const DUEL_PERMISSION_HINT = 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode ใน Realtime Database (Missing or insufficient permissions) — เปิด Firebase Auth แบบ Anonymous และ publish RTDB Rules ที่อนุญาต auth != null บน path rooms/{roomId}';
 const DUEL_AUTH_HINT = 'ล็อกอินแบบ Anonymous ไม่สำเร็จ — เปิด Firebase Authentication > Sign-in method > Anonymous และเพิ่มโดเมนปัจจุบันใน Authorized domains';
 const DUEL_START_HP = 10;
 const DUEL_MAX_HP = 10;
@@ -141,6 +141,10 @@ async function ensureAuthReady() {
   }
 
   await authInitPromise;
+}
+
+export async function ensureDuelAuthReady() {
+  await ensureAuthReady();
 }
 
 async function ensureWriteAccess() {
@@ -787,6 +791,32 @@ function ensureAvailableDuelRoomId(preferredRoomId = '') {
   return next;
 }
 
+function syncDuelRoomShape(room = {}) {
+  const modeConfig = room.modeConfig || {};
+  const status = String(room.status || room?.state?.status || 'lobby');
+  const startedAtMs = room.startedAtMs || room?.state?.startedAtMs || null;
+  const endedAtMs = room.endedAtMs || room?.state?.endedAtMs || null;
+  const settings = {
+    mode: modeConfig.gameMode === 'worm' ? 'race' : 'duel',
+    competitionType: modeConfig.matchType === 'team' ? 'team' : 'solo',
+    relaySize: modeConfig.matchType === 'team' ? `x${Math.max(2, Math.min(3, Number(modeConfig.relaySize || 2)))}` : null,
+    durationMinutes: Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60)),
+    quizId: String(room.courseId || ''),
+  };
+  return {
+    ...room,
+    pin: room.pin || room.roomId || '',
+    status,
+    state: {
+      status,
+      startedAtMs,
+      endedAtMs,
+      updatedAtMs: room.updatedAtMs || Date.now(),
+    },
+    settings,
+  };
+}
+
 function buildDuelPlayerPayload(name) {
   return {
     name: sanitizeDuelName(name),
@@ -945,30 +975,41 @@ export async function createDuelRoom(payload) {
       // This avoids failing on projects that allow create but deny read.
       // Expected Realtime Database rules should allow write only when room does not yet exist.
       // eslint-disable-next-line no-await-in-loop
-      const roomRef = rtdbRef(rtdb, `duel_rooms/${roomId}`);
+      const roomRef = rtdbRef(rtdb, `rooms/${roomId}`);
       // eslint-disable-next-line no-await-in-loop
       const tx = await runRtdbTransaction(roomRef, (current) => {
         if (current) return;
+        const nowMs = Date.now();
+        const hostEntry = {
+          ...hostPlayer,
+          uid,
+          name: hostPlayer.name,
+          joinedAt: nowMs,
+          online: true,
+          team: null,
+          isHost: true,
+        };
         return {
           roomId,
+          pin: roomId,
           courseId: String(payload?.courseId || '').trim(),
-          status: 'waiting',
+          status: 'lobby',
           hostUid: uid,
           hostName: hostPlayer.name,
           durationSeconds,
-          maxPlayers: 2,
+          maxPlayers: matchType === 'team' ? relaySize * 2 : 8,
           modeConfig,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
           players: {
-            [uid]: hostPlayer,
+            [uid]: hostEntry,
           },
           winnerUid: '',
           winReason: '',
           eventCounter: 0,
           questionSeconds: DUEL_QUESTION_SECONDS,
           revealSeconds: DUEL_REVEAL_SECONDS,
-          updatedAtMs: Date.now(),
-          createdAtMs: Date.now(),
+          updatedAtMs: nowMs,
+          createdAtMs: nowMs,
           startedAtMs: null,
           endedAtMs: null,
         };
@@ -1004,7 +1045,7 @@ export async function joinDuelRoom(roomId, playerName) {
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== DUEL_ROOM_ID_LENGTH) throw new Error(`รหัสห้องต้องเป็นตัวเลข ${DUEL_ROOM_ID_LENGTH} หลัก`);
 
-  const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
+  const roomRef = rtdbRef(rtdb, `rooms/${safeRoomId}`);
   let tx;
   try {
     tx = await runRtdbTransaction(roomRef, (data) => {
@@ -1012,7 +1053,8 @@ export async function joinDuelRoom(roomId, playerName) {
       const players = data.players || {};
       const existingUids = Object.keys(players);
 
-      if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
+      if (data.status === 'finished') throw new Error('ห้องนี้ปิดแล้ว');
+      if (data.status === 'playing') throw new Error('ห้องนี้เริ่มเกมแล้ว');
 
       const maxPlayers = Math.max(2, Number(data.maxPlayers || 4));
       if (!players[uid] && existingUids.length >= maxPlayers) {
@@ -1024,16 +1066,25 @@ export async function joinDuelRoom(roomId, playerName) {
         [uid]: players[uid] ? {
           ...players[uid],
           name: sanitizeDuelName(playerName, players[uid].name || 'ผู้เล่น'),
+          online: true,
           updatedAt: Date.now(),
-        } : (String(data?.modeConfig?.gameMode || 'attack') === 'worm'
-          ? buildWormPlayerPayload(playerName)
-          : buildDuelPlayerPayload(playerName)),
+        } : {
+          ...(String(data?.modeConfig?.gameMode || 'attack') === 'worm'
+            ? buildWormPlayerPayload(playerName)
+            : buildDuelPlayerPayload(playerName)),
+          uid,
+          name: sanitizeDuelName(playerName),
+          joinedAt: Date.now(),
+          online: true,
+          team: null,
+          isHost: false,
+        },
       };
 
       return {
-        ...data,
+        ...syncDuelRoomShape(data),
         players: nextPlayers,
-        status: data.status || 'waiting',
+        status: data.status || 'lobby',
         startedAtMs: data.startedAtMs || null,
         updatedAtMs: Date.now(),
       };
@@ -1052,14 +1103,14 @@ export async function startDuelRoom(roomId) {
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== DUEL_ROOM_ID_LENGTH) throw new Error(`รหัสห้องต้องเป็นตัวเลข ${DUEL_ROOM_ID_LENGTH} หลัก`);
 
-  const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
+  const roomRef = rtdbRef(rtdb, `rooms/${safeRoomId}`);
   let tx;
   try {
     tx = await runRtdbTransaction(roomRef, (data) => {
       if (!data) throw new Error('ไม่พบห้องดวลนี้');
       if (String(data.hostUid || '') !== uid) throw new Error('เฉพาะ Host เท่านั้นที่เริ่มดวลได้');
       if (data.status === 'finished') throw new Error('ห้องนี้จบดวลแล้ว');
-      if (data.status === 'active') return data;
+      if (data.status === 'playing') return data;
 
       const players = data.players || {};
       if (Object.keys(players).length < 2) {
@@ -1081,10 +1132,10 @@ export async function startDuelRoom(roomId) {
         : { players, teams: null };
 
       return {
-        ...data,
+        ...syncDuelRoomShape(data),
         players: prepared.players,
         teams: prepared.teams,
-        status: 'active',
+        status: 'playing',
         startedAtMs: Date.now(),
         updatedAtMs: Date.now(),
       };
@@ -1102,9 +1153,9 @@ export function subscribeDuelRoom(roomId, callback, onError) {
   ensureAuthReady()
     .then(() => {
       const safeRoomId = normalizeDuelRoomId(roomId);
-      const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
+      const roomRef = rtdbRef(rtdb, `rooms/${safeRoomId}`);
       unsubscribe = onValue(roomRef, (snap) => {
-        callback(snap.exists() ? { id: safeRoomId, ...snap.val() } : null);
+        callback(snap.exists() ? { id: safeRoomId, ...syncDuelRoomShape(snap.val()) } : null);
       }, onError);
     })
     .catch((error) => {
@@ -1120,13 +1171,13 @@ export async function submitDuelAnswer(roomId, payload) {
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== DUEL_ROOM_ID_LENGTH) throw new Error(`รหัสห้องต้องเป็นตัวเลข ${DUEL_ROOM_ID_LENGTH} หลัก`);
 
-  const roomRef = rtdbRef(rtdb, `duel_rooms/${safeRoomId}`);
+  const roomRef = rtdbRef(rtdb, `rooms/${safeRoomId}`);
 
   let tx;
   try {
     tx = await runRtdbTransaction(roomRef, (data) => {
       if (!data) throw new Error('ไม่พบห้องดวลนี้');
-      if (data.status !== 'active') {
+      if (data.status !== 'playing') {
         return data;
       }
       if (String(data?.modeConfig?.gameMode || 'attack') === 'worm') {
@@ -1225,7 +1276,7 @@ export async function submitDuelAnswer(roomId, payload) {
 
         const eventCounter = Number(data.eventCounter || 0) + (eventType ? 1 : 0);
         return {
-          ...data,
+          ...syncDuelRoomShape(data),
           players,
           teams,
           status: nextStatus,
@@ -1328,7 +1379,7 @@ export async function submitDuelAnswer(roomId, payload) {
       const eventCounter = Number(data.eventCounter || 0) + (eventType ? 1 : 0);
 
       return {
-        ...data,
+        ...syncDuelRoomShape(data),
         players,
         status: nextStatus,
         winnerUid,
@@ -1352,7 +1403,7 @@ export async function submitDuelAnswer(roomId, payload) {
 
   if (!tx.committed) return { accepted: false, reason: 'transaction_not_committed' };
   const nextData = tx.snapshot.val();
-  if (!nextData || nextData.status === 'active' || nextData.status === 'finished') {
+  if (!nextData || nextData.status === 'playing' || nextData.status === 'finished') {
     return { accepted: true };
   }
   return { accepted: false, reason: 'room_not_active' };
@@ -1360,7 +1411,7 @@ export async function submitDuelAnswer(roomId, payload) {
 
 export async function finalizeDuelByTimeout(roomId) {
   await ensureWriteAccess();
-  const roomRef = rtdbRef(rtdb, `duel_rooms/${normalizeDuelRoomId(roomId)}`);
+  const roomRef = rtdbRef(rtdb, `rooms/${normalizeDuelRoomId(roomId)}`);
   let finalizeReason = '';
 
   let tx;
@@ -1368,7 +1419,7 @@ export async function finalizeDuelByTimeout(roomId) {
     tx = await runRtdbTransaction(roomRef, (data) => {
       if (!data) throw new Error('ไม่พบห้องดวลนี้');
 
-      if (data.status !== 'active') {
+      if (data.status !== 'playing') {
         finalizeReason = 'room_not_active';
         return data;
       }
@@ -1390,7 +1441,7 @@ export async function finalizeDuelByTimeout(roomId) {
       const eventCounter = Number(data.eventCounter || 0) + 1;
 
       return {
-        ...data,
+        ...syncDuelRoomShape(data),
         status: 'finished',
         winnerUid: result.winnerUid,
         winReason: `timeout_${result.reason}`,

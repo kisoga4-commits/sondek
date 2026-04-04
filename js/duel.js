@@ -1,5 +1,6 @@
 import {
   createDuelRoom,
+  ensureDuelAuthReady,
   finalizeDuelByTimeout,
   getQuestionsByCourse,
   joinDuelRoom,
@@ -12,7 +13,6 @@ import {
 import { isQuestionCorrect, normalizeQuestion, pickRandomQuestions } from './quiz.js';
 import {
   buildQuestionLoop,
-  DEFAULT_QUESTION_SECONDS,
   getRoundState,
   LOOP_QUESTION_COUNT,
   normalizeRoomIdInput,
@@ -23,8 +23,9 @@ import {
 const el = {
   showHostSetupBtn: document.getElementById('showHostSetupBtn'),
   showJoinSetupBtn: document.getElementById('showJoinSetupBtn'),
-  hostSetup: document.getElementById('duelHostSetup'),
-  joinSetup: document.getElementById('duelJoinSetup'),
+  hostModal: document.getElementById('hostModal'),
+  joinModal: document.getElementById('joinModal'),
+  entrySection: document.getElementById('duelEntrySection'),
   courseIdInput: document.getElementById('duelCourseId'),
   hostNameInput: document.getElementById('duelHostName'),
   joinNameInput: document.getElementById('duelJoinName'),
@@ -37,6 +38,7 @@ const el = {
   lobbySection: document.getElementById('duelLobbySection'),
   lobbyRoomIdText: document.getElementById('duelLobbyRoomId'),
   lobbyHint: document.getElementById('duelLobbyHint'),
+  lobbyMeta: document.getElementById('duelLobbyMeta'),
   lobbyPlayers: document.getElementById('duelLobbyPlayers'),
   battleSection: document.getElementById('duelBattleSection'),
   gameMode: document.getElementById('duelGameMode'),
@@ -59,12 +61,17 @@ const el = {
 const state = {
   uid: '', roomId: '', room: null, unsubRoom: null, timerId: null, questionBank: [], loadedCourseId: '',
   selectedAnswer: null, answeredRoundIndex: -1, currentQuestionId: '', isSubmitting: false, hasRequestedFinalize: false,
+  authReady: false,
 };
 
 const setStatus = (text) => { el.statusText.textContent = text; };
-const getGameMode = (room) => String(room?.modeConfig?.gameMode || 'attack');
+const getGameMode = (room) => String(room?.modeConfig?.gameMode || room?.settings?.mode || 'attack');
 const isWorm = (room) => getGameMode(room) === 'worm';
-const isTeam = (room) => String(room?.modeConfig?.matchType || 'solo') === 'team';
+const isTeam = (room) => String(room?.modeConfig?.matchType || room?.settings?.competitionType || 'solo') === 'team';
+const getRoomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
+
+function openModal(modal) { modal?.classList.remove('hidden'); }
+function closeModal(modal) { modal?.classList.add('hidden'); }
 
 function getCurrentQuestion(room) {
   const sequence = Array.isArray(room?.questionSequence) ? room.questionSequence : [];
@@ -127,8 +134,10 @@ function renderRace(room) {
 function renderBattle(room) {
   const me = (room?.players || {})[state.uid];
   if (!me) return;
-  el.lobbySection.classList.toggle('hidden', room.status !== 'waiting');
-  el.battleSection.classList.toggle('hidden', room.status === 'waiting');
+  const roomStatus = getRoomStatus(room);
+  el.lobbySection.classList.toggle('hidden', roomStatus !== 'lobby');
+  el.battleSection.classList.toggle('hidden', roomStatus === 'lobby');
+  el.entrySection.classList.add('hidden');
   el.meName.textContent = me.name || 'ฉัน';
 
   if (isWorm(room)) {
@@ -163,6 +172,7 @@ async function loadQuestionBank(courseId) {
 
 async function handleCreateRoom() {
   try {
+    if (!state.authReady) throw new Error('ยังเชื่อมต่อระบบไม่สำเร็จ');
     const hostName = String(el.hostNameInput.value || '').trim() || 'Host';
     const courseId = String(el.courseIdInput.value || '').trim();
     if (!courseId) throw new Error('เลือกบททดสอบก่อน');
@@ -171,22 +181,20 @@ async function handleCreateRoom() {
       loopQuestionCount: LOOP_QUESTION_COUNT,
       shuffleFn: (ids) => pickRandomQuestions(ids, ids.length),
     });
-    const gameMode = el.gameMode.value;
-    const matchType = el.matchType.value;
-    const relaySize = Number(el.relaySize.value || 2);
     const created = await createDuelRoom({
       hostName,
       courseId,
       durationSeconds: Number(el.durationInput.value || 120),
       questionSequence,
-      gameMode,
-      matchType,
-      relaySize,
+      gameMode: el.gameMode.value,
+      matchType: el.matchType.value,
+      relaySize: Number(el.relaySize.value || 2),
     });
     state.roomId = created.roomId;
     state.uid = created.uid || state.uid;
     el.roomIdInput.value = created.roomId;
-    setStatus(`สร้างห้องสำเร็จ: ${created.roomId}`);
+    closeModal(el.hostModal);
+    setStatus(`สร้างห้องสำเร็จ PIN: ${created.roomId}`);
     subscribeRoom(created.roomId);
   } catch (error) {
     setStatus(error.message || 'สร้างห้องไม่สำเร็จ');
@@ -195,12 +203,14 @@ async function handleCreateRoom() {
 
 async function handleJoinRoom() {
   try {
+    if (!state.authReady) throw new Error('ยังเชื่อมต่อระบบไม่สำเร็จ');
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
-    if (roomId.length !== ROOM_ID_LENGTH) throw new Error('กรอกรหัสห้อง 6 หลัก');
+    if (roomId.length !== ROOM_ID_LENGTH) throw new Error('PIN ไม่ถูกต้อง');
     const playerName = String(el.joinNameInput.value || '').trim() || 'ผู้เล่น';
     const joined = await joinDuelRoom(roomId, playerName);
     state.roomId = roomId;
     state.uid = joined.uid || state.uid;
+    closeModal(el.joinModal);
     setStatus(`เข้าห้อง ${roomId} สำเร็จ`);
     subscribeRoom(roomId);
   } catch (error) {
@@ -219,7 +229,7 @@ async function handleStartGame() {
 
 async function submitCurrentAnswer(forceWrong = false) {
   const room = state.room;
-  if (!room || room.status !== 'active' || state.isSubmitting) return;
+  if (!room || getRoomStatus(room) !== 'playing' || state.isSubmitting) return;
   const roundIndex = getRoundState(room).roundIndex;
   if (state.answeredRoundIndex === roundIndex) return;
 
@@ -244,7 +254,7 @@ async function submitCurrentAnswer(forceWrong = false) {
 function ensureTimer(room) {
   if (state.timerId) window.clearInterval(state.timerId);
   const tick = () => {
-    if (!room || room.status !== 'active') return;
+    if (!room || getRoomStatus(room) !== 'playing') return;
     const duration = Number(room.durationSeconds || 120);
     const remainSec = Math.ceil((Number(room.startedAtMs || 0) + duration * 1000 - Date.now()) / 1000);
     const roundState = getRoundState(room);
@@ -261,30 +271,45 @@ function ensureTimer(room) {
   state.timerId = window.setInterval(tick, 400);
 }
 
+function renderLobbyMeta(room) {
+  const modeLabel = isWorm(room) ? 'วิ่งแข่ง / หนอนกระดื้บ' : 'Duel ปกติ';
+  const competition = isTeam(room) ? 'Team' : 'Solo';
+  const relay = isTeam(room) ? `(${room?.modeConfig?.relaySize === 3 ? 'x3' : 'x2'})` : '';
+  const duration = `${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`;
+  const items = [
+    `โหมด: ${modeLabel}`,
+    `ประเภท: ${competition} ${relay}`.trim(),
+    `เวลาเกม: ${duration}`,
+    `สถานะ: ${getRoomStatus(room) === 'lobby' ? 'รอเริ่ม' : (getRoomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม')}`,
+  ];
+  el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
+}
+
 function handleRoomUpdate(room) {
   if (!room) return;
   state.room = room;
-  const roomCourseId = String(room.courseId || '');
+  const roomCourseId = String(room.courseId || room?.settings?.quizId || '');
   if (roomCourseId && roomCourseId !== state.loadedCourseId) {
     void loadQuestionBank(roomCourseId).then(() => renderQuestion(room));
   }
 
   const players = Object.values(room.players || {});
-  el.lobbyRoomIdText.textContent = room.roomId || state.roomId;
+  el.lobbyRoomIdText.textContent = room.pin || room.roomId || state.roomId;
   el.lobbyPlayers.innerHTML = '';
   players.forEach((p) => {
     const chip = document.createElement('div');
     chip.className = 'duel-lobby-chip';
-    const suffix = isWorm(room) ? `แต้ม ${Number(p?.score || 0)}` : `HP ${Number(p?.hp || 0)}`;
-    chip.textContent = `${p?.name || 'ผู้เล่น'} (${suffix})`;
+    chip.textContent = `${p?.name || 'ผู้เล่น'}${p?.isHost ? ' (Host)' : ''}`;
     el.lobbyPlayers.appendChild(chip);
   });
 
+  renderLobbyMeta(room);
   const isHost = String(room.hostUid || '') === state.uid;
-  el.startGameBtn.classList.toggle('hidden', !isHost || room.status !== 'waiting');
-  el.createRoomBtn.disabled = Boolean(state.room && state.room.status !== 'finished');
+  const roomStatus = getRoomStatus(room);
+  el.startGameBtn.classList.toggle('hidden', !isHost || roomStatus !== 'lobby');
+  el.lobbyHint.textContent = players.length < 2 ? 'รอผู้เล่นเข้าห้อง...' : 'พร้อมเริ่มเกม';
 
-  if (room.status === 'finished') {
+  if (roomStatus === 'finished') {
     const winnerUid = String(room.winnerUid || '');
     if (!winnerUid) el.resultHint.textContent = 'เสมอ';
     else if (winnerUid === state.uid || winnerUid === `team:${(room.players?.[state.uid] || {}).teamId}`) el.resultHint.textContent = '🎉 คุณชนะ';
@@ -297,7 +322,9 @@ function handleRoomUpdate(room) {
 
 function subscribeRoom(roomId) {
   if (state.unsubRoom) state.unsubRoom();
-  state.unsubRoom = subscribeDuelRoom(roomId, handleRoomUpdate, (error) => setStatus(error.message));
+  state.unsubRoom = subscribeDuelRoom(roomId, handleRoomUpdate, () => {
+    setStatus('ยังเชื่อมต่อระบบไม่สำเร็จ');
+  });
 }
 
 function renderCourseIdOptions(courses) {
@@ -315,23 +342,33 @@ function renderCourseIdOptions(courses) {
   el.courseIdInput.value = current;
 }
 
-function init() {
-  el.showHostSetupBtn.addEventListener('click', () => {
-    el.hostSetup.classList.remove('hidden');
-    el.joinSetup.classList.add('hidden');
-    setStatus('ตั้งค่าโหมดเกม แล้วสร้างห้องเพื่อรอเริ่มแข่ง');
+async function init() {
+  setStatus('กำลังเชื่อมต่อระบบ...');
+  subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
+  try {
+    await ensureDuelAuthReady();
+    state.authReady = true;
+    setStatus('พร้อมเข้าเล่น เลือก Host หรือ Join ได้เลย');
+  } catch (_error) {
+    setStatus('ยังเชื่อมต่อระบบไม่สำเร็จ');
+  }
+
+  subscribeCourses(renderCourseIdOptions, () => {});
+  el.showHostSetupBtn.addEventListener('click', () => openModal(el.hostModal));
+  el.showJoinSetupBtn.addEventListener('click', () => openModal(el.joinModal));
+  document.querySelectorAll('[data-close-modal]').forEach((btn) => {
+    btn.addEventListener('click', () => closeModal(document.getElementById(btn.dataset.closeModal)));
   });
-  el.showJoinSetupBtn.addEventListener('click', () => {
-    el.joinSetup.classList.remove('hidden');
-    el.hostSetup.classList.add('hidden');
-    setStatus('กรอกรหัสห้อง 6 หลักเพื่อ Join');
+  [el.hostModal, el.joinModal].forEach((modal) => {
+    modal?.addEventListener('click', (event) => {
+      if (event.target === modal) closeModal(modal);
+    });
   });
+
   el.roomIdInput.addEventListener('input', () => { el.roomIdInput.value = normalizeRoomIdInput(el.roomIdInput.value); });
   el.matchType.addEventListener('change', () => {
     el.relayWrap.classList.toggle('hidden', el.matchType.value !== 'team');
   });
-  subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
-  subscribeCourses(renderCourseIdOptions, () => {});
   el.createRoomBtn.addEventListener('click', () => { void handleCreateRoom(); });
   el.joinRoomBtn.addEventListener('click', () => { void handleJoinRoom(); });
   el.startGameBtn.addEventListener('click', () => { void handleStartGame(); });
@@ -339,4 +376,4 @@ function init() {
   el.skipBtn.addEventListener('click', () => { void submitCurrentAnswer(true); });
 }
 
-init();
+void init();

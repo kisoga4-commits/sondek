@@ -2,12 +2,26 @@
   "rules": {
     ".read": false,
     ".write": false,
-    "duel_rooms": {
+    "rooms": {
       "$roomId": {
-        ".read": "auth != null && $roomId.matches(/^[0-9]{4}$/)",
-        ".write": "auth != null && $roomId.matches(/^[0-9]{4}$/)",
-        ".validate": "newData.hasChildren(['roomId', 'status', 'players', 'updatedAtMs']) && newData.child('roomId').val() === $roomId && newData.child('players').childrenCount() <= 2"
+        ".read": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
+        ".write": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
+        "players": {
+          "$uid": {
+            ".validate": "newData.hasChildren(['name'])"
+          }
+        },
+        "settings": {
+          ".validate": "newData.hasChildren(['mode','competitionType','durationMinutes','quizId'])"
+        },
+        "state": {
+          ".validate": "newData.hasChildren(['status'])"
+        }
       }
+    },
+    "duel_rooms": {
+      ".read": false,
+      ".write": false
     }
   }
 }
