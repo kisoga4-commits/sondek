@@ -1944,3 +1944,21 @@ select:focus {
     width: 100%;
   }
 }
+
+.duel-race-lane.is-me {
+  border: 2px solid #2f7bff;
+  transform: scale(1.02);
+}
+.duel-race-lane.is-my-team {
+  background: rgba(47, 123, 255, 0.08);
+}
+.duel-question-card .choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 720px) {
+  .duel-question-card .choices {
+    grid-template-columns: 1fr;
+  }
+}
