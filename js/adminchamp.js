@@ -107,6 +107,17 @@ function getFriendlyProfileSaveError(error) {
   return `บันทึกโปรไฟล์ไม่สำเร็จ${errorMessage ? `: ${errorMessage}` : ''}`;
 }
 
+function getFriendlyCourseOfferError(error) {
+  const code = String(error?.code || '');
+  if (code.includes('permission-denied')) {
+    return 'เพิ่มคอร์สไม่สำเร็จ: บัญชีนี้ยังไม่มีสิทธิ์เขียนข้อมูลคอร์สที่เปิดสอน';
+  }
+  if (code.includes('auth/')) {
+    return 'เพิ่มคอร์สไม่สำเร็จ: ระบบยืนยันตัวตน Firebase ยังไม่พร้อม (Anonymous Auth)';
+  }
+  return `เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่ (${code || 'unknown-error'})`;
+}
+
 function updateProfileImagePreviewStatus() {
   if (!profileImagePreviewStatus) return;
   const value = String(profileImageInput?.value || '').trim();
@@ -221,7 +232,7 @@ async function onSaveCourseOffering(event) {
   } catch (error) {
     console.error(error);
     if (courseOfferStatus) courseOfferStatus.textContent = 'เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่';
-    alert('เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่');
+    alert(getFriendlyCourseOfferError(error));
   } finally {
     if (saveCourseOfferBtn) saveCourseOfferBtn.disabled = false;
   }

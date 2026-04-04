@@ -458,7 +458,7 @@ export async function saveCourseOffering(courseOffer) {
   await ensureWriteAccess();
   const courseId = `offer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const scheduleDetails = String(courseOffer?.scheduleDetails || courseOffer?.day || '').trim();
-  await setDoc(doc(db, 'course_offerings', courseId), {
+  const payload = {
     courseId,
     title: String(courseOffer?.title || '').trim(),
     scheduleDetails,
@@ -470,7 +470,21 @@ export async function saveCourseOffering(courseOffer) {
     enrollments: [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
+
+  try {
+    await setDoc(doc(db, 'course_offerings', courseId), payload);
+  } catch (error) {
+    const code = String(error?.code || '');
+    const mayBlockTimestamp = code.includes('permission-denied') || code.includes('failed-precondition');
+    if (!mayBlockTimestamp) throw error;
+
+    await setDoc(doc(db, 'course_offerings', courseId), {
+      ...payload,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
 }
 
 export async function updateCourseOffering(courseId, payload) {
