@@ -1,7 +1,7 @@
 # แนวทางแก้ `permission_denied` ของ Duel Mode (อัปเดต)
 
 ## ทำไมยังเจอ `permission_denied`
-สาเหตุที่เจอบ่อยในระบบนี้มี 4 ข้อ:
+สาเหตุที่เจอบ่อยในระบบนี้มี 5 ข้อ:
 
 1. **ยังไม่ได้เปิด Anonymous Auth**
    - ฝั่งเว็บใช้ `signInAnonymously()` ก่อนอ่าน/เขียน Firebase
@@ -19,11 +19,31 @@
    - ถ้ากติกา `.validate` บังคับรูปแบบไม่ตรง payload ที่เกมเขียนจริง (เช่น transaction update รอบเกม)
    - RTDB จะตอบกลับ `permission_denied`
 
+5. **เกมใหม่ต้องแก้ rules ทีละเกม (โครงสร้าง rules ไม่ยืดหยุ่น)**
+   - ถ้าผูก rules ไว้กับชื่อเกมเดียว เช่น `pob_rooms` พอเพิ่มเกมใหม่ต้องกลับมาแก้และ deploy ใหม่
+   - ตอนนี้แก้เป็น pattern กลาง `*_rooms/{roomId}/public|private` เพื่อให้รองรับหลายเกมทันที
+
+---
+
+## โครงสร้างกลางสำหรับทุกเกม (Realtime Database)
+ใช้รูปแบบนี้กับทุกเกม:
+
+- `xxx_rooms/{roomId}/public` = ข้อมูลสาธารณะของห้อง
+- `xxx_rooms/{roomId}/private/{uid}` = ข้อมูลลับรายผู้เล่น
+- host ของเกมเก็บใน `xxx_rooms/{roomId}/public/hostUid`
+
+สิทธิ์หลัก:
+- ผู้เล่นที่ล็อกอินแล้ว อ่าน `public` ได้
+- เจ้าของห้อง (hostUid) เขียน `public` และจัดการ `private` ได้
+- ผู้เล่นอ่าน/เขียน private ของตัวเอง (`auth.uid == $uid`) ได้
+
+> หมายเหตุ: `rooms` และ `duel_rooms` ยังใช้ rules เฉพาะเดิม ไม่ได้รับผลจาก pattern กลาง
+
 ---
 
 ## สรุปสั้น ๆ ว่าต้องแก้อะไร
 1. เปิด `Firebase Console > Authentication > Sign-in method > Anonymous` เป็น **Enabled**
-2. ใช้ไฟล์ `database.rules.json` ใน repo นี้ (รองรับทั้ง `rooms` และ `duel_rooms`)
+2. ใช้ไฟล์ `database.rules.json` ใน repo นี้
 3. Deploy RTDB rules:
 
 ```bash
@@ -42,21 +62,7 @@ firebase deploy --only database
 
 ## ถ้ายังไม่หายหลัง deploy
 1. ไปที่ `Realtime Database > Data`
-2. ลบ node `rooms` (และ `duel_rooms` ถ้ามีของเก่าค้าง)
+2. ลบ node ห้องที่ค้างจากการทดสอบก่อนหน้า
 3. รีเฟรชหน้าและสร้างห้องใหม่
 
 > การลบ node จะเคลียร์ห้องที่กำลังรอ/กำลังเล่นทั้งหมด
-
-
-## เช็คลิสต์ก่อนขยายเกมใหม่ (Firestore Rules)
-สำหรับเกมที่มีข้อมูลลับต่อผู้เล่น (เช่น role/action)
-ให้ใช้ pattern เดียวกับ Secret Village:
-
-- ข้อมูลสาธารณะ: `/duel_rooms/{roomId}`
-- ข้อมูลลับรายคน: `/duel_rooms/{roomId}/private_players/{userId}`
-- Rule หลัก: อนุญาตเฉพาะ `request.auth.uid == userId` ใน private path
-
-แนวทางนี้ทำให้โค้ดฝั่งหน้าเว็บรองรับเกมอนาคตได้ง่าย:
-1. อ่านสถานะรวมจาก document ห้อง (public)
-2. อ่านข้อมูลลับจากเอกสารของตัวเองเท่านั้น (private)
-3. ไม่ต้องเปิดสิทธิ์อ่าน private ของผู้เล่นอื่น
