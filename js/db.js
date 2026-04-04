@@ -989,7 +989,7 @@ export async function createDuelRoom(payload) {
           team: null,
           isHost: true,
         };
-        return {
+        const initialRoom = {
           roomId,
           pin: roomId,
           courseId: String(payload?.courseId || '').trim(),
@@ -1013,6 +1013,7 @@ export async function createDuelRoom(payload) {
           startedAtMs: null,
           endedAtMs: null,
         };
+        return syncDuelRoomShape(initialRoom);
       });
       if (!tx.committed) {
         const collision = new Error('duel room already exists');
