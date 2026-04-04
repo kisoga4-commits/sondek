@@ -1132,6 +1132,7 @@ export async function startDuelRoom(roomId) {
         players: normalizedPlayers,
         teams,
         status: 'playing',
+        currentRoundIndex: 0,
         startedAtMs: nowMs,
         updatedAtMs: nowMs,
       };
@@ -1175,12 +1176,16 @@ export async function submitDuelAnswer(roomId, payload) {
       if (!data) throw new Error('ไม่พบห้องดวลนี้');
       if (data.status !== 'playing') return data;
       const nowMs = Date.now();
+      const gameMode = String(data?.modeConfig?.gameMode || 'quick');
+      const isWormMode = gameMode === 'worm';
       const questionSeconds = Math.max(5, Number(data.questionSeconds || DUEL_QUESTION_SECONDS));
       const revealSeconds = Math.max(0.3, Number(data.revealSeconds || DUEL_REVEAL_SECONDS));
       const roundMs = Math.round((questionSeconds + revealSeconds) * 1000);
       const elapsedMs = Math.max(0, nowMs - Number(data.startedAtMs || 0));
-      const roundIndex = Math.floor(elapsedMs / roundMs);
-      const inReveal = (elapsedMs % roundMs) >= questionSeconds * 1000;
+      const roundIndex = isWormMode
+        ? Math.max(0, Number(data.currentRoundIndex || 0))
+        : Math.floor(elapsedMs / roundMs);
+      const inReveal = !isWormMode && (elapsedMs % roundMs) >= questionSeconds * 1000;
       if (inReveal) return data;
 
       const players = { ...(data.players || {}) };
@@ -1277,6 +1282,7 @@ export async function submitDuelAnswer(roomId, payload) {
         ...syncDuelRoomShape(data),
         players,
         status: nextStatus,
+        currentRoundIndex: isWormMode ? (roundIndex + 1) : Number(data.currentRoundIndex || 0),
         winnerUid,
         winReason,
         eventCounter,
