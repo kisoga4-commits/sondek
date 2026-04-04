@@ -6,23 +6,22 @@
       "$roomId": {
         ".read": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
         ".write": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
-        ".validate": "newData.hasChildren(['roomId', 'pin', 'courseId', 'status', 'hostUid', 'players', 'updatedAtMs', 'createdAtMs'])",
         "roomId": {
-          ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4,6}$/)"
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4,6}$/))"
         },
         "pin": {
-          ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4,6}$/)"
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4,6}$/))"
         },
         "status": {
-          ".validate": "newData.isString() && (newData.val() === 'lobby' || newData.val() === 'playing' || newData.val() === 'finished')"
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
         },
         "hostUid": {
-          ".validate": "newData.isString() && newData.val().length > 0"
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
         },
         "players": {
-          ".validate": "newData.hasChildren()",
+          ".validate": "!newData.exists() || newData.hasChildren()",
           "$uid": {
-            ".validate": "newData.hasChildren(['uid', 'name']) && newData.child('uid').isString() && newData.child('name').isString()"
+            ".validate": "!newData.exists() || (newData.child('uid').isString() && newData.child('name').isString())"
           }
         }
       }

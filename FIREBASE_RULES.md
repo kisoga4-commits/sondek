@@ -26,7 +26,8 @@
 ไฟล์ `database.rules.json` ถูกตั้งค่าให้:
 - อนุญาต `read/write` เฉพาะ user ที่ login แล้ว (`auth != null`)
 - อนุญาตเฉพาะ `roomId` ที่เป็นตัวเลข 4-6 หลัก
-- รองรับโครงสร้างห้อง Duel ใหม่ (`status`, `modeConfig`, `players`, `updatedAtMs`, ฯลฯ)
+- ตั้ง validation แบบยืดหยุ่น (schema-light) เพื่อรองรับโหมดเกมใหม่ในอนาคต โดยไม่ผูกตายกับโครงสร้าง `settings/state` แบบเก่า
+- ยังมี guard ขั้นพื้นฐานกับฟิลด์หลักที่ใช้บ่อย เช่น `roomId`, `pin`, `hostUid`, `players`
 
 ## ถ้ายังไม่หาย: รีเซ็ตระบบ Duel แล้วเริ่มใหม่
 ถ้าข้อมูลห้องเดิมค้าง/เพี้ยน ให้ลบ node `rooms` ทั้งหมดใน Realtime Database แล้วเริ่มสร้างห้องใหม่:
