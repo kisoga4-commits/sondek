@@ -352,7 +352,9 @@ function handleRoomUpdate(room) {
   el.duelModeTitle.textContent = `${gameLabel} • ${String(room?.modeConfig?.matchType || 'solo').toUpperCase()}`;
   if (roomStatus(room) === 'playing' && currentQuestion) {
     el.resultHint.textContent = isWormMode
-      ? `โหมดหนอนกระดื้บ ${matchType === 'party' ? 'TEAM' : 'SOLO'}: ตอบใครตอบมัน ไปข้อถัดไปทันที ไม่ต้องรอใคร`
+      ? (matchType === 'party'
+        ? 'โหมดหนอนกระดื้บ TEAM: แต่ละทีมตอบของทีมตัวเอง ผู้ถือไม้เท่านั้นที่ตอบได้ พอครบระยะจึงส่งไม้ให้คนถัดไป'
+        : 'โหมดหนอนกระดื้บ SOLO: ตอบใครตอบมัน ไปข้อถัดไปทันที ไม่ต้องรอใคร')
       : 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
 
