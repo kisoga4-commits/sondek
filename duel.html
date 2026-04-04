@@ -3,42 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pakdu Duel Mode</title>
+    <title>หนอนกระดื้บ</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <main class="container home-layout duel-page">
       <section class="card duel-entry-card" id="duelEntrySection">
-        <div class="hero-badge">DUEL MODE</div>
-        <h1>⚔️ Duel Arena</h1>
-        <p class="muted">ตอบคำถามดวลกันแบบเรียลไทม์ ใครทำแต้มดีกว่าชนะ</p>
+        <div class="hero-badge">หนอนกระดื้บ</div>
+        <h1>🐛 สนามแข่งคำถาม</h1>
+        <p class="muted">ตอบถูกเดินหน้า ตอบผิดสะสมโดนลงโทษ แข่งให้ถึงเส้นชัยก่อนหมดเวลา</p>
         <div class="quiz-actions duel-entry-actions">
           <button id="showHostSetupBtn" class="btn duel-big-btn" type="button">Host</button>
           <button id="showJoinSetupBtn" class="btn btn-secondary duel-big-btn" type="button">Join</button>
-        </div>
-        <div class="quiz-actions">
-          <a class="btn duel-ghost-btn" href="index.html">กลับหน้า Home</a>
         </div>
         <p id="duelStatusText" class="muted"></p>
       </section>
 
       <section class="card hidden duel-lobby-card" id="duelLobbySection">
         <div class="duel-lobby-head">
-          <p class="duel-mode-label" id="duelLobbyModeText">DUEL MODE</p>
+          <p class="duel-mode-label" id="duelLobbyModeText">WORM RACE</p>
           <p class="duel-lobby-pin">PIN <span id="duelLobbyRoomId">----</span></p>
         </div>
         <p class="muted" id="duelLobbyHint">รอผู้เล่นเข้าห้อง...</p>
         <div id="duelLobbyMeta" class="duel-lobby-meta"></div>
         <div id="duelLobbyPlayers" class="duel-lobby-players"></div>
         <div class="quiz-actions">
-          <button id="startGameBtn" class="btn hidden" type="button">Start Duel</button>
+          <button id="startGameBtn" class="btn hidden" type="button">เริ่มเกม</button>
         </div>
       </section>
 
       <section class="card hidden duel-battle-shell" id="duelBattleSection">
         <header class="duel-topbar">
           <div>
-            <p class="duel-mode-label" id="duelModeTitle">Duel Mode</p>
+            <p class="duel-mode-label" id="duelModeTitle">หนอนกระดื้บ</p>
             <p class="duel-room-label">Room <span id="duelBattleRoomId">----</span></p>
           </div>
           <div class="duel-topbar-stats">
@@ -49,32 +46,21 @@
         </header>
 
         <section class="duel-race-arena">
-          <div id="duelOthersHp" class="duel-others-hp"></div>
           <div id="duelRaceBoard" class="duel-race-board"></div>
         </section>
 
         <section class="duel-question-card">
-          <small id="duelResultHint" class="duel-result-hint">รอเริ่มเกม...</small>
+          <small id="duelResultHint" class="duel-result-hint">อ่านโจทย์แล้วตอบได้เลย</small>
           <h2 id="duelQuestionTitle">กำลังรอคำถาม...</h2>
-          <p id="duelStunHint" class="duel-stun-hint hidden">คุณติด STUN กรุณารอสักครู่</p>
+          <p id="duelStunHint" class="duel-stun-hint hidden"></p>
           <div id="duelChoices" class="choices"></div>
-          <div class="quiz-actions duel-answer-actions">
-            <button id="duelSkipBtn" class="btn btn-secondary duel-answer-btn" type="button">ข้ามข้อนี้</button>
-          </div>
-          <div class="duel-audio-row">
-            <label class="duel-audio-toggle" for="duelSoundToggle">
-              <input id="duelSoundToggle" type="checkbox" checked />
-              <span>เสียงแซวแบบสุภาพ</span>
-            </label>
-            <span id="duelAudioHint" class="muted">เปิด</span>
-          </div>
         </section>
       </section>
     </main>
 
     <section id="hostModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="hostModalTitle">
       <article class="card duel-modal-card">
-        <h3 id="hostModalTitle">สร้างห้อง Duel</h3>
+        <h3 id="hostModalTitle">สร้างห้อง หนอนกระดื้บ</h3>
         <div class="duel-setup-grid duel-setup-grid--single">
           <label>ชื่อผู้เล่น
             <input id="duelHostName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
@@ -85,15 +71,21 @@
             </select>
           </label>
           <label>โหมดเกม
-            <select id="duelGameMode">
-              <option value="attack">เกมส์ตอบให้ไว</option>
-              <option value="worm">วิ่งแข่ง / หนอนกระดื้บ</option>
+            <select id="duelMatchType">
+              <option value="solo">Solo (2-4 คน)</option>
+              <option value="party">Party (2 ทีม)</option>
             </select>
           </label>
-          <label>ประเภทแมตช์
-            <select id="duelMatchType">
-              <option value="solo">Solo</option>
-              <option value="party">Party</option>
+          <label>ทีม (Party)
+            <select id="duelTeamSize">
+              <option value="2">Team x2</option>
+              <option value="3">Team x3</option>
+            </select>
+          </label>
+          <label>เส้นชัย
+            <select id="duelFinishDistance">
+              <option value="10">10 ช่อง</option>
+              <option value="20">20 ช่อง</option>
             </select>
           </label>
           <label>เวลาเกม
@@ -114,13 +106,13 @@
 
     <section id="joinModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="joinModalTitle">
       <article class="card duel-modal-card">
-        <h3 id="joinModalTitle">เข้าห้อง Duel</h3>
+        <h3 id="joinModalTitle">เข้าห้อง หนอนกระดื้บ</h3>
         <div class="duel-setup-grid duel-setup-grid--single">
           <label>ชื่อผู้เล่น
             <input id="duelJoinName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
           </label>
           <label>PIN ห้อง
-            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 4-6 หลัก" />
+            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 6 หลัก" />
           </label>
         </div>
         <div class="quiz-actions">
@@ -132,7 +124,7 @@
 
     <section id="duelFinishModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="duelFinishTitle">
       <article class="card duel-modal-card">
-        <h3 id="duelFinishTitle">ผลการดวล</h3>
+        <h3 id="duelFinishTitle">ผลการแข่งขัน</h3>
         <p id="duelFinishMessage">กำลังสรุปผล...</p>
         <div class="quiz-actions">
           <a class="btn" href="duel.html">ออกจากห้อง</a>
