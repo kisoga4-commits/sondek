@@ -56,6 +56,30 @@ export function buildQuestionLoop(questionBank, {
   return loop.slice(0, loopQuestionCount);
 }
 
+export function buildPersonalQuestionLoop(questionBank, actorKey, {
+  loopQuestionCount = LOOP_QUESTION_COUNT,
+} = {}) {
+  const ids = Array.isArray(questionBank)
+    ? questionBank.map((item) => String(item.id))
+    : [];
+  if (!ids.length) return [];
+  const seedKey = String(actorKey || 'duel');
+  let seed = 0;
+  for (let index = 0; index < seedKey.length; index += 1) {
+    seed = (seed * 31 + seedKey.charCodeAt(index)) >>> 0;
+  }
+  const seededShuffle = (items) => {
+    const cloned = [...items];
+    for (let i = cloned.length - 1; i > 0; i -= 1) {
+      seed = ((seed * 1664525) + 1013904223) >>> 0;
+      const j = seed % (i + 1);
+      [cloned[i], cloned[j]] = [cloned[j], cloned[i]];
+    }
+    return cloned;
+  };
+  return buildQuestionLoop(ids.map((id) => ({ id })), { loopQuestionCount, shuffleFn: seededShuffle });
+}
+
 function defaultShuffleArray(items) {
   const cloned = [...items];
   for (let i = cloned.length - 1; i > 0; i -= 1) {

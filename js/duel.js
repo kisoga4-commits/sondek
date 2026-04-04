@@ -12,6 +12,7 @@ import {
 } from './db.js';
 import { isQuestionCorrect, normalizeQuestion, pickRandomQuestions } from './quiz.js';
 import {
+  buildPersonalQuestionLoop,
   buildQuestionLoop,
   getRoundState,
   LOOP_QUESTION_COUNT,
@@ -25,6 +26,8 @@ const el = {
   showJoinSetupBtn: document.getElementById('showJoinSetupBtn'),
   hostModal: document.getElementById('hostModal'),
   joinModal: document.getElementById('joinModal'),
+  finishModal: document.getElementById('duelFinishModal'),
+  finishMessage: document.getElementById('duelFinishMessage'),
   entrySection: document.getElementById('duelEntrySection'),
   courseIdInput: document.getElementById('duelCourseId'),
   hostNameInput: document.getElementById('duelHostName'),
@@ -45,11 +48,6 @@ const el = {
   battleRoomId: document.getElementById('duelBattleRoomId'),
   duelModeTitle: document.getElementById('duelModeTitle'),
   roundText: document.getElementById('duelRoundText'),
-  gameMode: document.getElementById('duelGameMode'),
-  matchType: document.getElementById('duelMatchType'),
-  relayWrap: document.getElementById('duelRelayWrap'),
-  relaySize: document.getElementById('duelRelaySize'),
-  othersHpWrap: document.getElementById('duelOthersHp'),
   timerText: document.getElementById('duelTimerText'),
   resultHint: document.getElementById('duelResultHint'),
   stunHint: document.getElementById('duelStunHint'),
@@ -57,22 +55,18 @@ const el = {
   audioHint: document.getElementById('duelAudioHint'),
   questionTitle: document.getElementById('duelQuestionTitle'),
   choicesWrap: document.getElementById('duelChoices'),
-  submitBtn: document.getElementById('duelSubmitBtn'),
   skipBtn: document.getElementById('duelSkipBtn'),
   raceBoard: document.getElementById('duelRaceBoard'),
+  othersHpWrap: document.getElementById('duelOthersHp'),
 };
 
 const state = {
   uid: '', roomId: '', room: null, unsubRoom: null, timerId: null, questionBank: [], loadedCourseId: '',
   selectedAnswer: null, answeredRoundIndex: -1, currentQuestionId: '', isSubmitting: false, hasRequestedFinalize: false,
-  authReady: false,
-  soundEnabled: true,
+  authReady: false, soundEnabled: true, shownFinishRoomId: '', personalQuestionLoop: [],
 };
 
 const setStatus = (text) => { el.statusText.textContent = text; };
-const getGameMode = (room) => String(room?.modeConfig?.gameMode || room?.settings?.mode || 'attack');
-const isWorm = (room) => getGameMode(room) === 'worm';
-const isTeam = (room) => String(room?.modeConfig?.matchType || room?.settings?.competitionType || 'solo') === 'team';
 const getRoomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
 let audioCtx = null;
 
@@ -84,21 +78,33 @@ function playUiTone(type = 'ok') {
   const oscillator = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   oscillator.type = 'triangle';
-  oscillator.frequency.value = type === 'warn' ? 200 : 560;
+  oscillator.frequency.value = type === 'warn' ? 220 : 580;
   gain.gain.value = 0.05;
   oscillator.connect(gain);
   gain.connect(audioCtx.destination);
   oscillator.start();
-  oscillator.stop(audioCtx.currentTime + (type === 'warn' ? 0.08 : 0.06));
+  oscillator.stop(audioCtx.currentTime + 0.06);
 }
 
 function openModal(modal) { modal?.classList.remove('hidden'); }
 function closeModal(modal) { modal?.classList.add('hidden'); }
 
+function ensurePersonalLoop(room) {
+  const key = `${room?.roomId || state.roomId}_${state.uid}_${room?.startedAtMs || 0}`;
+  if (!state.personalQuestionLoop.length || state.personalLoopKey !== key) {
+    state.personalLoopKey = key;
+    state.personalQuestionLoop = buildPersonalQuestionLoop(state.questionBank, key, {
+      loopQuestionCount: LOOP_QUESTION_COUNT,
+    });
+  }
+}
+
 function getCurrentQuestion(room) {
-  const sequence = Array.isArray(room?.questionSequence) ? room.questionSequence : [];
   const idx = getRoundState(room).roundIndex;
-  if (idx < 0 || !sequence.length) return null;
+  if (idx < 0) return null;
+  ensurePersonalLoop(room);
+  const sequence = state.personalQuestionLoop;
+  if (!sequence.length) return null;
   const questionId = String(sequence[idx % sequence.length] || '');
   state.currentQuestionId = questionId;
   const row = state.questionBank.find((q) => String(q.id) === questionId);
@@ -108,16 +114,13 @@ function getCurrentQuestion(room) {
 function renderQuestion(room) {
   const question = getCurrentQuestion(room);
   const roundState = getRoundState(room);
-  const me = (room?.players || {})[state.uid] || {};
-  const stun = Math.max(0, Math.ceil((Number(me?.stunnedUntilMs || 0) - Date.now()) / 1000));
   const hasAnsweredThisRound = state.answeredRoundIndex === roundState.roundIndex;
-  const isLocked = stun > 0 || roundState.isReveal || hasAnsweredThisRound;
-  el.submitBtn.disabled = true;
+  const isLocked = roundState.isReveal || hasAnsweredThisRound;
   el.skipBtn.disabled = isLocked;
-  el.stunHint.classList.toggle('hidden', !(stun > 0 || roundState.isReveal || hasAnsweredThisRound));
-  if (stun > 0) el.stunHint.textContent = `คุณติด STUN ${stun}s กรุณารอสักครู่`;
-  else if (roundState.isReveal) el.stunHint.textContent = 'กำลังเปลี่ยนข้อ...';
+  el.stunHint.classList.toggle('hidden', !(roundState.isReveal || hasAnsweredThisRound));
+  if (roundState.isReveal) el.stunHint.textContent = 'กำลังเปลี่ยนข้อ...';
   else if (hasAnsweredThisRound) el.stunHint.textContent = 'ส่งคำตอบแล้ว รอข้อถัดไป';
+
   if (!question) {
     el.questionTitle.textContent = 'กำลังรอคำถาม...';
     el.choicesWrap.innerHTML = '';
@@ -130,13 +133,12 @@ function renderQuestion(room) {
     label.className = 'choice';
     const radio = document.createElement('input');
     radio.type = 'radio';
-    radio.name = 'duelChoice';
+    radio.name = `duelChoice_${roundState.roundIndex}`;
     radio.value = String(idx);
     radio.disabled = isLocked;
     radio.addEventListener('change', () => {
       if (isLocked) return;
       state.selectedAnswer = Number(radio.value);
-      el.submitBtn.disabled = false;
       void submitCurrentAnswer(false);
     });
     const span = document.createElement('span');
@@ -148,47 +150,14 @@ function renderQuestion(room) {
 
 function renderRace(room) {
   el.raceBoard.innerHTML = '';
-  if (!isWorm(room)) return;
-  const players = Object.entries(room.players || {}).sort((a, b) => Number(b?.[1]?.score || 0) - Number(a?.[1]?.score || 0));
-  const palette = ['#0ea5e9', '#22c55e', '#f59e0b', '#8b5cf6', '#14b8a6', '#f97316'];
+  const players = Object.entries(room.players || {}).sort((a, b) => Number(b?.[1]?.hp || 0) - Number(a?.[1]?.hp || 0));
   players.forEach(([uid, p], idx) => {
     const lane = document.createElement('div');
     lane.className = 'duel-race-lane';
-    const score = Number(p?.score || 0);
-    const stun = Math.max(0, Math.ceil((Number(p?.stunnedUntilMs || 0) - Date.now()) / 1000));
-    const combo = Number(p?.combo || p?.streak || p?.correctStreak || 0);
-    const warning = Number(p?.wrongStreak || 0) >= 2 ? ' ⚠️ใกล้โดนโทษ' : '';
-    const active = isTeam(room)
-      ? Number((room.teams?.[p?.teamId] || {}).activeRelayOrder || 0) === Number(p?.relayOrder || 0)
-      : true;
-    const relaySize = Number(room?.modeConfig?.relaySize || 1);
-    const members = isTeam(room)
-      ? Object.values(room?.players || {}).filter((member) => String(member?.teamId || '') === String(p?.teamId || ''))
-        .sort((m1, m2) => Number(m1?.relayOrder || 0) - Number(m2?.relayOrder || 0))
-      : [];
-    const memberHtml = isTeam(room)
-      ? `<div class="duel-lane-team">${
-        members.map((member) => {
-          const memberStun = Math.max(0, Math.ceil((Number(member?.stunnedUntilMs || 0) - Date.now()) / 1000));
-          const classes = ['duel-member-pill'];
-          if (Number(member?.relayOrder || 0) === Number((room.teams?.[p?.teamId] || {}).activeRelayOrder || 0)) classes.push('is-active');
-          if (memberStun > 0) classes.push('is-stunned');
-          if (Number(member?.relayOrder || 0) < Number((room.teams?.[p?.teamId] || {}).activeRelayOrder || 0)) classes.push('is-passed');
-          return `<span class="${classes.join(' ')}">${member?.name || `P${member?.relayOrder || 1}`}</span>`;
-        }).join('')
-      }</div>`
-      : '';
-    const runnerClass = ['duel-lane-runner'];
-    if (active) runnerClass.push('is-active');
-    if (stun > 0) runnerClass.push('is-stunned');
-    const laneTitle = isTeam(room)
-      ? `${p?.teamId ? `Team ${p.teamId}` : (p?.name || uid)} ${relaySize > 1 ? `(x${relaySize})` : ''}`
-      : `${p?.name || uid}`;
-    const badge = combo >= 3 ? ` <span class="duel-lobby-chip">x${combo} Combo</span>` : '';
+    const hp = Math.max(0, Number(p?.hp || 0));
     lane.innerHTML = `
-      <div class="duel-race-top"><span class="${runnerClass.join(' ')}">${idx === 0 ? '👑 ' : ''}${laneTitle}${active ? ' • Active' : ''}${stun > 0 ? ` • STUN ${stun}s` : ''}${badge}</span><span>${score} แต้ม${warning}</span></div>
-      ${memberHtml}
-      <div class="duel-race-track"><span style="width:${Math.min(100, score * 8)}%;background:${palette[idx % palette.length]}"></span></div>
+      <div class="duel-race-top"><span class="duel-lane-runner">${idx === 0 ? '👑 ' : ''}${p?.name || uid}</span><span>${hp}/${START_HP} HP</span></div>
+      <div class="duel-race-track"><span style="width:${Math.round((hp / START_HP) * 100)}%"></span></div>
     `;
     el.raceBoard.appendChild(lane);
   });
@@ -202,26 +171,18 @@ function renderBattle(room) {
   el.battleSection.classList.toggle('hidden', roomStatus === 'lobby');
   el.entrySection.classList.add('hidden');
   el.battleRoomId.textContent = room.pin || room.roomId || state.roomId;
-  el.duelModeTitle.textContent = isWorm(room) ? 'Race · หนอนกระดื้บ' : 'Duel ปกติ';
+  el.duelModeTitle.textContent = 'Duel Mode';
 
   el.othersHpWrap.innerHTML = '';
   Object.entries(room.players || {}).forEach(([uid, p]) => {
     const div = document.createElement('div');
     div.className = 'duel-mini-opponent';
     const isMe = uid === state.uid;
-    const currentValue = isWorm(room) ? Number(p?.score || 0) : Number(p?.hp || 0);
-    const maxValue = isWorm(room) ? Math.max(5, Number(room?.modeConfig?.segmentGoal || 5)) : START_HP;
-    const valueRatio = Math.max(0, Math.min(1, currentValue / Math.max(1, maxValue)));
-    const hpLabel = isWorm(room) ? `${currentValue} แต้ม` : `${currentValue} / ${START_HP} HP`;
-    const stun = Math.max(0, Math.ceil((Number(p?.stunnedUntilMs || 0) - Date.now()) / 1000));
-    const combo = Number(p?.combo || p?.streak || p?.correctStreak || 0);
-    const pieces = [`${isMe ? 'ฉัน' : (p?.name || 'ผู้เล่น')}: ${hpLabel}`];
-    if (combo >= 3) pieces.push(`x${combo} Combo`);
-    if (stun > 0) pieces.push(`STUN ${stun}s`);
-    const meterClass = valueRatio >= 0.6 ? 'is-healthy' : (valueRatio <= 0.3 ? 'is-critical' : 'is-warning');
+    const currentHp = Number(p?.hp || 0);
+    const valueRatio = Math.max(0, Math.min(1, currentHp / START_HP));
     div.innerHTML = `
-      <div class="duel-mini-opponent-name">${pieces.join(' • ')}</div>
-      <div class="duel-mini-opponent-bar"><span class="${meterClass}" style="width:${Math.round(valueRatio * 100)}%"></span></div>
+      <div class="duel-mini-opponent-name">${isMe ? 'ฉัน' : (p?.name || 'ผู้เล่น')}: ${currentHp} / ${START_HP} HP</div>
+      <div class="duel-mini-opponent-bar"><span style="width:${Math.round(valueRatio * 100)}%"></span></div>
     `;
     el.othersHpWrap.appendChild(div);
   });
@@ -235,6 +196,7 @@ async function loadQuestionBank(courseId) {
   if (!rows.length) throw new Error('ไม่พบคลังโจทย์ของคอร์สนี้');
   state.questionBank = rows.map((q) => ({ ...q }));
   state.loadedCourseId = courseId;
+  state.personalQuestionLoop = [];
 }
 
 async function handleCreateRoom() {
@@ -253,9 +215,6 @@ async function handleCreateRoom() {
       courseId,
       durationSeconds: Number(el.durationInput.value || 120),
       questionSequence,
-      gameMode: el.gameMode.value,
-      matchType: el.matchType.value,
-      relaySize: Number(el.relaySize.value || 2),
     });
     state.roomId = created.roomId;
     state.uid = created.uid || state.uid;
@@ -309,14 +268,11 @@ async function submitCurrentAnswer(forceWrong = false) {
   state.isSubmitting = true;
   try {
     playUiTone(forceWrong ? 'warn' : 'ok');
-    if (forceWrong) {
-      const taunts = ['โอ๊ยพลาดนิดเดียว!', 'เกือบแล้ว ลองใหม่!', 'ใจเย็นแล้วค่อยตอบอีกที'];
-      el.audioHint.textContent = taunts[Math.floor(Math.random() * taunts.length)];
-    }
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
     if (result?.accepted) {
       state.answeredRoundIndex = roundIndex;
       state.selectedAnswer = null;
+      el.resultHint.textContent = isCorrect ? '✅ ถูกต้อง ไปข้อต่อไป' : '❌ ไม่ถูก ไปข้อต่อไป';
     }
   } finally {
     state.isSubmitting = false;
@@ -345,18 +301,28 @@ function ensureTimer(room) {
 }
 
 function renderLobbyMeta(room) {
-  const modeLabel = isWorm(room) ? 'วิ่งแข่ง / หนอนกระดื้บ' : 'Duel ปกติ';
-  const competition = isTeam(room) ? 'Team' : 'Solo';
-  const relay = isTeam(room) ? `(${room?.modeConfig?.relaySize === 3 ? 'x3' : 'x2'})` : '';
   const duration = `${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`;
   const items = [
-    `โหมด: ${modeLabel}`,
-    `ประเภท: ${competition} ${relay}`.trim(),
+    'โหมด: Duel',
     `เวลาเกม: ${duration}`,
     `สถานะ: ${getRoomStatus(room) === 'lobby' ? 'รอเริ่ม' : (getRoomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม')}`,
   ];
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
-  if (el.lobbyModeText) el.lobbyModeText.textContent = modeLabel;
+  if (el.lobbyModeText) el.lobbyModeText.textContent = 'DUEL MODE';
+}
+
+function maybeShowFinishModal(room) {
+  if (getRoomStatus(room) !== 'finished') return;
+  const marker = `${room.roomId || state.roomId}_${room.endedAtMs || 0}`;
+  if (state.shownFinishRoomId === marker) return;
+  state.shownFinishRoomId = marker;
+
+  const winnerUid = String(room.winnerUid || '');
+  let message = 'เสมอ';
+  if (winnerUid === state.uid) message = '🎉 คุณชนะ';
+  else if (winnerUid) message = 'แพ้แล้ว ลองใหม่อีกครั้ง';
+  el.finishMessage.textContent = message;
+  openModal(el.finishModal);
 }
 
 function handleRoomUpdate(room) {
@@ -377,12 +343,6 @@ function handleRoomUpdate(room) {
     chip.textContent = `${p?.name || 'ผู้เล่น'}${p?.isHost ? ' • HOST' : ''}`;
     el.lobbyPlayers.appendChild(chip);
   });
-  if (!players.length) {
-    const waiting = document.createElement('p');
-    waiting.className = 'duel-empty-state';
-    waiting.textContent = 'รอผู้เล่นเข้าห้อง';
-    el.lobbyPlayers.appendChild(waiting);
-  }
 
   renderLobbyMeta(room);
   const isHost = String(room.hostUid || '') === state.uid;
@@ -393,12 +353,13 @@ function handleRoomUpdate(room) {
   if (roomStatus === 'finished') {
     const winnerUid = String(room.winnerUid || '');
     if (!winnerUid) el.resultHint.textContent = 'เสมอ';
-    else if (winnerUid === state.uid || winnerUid === `team:${(room.players?.[state.uid] || {}).teamId}`) el.resultHint.textContent = '🎉 คุณชนะ';
-    else el.resultHint.textContent = 'จบเกม';
+    else if (winnerUid === state.uid) el.resultHint.textContent = '🎉 คุณชนะ';
+    else el.resultHint.textContent = 'คุณแพ้';
   }
 
   renderBattle(room);
   ensureTimer(room);
+  maybeShowFinishModal(room);
 }
 
 function subscribeRoom(roomId) {
@@ -447,13 +408,9 @@ async function init() {
   });
 
   el.roomIdInput.addEventListener('input', () => { el.roomIdInput.value = normalizeRoomIdInput(el.roomIdInput.value); });
-  el.matchType.addEventListener('change', () => {
-    el.relayWrap.classList.toggle('hidden', el.matchType.value !== 'team');
-  });
   el.createRoomBtn.addEventListener('click', () => { void handleCreateRoom(); });
   el.joinRoomBtn.addEventListener('click', () => { void handleJoinRoom(); });
   el.startGameBtn.addEventListener('click', () => { void handleStartGame(); });
-  el.submitBtn.addEventListener('click', () => { void submitCurrentAnswer(false); });
   el.skipBtn.addEventListener('click', () => { void submitCurrentAnswer(true); });
   el.soundToggle?.addEventListener('change', () => {
     state.soundEnabled = Boolean(el.soundToggle.checked);

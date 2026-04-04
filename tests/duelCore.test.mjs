@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildPersonalQuestionLoop,
   buildQuestionLoop,
   getRoundState,
   normalizeRoomIdInput,
@@ -77,4 +78,14 @@ test('buildQuestionLoop does not mutate source question bank', () => {
   const snapshot = JSON.stringify(questionBank);
   buildQuestionLoop(questionBank, { loopQuestionCount: 6, shuffleFn: (ids) => ids.reverse() });
   assert.equal(JSON.stringify(questionBank), snapshot);
+});
+
+test('buildPersonalQuestionLoop is deterministic per actor key and differs across actors', () => {
+  const questionBank = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+  const first = buildPersonalQuestionLoop(questionBank, 'actor-a', { loopQuestionCount: 8 });
+  const second = buildPersonalQuestionLoop(questionBank, 'actor-a', { loopQuestionCount: 8 });
+  const third = buildPersonalQuestionLoop(questionBank, 'actor-b', { loopQuestionCount: 8 });
+  assert.deepEqual(first, second);
+  assert.equal(first.length, 8);
+  assert.notDeepEqual(first, third);
 });
