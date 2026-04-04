@@ -26,6 +26,8 @@ const el = {
   hostSetup: document.getElementById('duelHostSetup'),
   joinSetup: document.getElementById('duelJoinSetup'),
   courseIdInput: document.getElementById('duelCourseId'),
+  hostNameInput: document.getElementById('duelHostName'),
+  joinNameInput: document.getElementById('duelJoinName'),
   durationInput: document.getElementById('duelDuration'),
   roomIdInput: document.getElementById('duelRoomId'),
   createRoomBtn: document.getElementById('createRoomBtn'),
@@ -161,6 +163,7 @@ async function loadQuestionBank(courseId) {
 
 async function handleCreateRoom() {
   try {
+    const hostName = String(el.hostNameInput.value || '').trim() || 'Host';
     const courseId = String(el.courseIdInput.value || '').trim();
     if (!courseId) throw new Error('เลือกบททดสอบก่อน');
     await loadQuestionBank(courseId);
@@ -172,7 +175,7 @@ async function handleCreateRoom() {
     const matchType = el.matchType.value;
     const relaySize = Number(el.relaySize.value || 2);
     const created = await createDuelRoom({
-      hostName: 'Host',
+      hostName,
       courseId,
       durationSeconds: Number(el.durationInput.value || 120),
       questionSequence,
@@ -194,7 +197,8 @@ async function handleJoinRoom() {
   try {
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
     if (roomId.length !== ROOM_ID_LENGTH) throw new Error('กรอกรหัสห้อง 6 หลัก');
-    const joined = await joinDuelRoom(roomId, 'ผู้เล่น');
+    const playerName = String(el.joinNameInput.value || '').trim() || 'ผู้เล่น';
+    const joined = await joinDuelRoom(roomId, playerName);
     state.roomId = roomId;
     state.uid = joined.uid || state.uid;
     setStatus(`เข้าห้อง ${roomId} สำเร็จ`);
@@ -315,7 +319,7 @@ function init() {
   el.showHostSetupBtn.addEventListener('click', () => {
     el.hostSetup.classList.remove('hidden');
     el.joinSetup.classList.add('hidden');
-    setStatus('ตั้งค่าห้องสำหรับ Host แล้วกด "เริ่มสร้างห้อง"');
+    setStatus('ตั้งค่าโหมดเกม แล้วสร้างห้องเพื่อรอเริ่มแข่ง');
   });
   el.showJoinSetupBtn.addEventListener('click', () => {
     el.joinSetup.classList.remove('hidden');
