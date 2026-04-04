@@ -62,7 +62,6 @@ const homeHubHomeLink = document.getElementById('homeHubHomeLink');
 const homeHubQuizLink = document.getElementById('homeHubQuizLink');
 const homeHubTopLink = document.getElementById('homeHubTopLink');
 const homeHubProfileLink = document.getElementById('homeHubProfileLink');
-const homeHubAdminLink = document.getElementById('homeHubAdminLink');
 
 const state = {
   course: null,
@@ -256,7 +255,6 @@ async function init() {
     ? `${baseUrl}top.html?id=${encodeURIComponent(courseId)}`
     : `${baseUrl}top.html`;
   if (homeHubProfileLink) homeHubProfileLink.href = `${baseUrl}profile.html`;
-  if (homeHubAdminLink) homeHubAdminLink.href = `${baseUrl}adminchamp.html`;
 
   profileCta.href = courseId
     ? `${baseUrl}profile.html?id=${encodeURIComponent(courseId)}`
