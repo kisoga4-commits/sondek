@@ -46,3 +46,17 @@ firebase deploy --only database
 3. รีเฟรชหน้าและสร้างห้องใหม่
 
 > การลบ node จะเคลียร์ห้องที่กำลังรอ/กำลังเล่นทั้งหมด
+
+
+## เช็คลิสต์ก่อนขยายเกมใหม่ (Firestore Rules)
+สำหรับเกมที่มีข้อมูลลับต่อผู้เล่น (เช่น role/action)
+ให้ใช้ pattern เดียวกับ Secret Village:
+
+- ข้อมูลสาธารณะ: `/duel_rooms/{roomId}`
+- ข้อมูลลับรายคน: `/duel_rooms/{roomId}/private_players/{userId}`
+- Rule หลัก: อนุญาตเฉพาะ `request.auth.uid == userId` ใน private path
+
+แนวทางนี้ทำให้โค้ดฝั่งหน้าเว็บรองรับเกมอนาคตได้ง่าย:
+1. อ่านสถานะรวมจาก document ห้อง (public)
+2. อ่านข้อมูลลับจากเอกสารของตัวเองเท่านั้น (private)
+3. ไม่ต้องเปิดสิทธิ์อ่าน private ของผู้เล่นอื่น

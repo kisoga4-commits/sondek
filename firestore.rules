@@ -55,11 +55,21 @@ service cloud.firestore {
       return roomId.matches('^[0-9]{4,6}$');
     }
 
+    // -----------------------------
+    // ระบบหมู่บ้านอาถรรพ์ (Secret Village)
+    // โครงสร้างนี้ใช้ร่วมกับเกมอื่นในอนาคตได้ โดยเพิ่ม sub-collection แบบ private
+    // -----------------------------
     match /duel_rooms/{roomId} {
-      // โหมดดวลต้องให้ผู้เล่นที่ sign-in (รวม anonymous) create/join ได้ทันที
-      // ปิด guest เพื่อกันการเขียนโดยไม่ระบุตัวตน
+      // ข้อมูลสาธารณะในห้อง: ผู้เล่น, สถานะเป็น/ตาย, เฟสเกม
       allow read: if isValidRoomId(roomId);
       allow create, update, delete: if isAuthenticated() && isValidRoomId(roomId);
+    }
+
+    // ข้อมูลลับของผู้เล่นรายคน เช่น role / คำสั่งลับ
+    // path: /duel_rooms/{roomId}/private_players/{userId}
+    match /duel_rooms/{roomId}/private_players/{userId} {
+      // อ่าน/เขียนได้เฉพาะเจ้าของ UID เท่านั้น
+      allow read, write: if isAuthenticated() && isValidRoomId(roomId) && request.auth.uid == userId;
     }
 
     // -----------------------------
