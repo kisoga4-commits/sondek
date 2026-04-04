@@ -123,6 +123,7 @@ const state = {
   shownFinishMarker: '',
   personalLoopKey: '',
   personalQuestionSequence: [],
+  optimisticAnsweredRound: -1,
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -155,7 +156,9 @@ function getPersonalQuestionSequence(room) {
 function getActiveRound(room) {
   const gameMode = String(room?.modeConfig?.gameMode || 'quick');
   if (gameMode === 'worm') {
-    const myRound = Math.max(0, Number(room?.players?.[state.uid]?.answeredRound ?? -1) + 1);
+    const serverAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? -1);
+    const effectiveAnsweredRound = Math.max(serverAnsweredRound, Number(state.optimisticAnsweredRound ?? -1));
+    const myRound = Math.max(0, effectiveAnsweredRound + 1);
     return {
       roundIndex: myRound,
       isReveal: false,
@@ -247,8 +250,12 @@ async function submitAnswer() {
   try {
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
     if (result?.accepted) {
+      state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), rs.roundIndex);
       el.resultHint.textContent = isCorrect ? '✅ ตอบถูก เดิน +1' : '❌ ตอบผิด รอข้อถัดไป';
       playAnswerFeedback(isCorrect);
+      renderQuestion(room);
+    } else if (String(result?.reason || '')) {
+      el.resultHint.textContent = '⏳ ยังตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง';
     }
   } finally {
     state.isSubmitting = false;
@@ -317,6 +324,7 @@ function ensureTimer(room) {
 function handleRoomUpdate(room) {
   if (!room) return;
   state.room = room;
+  state.optimisticAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? state.optimisticAnsweredRound ?? -1);
   void ensureRoomQuestionBank(room);
   const players = Object.values(room.players || {});
   const isHost = String(room.hostUid || '') === state.uid;
