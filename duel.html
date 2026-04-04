@@ -70,32 +70,64 @@
               <option value="">-- เลือกบททดสอบ --</option>
             </select>
           </label>
-          <label>โหมดเกม
-            <select id="duelMatchType">
-              <option value="solo">Solo (2-4 คน)</option>
-              <option value="party">Party (2 ทีม)</option>
+          <label>ประเภทเกม
+            <select id="duelGameMode">
+              <option value="quick">ตอบไว</option>
+              <option value="worm">หนอนกระดื้บ</option>
             </select>
           </label>
-          <label>ทีม (Party)
-            <select id="duelTeamSize">
-              <option value="2">Team x2</option>
-              <option value="3">Team x3</option>
-            </select>
-          </label>
-          <label>เส้นชัย
-            <select id="duelFinishDistance">
-              <option value="10">10 ช่อง</option>
-              <option value="20">20 ช่อง</option>
-            </select>
-          </label>
-          <label>เวลาเกม
-            <select id="duelDuration">
-              <option value="120">2 นาที</option>
-              <option value="180">3 นาที</option>
-              <option value="240">4 นาที</option>
-              <option value="300">5 นาที</option>
-            </select>
-          </label>
+
+          <div id="duelQuickOptions">
+            <label>รูปแบบการแข่ง
+              <select id="duelQuickMatchType">
+                <option value="solo">ดวลเดี่ยว (2-4 คน)</option>
+                <option value="party">ทีม (2 ทีม)</option>
+              </select>
+            </label>
+            <label>ทีม (โหมดทีม)
+              <select id="duelQuickTeamSize">
+                <option value="2">Team x2</option>
+                <option value="3">Team x3</option>
+              </select>
+            </label>
+            <label>เวลาเกม
+              <select id="duelQuickDuration">
+                <option value="120">2 นาที</option>
+                <option value="180">3 นาที</option>
+                <option value="240">4 นาที</option>
+                <option value="300">5 นาที</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="duelWormOptions" class="hidden">
+            <label>โหมดเกม
+              <select id="duelMatchType">
+                <option value="solo">Solo (2-4 คน)</option>
+                <option value="party">Party (2 ทีม)</option>
+              </select>
+            </label>
+            <label>ทีม (Party)
+              <select id="duelTeamSize">
+                <option value="2">Team x2</option>
+                <option value="3">Team x3</option>
+              </select>
+            </label>
+            <label>เส้นชัย
+              <select id="duelFinishDistance">
+                <option value="10">10 ช่อง</option>
+                <option value="20">20 ช่อง</option>
+              </select>
+            </label>
+            <label>เวลาเกม
+              <select id="duelDuration">
+                <option value="120">2 นาที</option>
+                <option value="180">3 นาที</option>
+                <option value="240">4 นาที</option>
+                <option value="300">5 นาที</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div class="quiz-actions">
           <button id="createRoomBtn" class="btn" type="button">สร้างห้อง</button>
