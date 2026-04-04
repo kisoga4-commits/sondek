@@ -14,6 +14,27 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function maskPhoneNumber(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '-';
+  if (raw.length <= 4) return `${raw.slice(0, 2)}xx`;
+  return `${raw.slice(0, 3)}xxxx${raw.slice(-2)}`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+  if (value?.toDate instanceof Function) {
+    return value.toDate().toLocaleString('th-TH');
+  }
+  if (typeof value === 'number') {
+    return new Date(value).toLocaleString('th-TH');
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return '-';
+}
+
 async function onEnrollCourse(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -50,7 +71,8 @@ function renderOpenCourses(courseOffers) {
   publicCourseList.innerHTML = '';
 
   const openCourses = (Array.isArray(courseOffers) ? courseOffers : [])
-    .filter((course) => String(course?.status || 'open') === 'open');
+    .filter((course) => String(course?.status || 'open') === 'open')
+    .sort((a, b) => String(a?.title || '').localeCompare(String(b?.title || ''), 'th'));
 
   if (!openCourses.length) {
     publicCourseList.innerHTML = '<p class="muted">ตอนนี้ยังไม่มีคอร์สที่เปิดรับสมัคร</p>';
@@ -58,6 +80,22 @@ function renderOpenCourses(courseOffers) {
   }
 
   openCourses.forEach((course) => {
+    const enrollments = Array.isArray(course?.enrollments) ? course.enrollments : [];
+    const enrollmentRows = enrollments
+      .slice(0, 8)
+      .map((item, index) => {
+        const studentName = escapeHtml(String(item?.studentName || '-').trim() || '-');
+        const studentPhone = escapeHtml(maskPhoneNumber(item?.studentPhone));
+        const appliedAt = escapeHtml(formatDateTime(item?.createdAt));
+        return `<li class="enrollment-item">
+          <div>
+            <strong>${index + 1}. ${studentName}</strong> · เบอร์ ${studentPhone}<br>
+            <span class="muted">เวลาสมัคร: ${appliedAt}</span>
+          </div>
+        </li>`;
+      })
+      .join('');
+
     const card = document.createElement('article');
     card.className = 'course-card is-open';
     card.innerHTML = `
@@ -78,6 +116,10 @@ function renderOpenCourses(courseOffers) {
         </div>
         <button class="btn btn-compact" type="submit">ส่งชื่อสมัคร</button>
       </form>
+      <div class="enrollment-admin-box">
+        <p class="student-title">รายชื่อผู้สมัครล่าสุด (${enrollments.length})</p>
+        ${enrollmentRows ? `<ul>${enrollmentRows}</ul>` : '<p class="muted">ยังไม่มีผู้สมัคร</p>'}
+      </div>
     `;
 
     const enrollForm = card.querySelector('.course-enroll-form');

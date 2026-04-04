@@ -151,13 +151,6 @@ function formatDateTime(value) {
   return '-';
 }
 
-function maskPhoneNumber(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '-';
-  const visiblePrefix = raw.slice(0, 3);
-  return `${visiblePrefix}xx`;
-}
-
 async function loadProfileForm() {
   if (!profileForm) return;
 
@@ -402,12 +395,12 @@ function renderCourseOfferings(courseOffers) {
       .map((item, index) => {
         const enrollmentId = escapeHtml(String(item?.enrollmentId || `${course.courseId}_idx_${index}`));
         const studentName = escapeHtml(String(item?.studentName || '-').trim() || '-');
-        const maskedPhone = escapeHtml(maskPhoneNumber(item?.studentPhone));
+        const studentPhone = escapeHtml(String(item?.studentPhone || '-').trim() || '-');
         const appliedAt = escapeHtml(formatDateTime(item?.createdAt));
         const classSchedule = escapeHtml(course?.scheduleDetails || course?.day || '-');
         return `<li class="enrollment-item">
           <div>
-            <strong>#${index + 1} ${studentName}</strong> · เบอร์ ${maskedPhone}<br>
+            <strong>#${index + 1} ${studentName}</strong> · เบอร์ ${studentPhone}<br>
             <span class="muted">วันเรียน: ${classSchedule} · เวลาสมัคร: ${appliedAt}</span>
           </div>
           <div class="enrollment-actions">
