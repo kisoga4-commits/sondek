@@ -36,7 +36,7 @@ async function onEnrollCourse(event) {
     if (submitBtn) submitBtn.disabled = true;
     await saveCourseEnrollment(courseId, { studentName, studentPhone });
     form.reset();
-    alert('ส่งชื่อเรียบร้อย รอผู้สอนอนุมัติได้เลย');
+    alert('ส่งชื่อสมัครเรียบร้อยแล้ว');
   } catch (error) {
     console.error(error);
     alert('ส่งชื่อไม่สำเร็จ กรุณาลองใหม่');
@@ -71,7 +71,7 @@ function renderOpenCourses(courseOffers) {
       </header>
       <p class="muted">${escapeHtml(course?.content || 'ยังไม่ได้ระบุเนื้อหา')}</p>
       <form class="course-enroll-form" data-course-id="${escapeHtml(course?.courseId || '')}">
-        <p class="student-title">ส่งชื่อเพื่อรออนุมัติ</p>
+        <p class="student-title">ส่งชื่อสมัครคอร์ส</p>
         <div class="form-split">
           <input type="text" name="studentName" placeholder="ชื่อของคุณ" required />
           <input type="tel" name="studentPhone" placeholder="เบอร์โทร" required />

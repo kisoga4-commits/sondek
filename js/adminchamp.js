@@ -151,6 +151,13 @@ function formatDateTime(value) {
   return '-';
 }
 
+function maskPhoneNumber(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '-';
+  const visiblePrefix = raw.slice(0, 3);
+  return `${visiblePrefix}xx`;
+}
+
 async function loadProfileForm() {
   if (!profileForm) return;
 
@@ -308,15 +315,6 @@ async function onDeleteCourseOffering(course) {
   }
 }
 
-async function onAcceptEnrollment(courseId, enrollment) {
-  try {
-    await updateCourseEnrollment(courseId, enrollment.enrollmentId, { status: 'accepted' });
-  } catch (error) {
-    console.error(error);
-    alert('ยอมรับผู้สมัครไม่สำเร็จ');
-  }
-}
-
 async function onEditEnrollment(courseId, enrollment) {
   const studentName = window.prompt('แก้ชื่อนักเรียน', String(enrollment?.studentName || '').trim());
   if (studentName === null) return;
@@ -363,7 +361,6 @@ function renderCourseOfferings(courseOffers) {
     const enrollmentItems = enrollments.slice(0, 12).map((item, index) => ({
       ...item,
       enrollmentId: String(item?.enrollmentId || `${course.courseId}_idx_${index}`),
-      status: String(item?.status || 'pending') === 'accepted' ? 'accepted' : 'pending',
     }));
 
     const card = document.createElement('article');
@@ -404,16 +401,16 @@ function renderCourseOfferings(courseOffers) {
       .slice(0, 12)
       .map((item, index) => {
         const enrollmentId = escapeHtml(String(item?.enrollmentId || `${course.courseId}_idx_${index}`));
-        const enrollmentStatus = String(item?.status || 'pending') === 'accepted' ? 'accepted' : 'pending';
-        const statusText = enrollmentStatus === 'accepted' ? 'ยอมรับแล้ว' : 'รอยืนยัน';
-        const statusClass = enrollmentStatus === 'accepted' ? 'status-pill status-active' : 'status-pill';
+        const studentName = escapeHtml(String(item?.studentName || '-').trim() || '-');
+        const maskedPhone = escapeHtml(maskPhoneNumber(item?.studentPhone));
+        const appliedAt = escapeHtml(formatDateTime(item?.createdAt));
+        const classSchedule = escapeHtml(course?.scheduleDetails || course?.day || '-');
         return `<li class="enrollment-item">
           <div>
-            <strong>${escapeHtml(item.studentName)}</strong> (${escapeHtml(item.studentPhone)}) · ${escapeHtml(formatDateTime(item.createdAt))}
-            <span class="${statusClass}">${statusText}</span>
+            <strong>#${index + 1} ${studentName}</strong> · เบอร์ ${maskedPhone}<br>
+            <span class="muted">วันเรียน: ${classSchedule} · เวลาสมัคร: ${appliedAt}</span>
           </div>
           <div class="enrollment-actions">
-            <button class="btn btn-secondary btn-compact" type="button" data-action="accept-enrollment" data-enrollment-id="${enrollmentId}" ${enrollmentStatus === 'accepted' ? 'disabled' : ''}>ยอมรับ</button>
             <button class="btn btn-secondary btn-compact" type="button" data-action="edit-enrollment" data-enrollment-id="${enrollmentId}">แก้ไข</button>
             <button class="btn btn-secondary btn-compact btn-danger-soft" type="button" data-action="delete-enrollment" data-enrollment-id="${enrollmentId}">ลบ</button>
           </div>
@@ -460,15 +457,6 @@ function renderCourseOfferings(courseOffers) {
         void onEnrollCourse(event);
       });
     }
-
-    card.querySelectorAll('[data-action="accept-enrollment"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const enrollmentId = String(btn.dataset.enrollmentId || '');
-        const target = enrollmentItems.find((item) => item.enrollmentId === enrollmentId);
-        if (!target) return;
-        void onAcceptEnrollment(course.courseId, target);
-      });
-    });
 
     card.querySelectorAll('[data-action="edit-enrollment"]').forEach((btn) => {
       btn.addEventListener('click', () => {
