@@ -927,10 +927,11 @@ export async function createDuelRoom(payload) {
   const maxAttempts = preferredRoomId ? 1 : 8;
   const durationSecondsRaw = Number(payload?.durationSeconds || 120);
   const durationSeconds = [120, 180, 240, 300].includes(durationSecondsRaw) ? durationSecondsRaw : 120;
-  const matchType = String(payload?.matchType || '').toLowerCase() === 'party' ? 'party' : 'solo';
+  const requestedMatchType = String(payload?.matchType || '').toLowerCase() === 'party' ? 'party' : 'solo';
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
   const gameMode = String(payload?.gameMode || '').toLowerCase() === 'worm' ? 'worm' : 'quick';
+  const matchType = gameMode === 'worm' ? 'solo' : requestedMatchType;
   const gameLabel = String(payload?.gameLabel || '').trim() || (gameMode === 'worm' ? 'หนอนกระดื้บ' : 'ตอบไว');
   const modeConfig = { gameMode, gameLabel, matchType, teamSize, finishDistance };
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
@@ -1080,7 +1081,8 @@ export async function startDuelRoom(roomId) {
       if (data.status === 'playing') return data;
 
       const players = data.players || {};
-      const matchType = String(data?.modeConfig?.matchType || 'solo');
+      const gameMode = String(data?.modeConfig?.gameMode || 'quick');
+      const matchType = gameMode === 'worm' ? 'solo' : String(data?.modeConfig?.matchType || 'solo');
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
       const requiredPlayers = matchType === 'party' ? teamSize * 2 : 2;
       if (Object.keys(players).length < requiredPlayers) {
@@ -1271,7 +1273,7 @@ export async function submitDuelAnswer(roomId, payload) {
         ? getEffectiveFinishDistance(data?.modeConfig || {})
         : Number(data?.modeConfig?.finishDistance || 10);
       const matchType = String(data?.modeConfig?.matchType || 'solo');
-      if (matchType === 'party') {
+      if (!isWormMode && matchType === 'party') {
         const teamDistance = { A: 0, B: 0 };
         Object.values(players).forEach((p) => { if (p?.teamId === 'A' || p?.teamId === 'B') teamDistance[p.teamId] = Math.max(teamDistance[p.teamId], Number(p?.distance || 0)); });
         if (teamDistance.A >= finishDistance || teamDistance.B >= finishDistance) {
