@@ -23,7 +23,7 @@ test('returns base distance for worm solo mode', () => {
   assert.equal(result, 20);
 });
 
-test('scales worm party distance by team size (x2)', () => {
+test('scales distance for worm party mode (team size 2)', () => {
   const result = getEffectiveFinishDistance({
     gameMode: 'worm',
     matchType: 'party',
@@ -33,7 +33,7 @@ test('scales worm party distance by team size (x2)', () => {
   assert.equal(result, 20);
 });
 
-test('scales worm party distance by team size (x3)', () => {
+test('scales distance for worm party mode (team size 3)', () => {
   const result = getEffectiveFinishDistance({
     gameMode: 'worm',
     matchType: 'party',
