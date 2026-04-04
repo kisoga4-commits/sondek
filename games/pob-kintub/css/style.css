@@ -80,16 +80,7 @@ h2 { margin: 0 0 .8rem; font-size: 1.15rem; }
   background: repeating-linear-gradient(45deg, rgba(0,0,0,.8), rgba(0,0,0,.8) 16px, rgba(20,38,32,.94) 16px, rgba(20,38,32,.94) 32px);
   display: grid; place-items: center; text-align: center; padding: 1rem;
 }
-.hold-btn {
-  width: min(350px, 90%);
-  font-size: 1rem;
-  padding: 1.2rem;
-  border-radius: 999px;
-  border: 2px solid #5aa18b;
-  background: #163a2f;
-  color: var(--text);
-  font-weight: 800;
-}
+.sheet-btn { width: min(420px, 94%); }
 
 .timer { font-weight: 800; color: var(--warn); }
 .secret-zone {
@@ -103,7 +94,47 @@ h2 { margin: 0 0 .8rem; font-size: 1.15rem; }
 .big-btn { padding: 1rem .6rem; min-height: 62px; font-size: 1rem; }
 .result-list { display: grid; gap: .45rem; }
 .out { opacity: .55; filter: grayscale(1); text-decoration: line-through; }
+.village-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .6rem;
+}
+.villager-card {
+  border: 1px solid #335b4f;
+  border-radius: .8rem;
+  background: #10231d;
+  padding: .7rem .4rem;
+  text-align: center;
+}
+.villager-icon {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto .35rem;
+  border-radius: 999px;
+  border: 2px solid #4f8574;
+  background: radial-gradient(circle at 35% 28%, #3f725f, #1a3b30);
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+}
+.villager-name { font-size: .9rem; }
+.villager-status { color: var(--muted); font-size: .78rem; margin-top: .1rem; }
+.villager-card.dead .villager-icon { filter: grayscale(1); opacity: .45; }
+.villager-card.dead .villager-name { color: #9aa6a1; }
+
+.hidden-sheet {
+  margin-top: .85rem;
+  border: 1px solid #335b4f;
+  border-radius: .95rem;
+  overflow: hidden;
+}
+.hidden-sheet.is-dead { filter: grayscale(1); opacity: .9; }
+.sheet-revealed {
+  padding: .9rem;
+  background: rgba(14,29,24,.85);
+}
+.sheet-actions { display: grid; gap: .5rem; margin-top: .65rem; }
 
 @media (max-width: 640px) {
-  .player-list, .big-grid { grid-template-columns: 1fr; }
+  .player-list, .big-grid, .village-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }

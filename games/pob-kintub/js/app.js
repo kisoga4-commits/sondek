@@ -20,6 +20,14 @@ const ROLES = {
   police: { label: 'ตำรวจ', icon: '👮', desc: 'จับ 1 คนเข้าคุก/คืน' },
   villager: { label: 'ชาวบ้าน', icon: '🌾', desc: 'ต้องกดทำงาน ไม่งั้นอดตาย' },
 };
+const ROLE_UI_TEXT = {
+  pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
+  shaman: () => 'คุณคือหมอผี เลือกส่องดูอาชีพจริงของเพื่อนได้ 1 คนต่อคืน',
+  monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
+  hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
+  police: () => 'คุณคือตำรวจ เลือกจับคนเข้าคุกได้ 1 คน (ถ้าจับปอบ ปอบจะฆ่าใครไม่ได้)',
+  villager: () => "คุณคือชาวบ้าน ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
+};
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
@@ -40,6 +48,7 @@ const state = {
   isResolvingMorning: false,
   isResolvingVote: false,
   privateAllUnsub: null,
+  roleSheetRevealed: false,
 };
 
 const els = {
@@ -150,6 +159,20 @@ function deadOverlayHtml() {
   return '<div class="secret-overlay"><div><h3>💀 ตายแล้ว</h3><p>ดูสถานการณ์ได้ แต่กดใช้พลังหรือโหวตไม่ได้</p></div></div>';
 }
 
+function renderVillageGridHtml(players) {
+  return `
+    <div class="village-grid">
+      ${players.map((p) => `
+        <div class="villager-card ${p.alive ? '' : 'dead'}">
+          <div class="villager-icon">${p.alive ? '🙂' : '💀'}</div>
+          <div class="villager-name">${p.name}</div>
+          <div class="villager-status">${p.alive ? 'ยังอยู่ในเกม' : 'ตายแล้ว'}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 function renderSetup() {
   const players = Object.values(state.duelPlayers || {});
   const canStart = state.isHost && players.length >= 4 && players.length <= 8;
@@ -205,32 +228,44 @@ function renderIdentity() {
   const role = state.mePrivate?.role;
   const roleInfo = ROLES[role] || { label: '-', icon: '❓', desc: '-' };
   const partners = role === 'pob' ? (state.mePrivate?.partners || []) : [];
+  const players = Object.values(state.publicState?.players || {});
+  const roleText = ROLE_UI_TEXT[role]?.(partners) || '-';
 
   els.identity.innerHTML = `
     <h2>Step 2: Identity (Private)</h2>
     ${phaseMetaHtml()}
-    <div class="secret-wrapper">
-      <div class="secret-overlay"><button id="holdReveal" class="hold-btn">กดค้างเพื่อเปิดบทบาท (1.2s)</button></div>
-      <div id="identityBody" class="hidden identity-card">
+    <h3>วงหมู่บ้าน</h3>
+    ${renderVillageGridHtml(players)}
+    <div class="hidden-sheet ${isAlive() ? '' : 'is-dead'}">
+      ${state.roleSheetRevealed && isAlive() ? `
+      <div class="sheet-revealed identity-card">
         <div class="role-icon">${roleInfo.icon}</div>
         <h3>${roleInfo.label}</h3>
-        <p class="muted">${roleInfo.desc}</p>
-        ${partners.length ? `<p><strong>ปอบพวกเดียวกัน:</strong> ${partners.join(', ')}</p>` : ''}
-        ${state.isHost ? '<button id="goNight" class="btn">เริ่มช่วงกลางคืน</button>' : '<p class="muted">รอ Host กดเริ่มกลางคืน</p>'}
+        <p class="muted">${roleText}</p>
+        <div class="sheet-actions">
+          <button id="hideRoleSheet" class="btn secondary">ปิดม่าน</button>
+          ${state.isHost ? '<button id="goNight" class="btn">เริ่มช่วงกลางคืน</button>' : '<p class="muted">รอ Host กดเริ่มกลางคืน</p>'}
+        </div>
       </div>
+      ` : `
+      <div class="secret-overlay" style="position:static;">
+        <div>
+          <p>${isAlive() ? 'แตะเพื่อดูบทบาทของคุณ' : 'คุณออกจากเกมแล้ว'}</p>
+          <button id="toggleRoleSheet" class="btn sheet-btn" ${isAlive() ? '' : 'disabled'}>${isAlive() ? 'เปิดม่าน' : 'ปิดใช้งาน'}</button>
+        </div>
+      </div>
+      `}
     </div>
   `;
 
-  const hold = document.getElementById('holdReveal');
-  let timer = null;
-  const cancel = () => { if (timer) clearTimeout(timer); timer = null; };
-  hold.onmousedown = hold.ontouchstart = () => {
-    timer = setTimeout(() => {
-      hold.closest('.secret-overlay')?.remove();
-      document.getElementById('identityBody')?.classList.remove('hidden');
-    }, 1200);
-  };
-  hold.onmouseup = hold.onmouseleave = hold.ontouchend = hold.ontouchcancel = cancel;
+  document.getElementById('toggleRoleSheet')?.addEventListener('click', () => {
+    state.roleSheetRevealed = true;
+    renderIdentity();
+  });
+  document.getElementById('hideRoleSheet')?.addEventListener('click', () => {
+    state.roleSheetRevealed = false;
+    renderIdentity();
+  });
 
   const goNight = document.getElementById('goNight');
   if (goNight) {
@@ -254,9 +289,12 @@ function renderNight() {
   const alive = alivePlayers();
   const others = alive.filter((p) => p.uid !== state.uid);
   const acted = Boolean(state.mePrivate?.nightAction?.acted);
+  const allPlayers = Object.values(state.publicState?.players || {});
+  const partners = myRole === 'pob' ? (state.mePrivate?.partners || []) : [];
+  const roleText = ROLE_UI_TEXT[myRole]?.(partners) || 'ไม่พบบทบาทของคุณ';
 
-  let actionHtml = '<p class="muted">คุณตายแล้ว รอผลเช้า</p>';
-  if (me?.alive) {
+  let actionHtml = '<div class="tag">คุณออกจากเกมแล้ว</div>';
+  if (me?.alive && state.roleSheetRevealed) {
     if (myRole === 'villager') {
       actionHtml = `<button id="workBtn" class="btn big-btn" ${acted ? 'disabled' : ''}>🌾 ทำงาน/ไถนา</button>`;
     } else {
@@ -269,21 +307,48 @@ function renderNight() {
   els.night.innerHTML = `
     <h2>Step 3: Night Action</h2>
     ${phaseMetaHtml()}
-    <p class="muted">ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}</p>
-    <div class="secret-wrapper">
-    ${deadOverlayHtml()}
-    <div class="secret-zone">
-      <h3>${ROLES[myRole]?.icon || '❓'} ${ROLES[myRole]?.label || 'ไม่ทราบบท'}</h3>
-      ${actionHtml}
-    </div>
+    <p class="muted">ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}</p>    
+    <h3>วงหมู่บ้าน</h3>
+    ${renderVillageGridHtml(allPlayers)}
+    <div class="hidden-sheet ${isAlive() ? '' : 'is-dead'}">
+      ${state.roleSheetRevealed && isAlive() ? `
+      <div class="sheet-revealed">
+        <h3>${ROLES[myRole]?.icon || '❓'} ${ROLES[myRole]?.label || 'ไม่ทราบบท'}</h3>
+        <p class="muted">${roleText}</p>
+        <div class="sheet-actions">
+          ${actionHtml}
+          <button id="hideRoleSheet" class="btn secondary">ปิดม่าน</button>
+        </div>
+      </div>
+      ` : `
+      <div class="secret-overlay" style="position:static;">
+        <div>
+          <p>${isAlive() ? 'แตะเพื่อดูบทบาทของคุณ' : 'คุณออกจากเกมแล้ว'}</p>
+          <button id="toggleRoleSheet" class="btn sheet-btn" ${isAlive() ? '' : 'disabled'}>${isAlive() ? 'เปิดม่าน' : 'ปิดใช้งาน'}</button>
+        </div>
+      </div>
+      `}
     </div>
     ${state.isHost ? '<button id="resolveMorning" class="btn">ประมวลผลตอนเช้า</button>' : '<p class="muted">รอ Host ประมวลผลเช้า</p>'}
   `;
 
-  document.getElementById('workBtn')?.addEventListener('click', () => { void submitNightAction(state.uid, true); });
+  document.getElementById('toggleRoleSheet')?.addEventListener('click', () => {
+    state.roleSheetRevealed = true;
+    renderNight();
+  });
+  document.getElementById('hideRoleSheet')?.addEventListener('click', () => {
+    state.roleSheetRevealed = false;
+    renderNight();
+  });
+
+  document.getElementById('workBtn')?.addEventListener('click', () => {
+    state.roleSheetRevealed = false;
+    void submitNightAction(state.uid, true);
+  });
   document.querySelectorAll('.targetNight').forEach((btn) => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.id;
+      state.roleSheetRevealed = false;
       void submitNightAction(targetId, true);
       if (myRole === 'shaman') {
         const targetRole = ROLES[state.allPrivate?.[targetId]?.role]?.label || 'ไม่ทราบ';
@@ -519,6 +584,7 @@ function renderEnd() {
 function mountByPhase() {
   Object.values(els).forEach((x) => x.classList.add('hidden'));
   const phase = String(state.publicState?.phase || 'setup');
+  if (phase !== 'night') state.roleSheetRevealed = false;
 
   if (phase === 'setup') {
     els.setup.classList.remove('hidden');
