@@ -18,7 +18,7 @@ const ROLES = {
   monk: { label: 'หมอธรรม', icon: '🛡️', desc: 'คุ้มครอง 1 คน/คืน' },
   hunter: { label: 'นายพราน', icon: '🏹', desc: 'ยิง 1 คน/คืน' },
   police: { label: 'ตำรวจ', icon: '👮', desc: 'จับ 1 คนเข้าคุก/คืน' },
-  villager: { label: 'ชาวบ้าน', icon: '🌾', desc: 'ต้องกดทำงาน ไม่งั้นอดตาย' },
+  villager: { label: 'ชาวนา', icon: '🌾', desc: 'ต้องกดทำงาน ไม่งั้นอดตาย' },
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
@@ -26,7 +26,7 @@ const ROLE_UI_TEXT = {
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
   police: () => 'คุณคือตำรวจ เลือกจับคนเข้าคุกได้ 1 คน (ถ้าจับปอบ ปอบจะฆ่าใครไม่ได้)',
-  villager: () => "คุณคือชาวบ้าน ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
+  villager: () => "คุณคือชาวนา ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
 };
 
 const params = new URLSearchParams(window.location.search);
@@ -102,6 +102,10 @@ function phaseDurationMs(phase) {
   if (phase === 'morning') return 12000;
   if (phase === 'identity') return 45000;
   return 0;
+}
+
+function gameHardStopAtMs(startedAtMs) {
+  return Number(startedAtMs || 0) + (60 * 60 * 1000);
 }
 
 async function tx(pathRef, updater) {
@@ -182,6 +186,7 @@ function renderSetup() {
     ${phaseMetaHtml()}
     <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '(คุณ)' : ''}</div>`).join('')}</div>
     ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบกินตับ</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
+    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   const btn = document.getElementById('startCloudGame');
@@ -208,11 +213,15 @@ function renderSetup() {
           phase: 'identity',
           day: 1,
           hostUid: state.uid,
+          startedAtMs: Date.now(),
+          hardStopAtMs: gameHardStopAtMs(Date.now()),
           phaseEndsAtMs: Date.now() + phaseDurationMs('identity'),
           players: playersMap,
           lastLogs: ['เริ่มเกมแล้ว'],
           voteSummary: {},
           nightHistory: [],
+          jailedTonight: {},
+          forceClosed: null,
           updatedAtMs: Date.now(),
         }));
 
@@ -222,6 +231,7 @@ function renderSetup() {
       }
     };
   }
+  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 function renderIdentity() {
@@ -256,6 +266,7 @@ function renderIdentity() {
       </div>
       `}
     </div>
+    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   document.getElementById('toggleRoleSheet')?.addEventListener('click', () => {
@@ -277,10 +288,36 @@ function renderIdentity() {
       updatedAtMs: Date.now(),
     }));
   }
+  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 async function submitNightAction(targetId, acted = true) {
-  await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { targetId: targetId || null, acted, at: Date.now() } }));
+  const myRole = state.mePrivate?.role;
+  const now = Date.now();
+  const jailedTonight = state.publicState?.jailedTonight || {};
+  const iAmJailed = Boolean(jailedTonight?.[state.uid]);
+  if (iAmJailed) {
+    window.alert('คุณโดนจับเข้าคุกแล้ว ใช้พลังคืนนี้ไม่ได้');
+    return;
+  }
+
+  if (myRole === 'police' && targetId) {
+    await tx(paths.public, (data) => {
+      if (String(data?.phase || '') !== 'night') return data;
+      const players = data?.players || {};
+      if (!players?.[targetId]?.alive) return data;
+      return {
+        ...data,
+        jailedTonight: {
+          ...(data?.jailedTonight || {}),
+          [targetId]: { by: state.uid, at: now },
+        },
+        updatedAtMs: now,
+      };
+    });
+  }
+
+  await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now } }));
 }
 
 function renderNight() {
@@ -292,9 +329,14 @@ function renderNight() {
   const allPlayers = Object.values(state.publicState?.players || {});
   const partners = myRole === 'pob' ? (state.mePrivate?.partners || []) : [];
   const roleText = ROLE_UI_TEXT[myRole]?.(partners) || 'ไม่พบบทบาทของคุณ';
+  const jailedTonight = state.publicState?.jailedTonight || {};
+  const iAmJailed = Boolean(jailedTonight[state.uid]);
 
   let actionHtml = '<div class="tag">คุณออกจากเกมแล้ว</div>';
   if (me?.alive && state.roleSheetRevealed) {
+    if (iAmJailed) {
+      actionHtml = '<div class="tag out">คืนนี้คุณโดนตำรวจจับ ใช้พลังไม่ได้</div>';
+    } else
     if (myRole === 'villager') {
       actionHtml = `<button id="workBtn" class="btn big-btn" ${acted ? 'disabled' : ''}>🌾 ทำงาน/ไถนา</button>`;
     } else {
@@ -307,7 +349,8 @@ function renderNight() {
   els.night.innerHTML = `
     <h2>Step 3: Night Action</h2>
     ${phaseMetaHtml()}
-    <p class="muted">ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}</p>    
+    <p class="muted">ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}</p>
+    <p class="muted">คนที่โดนจับคืนนี้: ${Object.keys(jailedTonight).length ? Object.keys(jailedTonight).map((uid) => state.publicState?.players?.[uid]?.name || 'ผู้เล่น').join(', ') : 'ยังไม่มี'}</p>
     <h3>วงหมู่บ้าน</h3>
     ${renderVillageGridHtml(allPlayers)}
     <div class="hidden-sheet ${isAlive() ? '' : 'is-dead'}">
@@ -330,6 +373,7 @@ function renderNight() {
       `}
     </div>
     ${state.isHost ? '<button id="resolveMorning" class="btn">ประมวลผลตอนเช้า</button>' : '<p class="muted">รอ Host ประมวลผลเช้า</p>'}
+    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   document.getElementById('toggleRoleSheet')?.addEventListener('click', () => {
@@ -358,6 +402,7 @@ function renderNight() {
   });
 
   document.getElementById('resolveMorning')?.addEventListener('click', () => { void resolveMorningByHost(); });
+  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 function markDead(nextPublic, uid, reason, logs) {
@@ -380,18 +425,23 @@ async function resolveMorningByHost() {
   const monkUid = uidByRole('monk')[0] || null;
   const hunterUid = uidByRole('hunter')[0] || null;
 
-  const pobTarget = priv[pobUid]?.nightAction?.targetId || null;
-  const jailed = priv[policeUid]?.nightAction?.targetId || null;
+  const pobAction = priv[pobUid]?.nightAction || null;
+  const policeAction = priv[policeUid]?.nightAction || null;
+  const pobTarget = pobAction?.targetId || null;
+  const jailed = policeAction?.targetId || null;
   const protectedUid = priv[monkUid]?.nightAction?.targetId || null;
   const hunterTarget = priv[hunterUid]?.nightAction?.targetId || null;
+  const jailedTonight = pub?.jailedTonight || {};
 
   const logs = [];
-  const jailedIsPob = Boolean(jailed && priv[jailed]?.role === 'pob');
+  const pobJailedAt = Number(jailedTonight?.[pobUid]?.at || 0);
+  const pobActAt = Number(pobAction?.at || 0);
+  const pobBlockedByJail = Boolean(pobUid && pobJailedAt && (!pobActAt || pobJailedAt <= pobActAt));
 
   if (jailed) logs.push(`${pub.players?.[jailed]?.name || 'ผู้เล่น'} ถูกตำรวจจับ`);
 
   if (pobTarget) {
-    if (jailedIsPob) {
+    if (pobBlockedByJail) {
       logs.push('ตำรวจจับปอบได้ ยกเลิกการฆ่าปอบคืนนี้');
     } else if (pobTarget === protectedUid) {
       logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ได้รับการคุ้มครองจากหมอธรรม`);
@@ -418,6 +468,7 @@ async function resolveMorningByHost() {
   await tx(paths.public, (data) => ({
     ...data,
     players: pub.players,
+    jailedTonight: {},
     phase: 'morning',
     phaseEndsAtMs: Date.now() + phaseDurationMs('morning'),
     lastLogs: logs.length ? logs : ['คืนนี้ไม่มีคนตาย'],
@@ -425,7 +476,7 @@ async function resolveMorningByHost() {
       ...(Array.isArray(data?.nightHistory) ? data.nightHistory : []),
       {
         day: Number(data?.day || 1),
-        policeTarget: jailed ? (pub.players?.[jailed]?.name || '') : '',
+        policeTarget: Object.keys(jailedTonight).map((uid) => pub.players?.[uid]?.name || '').filter(Boolean).join(', '),
         monkTarget: protectedUid ? (pub.players?.[protectedUid]?.name || '') : '',
         pobTarget: pobTarget ? (pub.players?.[pobTarget]?.name || '') : '',
         hunterTarget: hunterTarget ? (pub.players?.[hunterTarget]?.name || '') : '',
@@ -456,6 +507,7 @@ function renderMorning() {
     <div class="result-list">${players.map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('')}</div>
     ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">ไปช่วงโหวตลับ</button>' : '<p class="muted">รอ Host ไปช่วงโหวต</p>'}
+    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   document.getElementById('toVote')?.addEventListener('click', async () => {
@@ -466,6 +518,7 @@ function renderMorning() {
       updatedAtMs: Date.now(),
     }));
   });
+  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 async function submitVote(targetId) {
@@ -549,12 +602,14 @@ function renderVote() {
     </div>
     <div class="grid" style="margin-top:.7rem;">${Object.entries(state.publicState?.voteSummary || {}).map(([name, score]) => `<div class="tag">${name} = ${score} คะแนน</div>`).join('') || '<div class="tag">รอรวมผลโหวต</div>'}</div>
     ${state.isHost ? '<button id="finalVote" class="btn" style="margin-top:.7rem;">รวมคะแนนโหวต</button>' : '<p class="muted">รอ Host รวมคะแนน</p>'}
+    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   document.querySelectorAll('.voteBtn').forEach((btn) => {
     btn.addEventListener('click', () => { void submitVote(btn.dataset.id); });
   });
   document.getElementById('finalVote')?.addEventListener('click', () => { void finalizeVoteByHost(); });
+  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 function renderEnd() {
@@ -564,7 +619,7 @@ function renderEnd() {
   els.end.innerHTML = `
     <h2>Step 6: End Game</h2>
     ${phaseMetaHtml()}
-    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : '👹 ฝั่งปอบชนะ'}</div>
+    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : (winner === 'cancelled' ? '⛔ เกมยุติ' : '👹 ฝั่งปอบชนะ')}</div>
     <div class="result-list" style="margin-top:.7rem;">${Object.values(state.publicState?.players || {}).map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name} • ${ROLES[revealRoles[p.uid]]?.label || '-'}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">
       ${historyRows.map((h) => `<div class=\"tag\">คืน ${h.day}: ${Array.isArray(h.logs) ? h.logs.join(' | ') : '-'}</div>`).join('') || '<div class=\"tag\">ไม่มี history</div>'}
@@ -579,6 +634,22 @@ function renderEnd() {
     await tx(paths.public, () => null);
     window.location.href = '../../duel.html';
   });
+}
+
+async function leaveRoom() {
+  const isCurrentHost = String(state.publicState?.hostUid || '') === state.uid;
+  if (isCurrentHost) {
+    await tx(paths.public, (data) => ({
+      ...data,
+      phase: 'end',
+      winner: 'cancelled',
+      phaseEndsAtMs: 0,
+      lastLogs: ['Host ออกจากห้อง ระบบยุติเกมทันที'],
+      forceClosed: { reason: 'host_left', at: Date.now() },
+      updatedAtMs: Date.now(),
+    }));
+  }
+  window.location.href = '../../duel.html';
 }
 
 function mountByPhase() {
@@ -653,6 +724,19 @@ function ensurePhaseTicker() {
 
     if (!state.isHost) return;
     const phase = String(state.publicState.phase || 'setup');
+    const hardStop = Number(state.publicState.hardStopAtMs || 0);
+    if (hardStop && Date.now() >= hardStop && phase !== 'end') {
+      await tx(paths.public, (data) => ({
+        ...data,
+        phase: 'end',
+        winner: 'cancelled',
+        phaseEndsAtMs: 0,
+        lastLogs: ['ระบบปิดเกมอัตโนมัติเมื่อครบ 1 ชั่วโมง'],
+        forceClosed: { reason: 'timeout_1h', at: Date.now() },
+        updatedAtMs: Date.now(),
+      }));
+      return;
+    }
     if (phase === 'identity') {
       await tx(paths.public, (data) => ({ ...data, phase: 'night', phaseEndsAtMs: Date.now() + phaseDurationMs('night'), updatedAtMs: Date.now() }));
       return;
@@ -691,6 +775,19 @@ async function initCloud() {
     const room = snap.val() || {};
     state.duelPlayers = room.players || {};
     state.isHost = String(room.hostUid || '') === state.uid;
+    const publicHost = String(state.publicState?.hostUid || '');
+    const roomHost = String(room.hostUid || '');
+    if (state.publicState && publicHost && roomHost && publicHost !== roomHost && String(state.publicState.phase || '') !== 'end') {
+      void tx(paths.public, (data) => ({
+        ...data,
+        phase: 'end',
+        winner: 'cancelled',
+        phaseEndsAtMs: 0,
+        lastLogs: ['Host หลุดออกจากห้อง ระบบยุติเกมเพื่อป้องกันข้อมูลผิดพลาด'],
+        forceClosed: { reason: 'host_disconnected', at: Date.now() },
+        updatedAtMs: Date.now(),
+      }));
+    }
     ensurePrivateAllListener();
     if (!state.publicState) {
       mountByPhase();
