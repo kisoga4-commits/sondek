@@ -85,6 +85,8 @@ const DUEL_ROOM_ID_LENGTH = 6;
 const DUEL_QUESTION_SECONDS = 10;
 const DUEL_REVEAL_SECONDS = 0.8;
 const DUEL_ROUND_MS = Math.round((DUEL_QUESTION_SECONDS + DUEL_REVEAL_SECONDS) * 1000);
+const WORM_STUN_MS = 3000;
+const WORM_SEGMENT_GOAL = 5;
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
@@ -796,6 +798,71 @@ function buildDuelPlayerPayload(name) {
   };
 }
 
+function buildWormPlayerPayload(name) {
+  return {
+    name: sanitizeDuelName(name),
+    score: 0,
+    correctCount: 0,
+    wrongCount: 0,
+    wrongStreak: 0,
+    correctStreak: 0,
+    stunnedUntilMs: 0,
+    lastAnsweredRound: -1,
+    teamId: '',
+    relayOrder: 0,
+    completedRelay: false,
+    updatedAt: Date.now(),
+  };
+}
+
+function ensureWormTeams(roomData) {
+  const players = { ...(roomData.players || {}) };
+  const modeConfig = roomData.modeConfig || {};
+  const isTeam = String(modeConfig.matchType || 'solo') === 'team';
+  if (!isTeam) return { players, teams: null };
+
+  const teamSize = Math.max(2, Math.min(3, Number(modeConfig.relaySize || 2)));
+  const uids = Object.keys(players);
+  const slots = uids.slice(0, teamSize * 2);
+  const teamA = slots.filter((_, index) => index % 2 === 0).slice(0, teamSize);
+  const teamB = slots.filter((_, index) => index % 2 === 1).slice(0, teamSize);
+
+  teamA.forEach((uid, index) => {
+    players[uid] = { ...players[uid], teamId: 'A', relayOrder: index, updatedAt: Date.now() };
+  });
+  teamB.forEach((uid, index) => {
+    players[uid] = { ...players[uid], teamId: 'B', relayOrder: index, updatedAt: Date.now() };
+  });
+
+  return {
+    players,
+    teams: {
+      A: { activeRelayOrder: 0, size: teamA.length, finished: false },
+      B: { activeRelayOrder: 0, size: teamB.length, finished: false },
+    },
+  };
+}
+
+function pickWormWinner(data) {
+  const players = data.players || {};
+  const isTeam = String(data?.modeConfig?.matchType || 'solo') === 'team';
+  if (!isTeam) {
+    const ranked = Object.entries(players).sort((a, b) => Number(b[1]?.score || 0) - Number(a[1]?.score || 0));
+    if (!ranked.length) return { winnerUid: '', reason: 'empty' };
+    if (Number(ranked[0][1]?.score || 0) === Number(ranked[1]?.[1]?.score || -1)) return { winnerUid: '', reason: 'draw' };
+    return { winnerUid: ranked[0][0], reason: 'distance' };
+  }
+
+  const totals = { A: 0, B: 0 };
+  Object.values(players).forEach((player) => {
+    const teamId = player?.teamId;
+    if (!totals[teamId] && teamId !== 'A' && teamId !== 'B') return;
+    totals[teamId] += Number(player?.score || 0);
+  });
+  if (totals.A === totals.B) return { winnerUid: '', reason: 'draw_team' };
+  return { winnerUid: totals.A > totals.B ? 'team:A' : 'team:B', reason: 'distance_team' };
+}
+
 function getCurrentRoundIndex(room, nowMs = Date.now()) {
   const startedAtMs = Number(room?.startedAtMs || 0);
   if (!startedAtMs) return -1;
@@ -857,9 +924,16 @@ export async function createDuelRoom(payload) {
   const uid = getDuelActorUid();
   const preferredRoomId = normalizeDuelRoomId(payload?.roomId);
   const maxAttempts = preferredRoomId ? 1 : 8;
-  const durationSeconds = Number(payload?.durationSeconds) === 180 ? 180 : 120;
+  const durationSecondsRaw = Number(payload?.durationSeconds || 120);
+  const durationSeconds = [120, 180, 240, 300].includes(durationSecondsRaw) ? durationSecondsRaw : 120;
+  const gameMode = String(payload?.gameMode || 'attack') === 'worm' ? 'worm' : 'attack';
+  const matchType = String(payload?.matchType || 'solo') === 'team' ? 'team' : 'solo';
+  const relaySize = Math.max(2, Math.min(3, Number(payload?.relaySize || 2)));
+  const modeConfig = { gameMode, matchType, relaySize };
 
-  const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
+  const hostPlayer = gameMode === 'worm'
+    ? buildWormPlayerPayload(payload?.hostName || 'Host')
+    : buildDuelPlayerPayload(payload?.hostName || 'Host');
 
   let lastError = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -881,6 +955,7 @@ export async function createDuelRoom(payload) {
           hostName: hostPlayer.name,
           durationSeconds,
           maxPlayers: 4,
+          modeConfig,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
           players: {
             [uid]: hostPlayer,
@@ -948,7 +1023,9 @@ export async function joinDuelRoom(roomId, playerName) {
           ...players[uid],
           name: sanitizeDuelName(playerName, players[uid].name || 'ผู้เล่น'),
           updatedAt: Date.now(),
-        } : buildDuelPlayerPayload(playerName),
+        } : (String(data?.modeConfig?.gameMode || 'attack') === 'worm'
+          ? buildWormPlayerPayload(playerName)
+          : buildDuelPlayerPayload(playerName)),
       };
 
       return {
@@ -987,8 +1064,24 @@ export async function startDuelRoom(roomId) {
         throw new Error('ต้องมีผู้เล่นอย่างน้อย 2 คนก่อนเริ่มดวล');
       }
 
+      const modeConfig = data.modeConfig || {};
+      const isWormTeam = String(modeConfig.gameMode || 'attack') === 'worm'
+        && String(modeConfig.matchType || 'solo') === 'team';
+      if (isWormTeam) {
+        const expectedPlayers = Math.max(2, Math.min(3, Number(modeConfig.relaySize || 2))) * 2;
+        if (Object.keys(players).length < expectedPlayers) {
+          throw new Error(`โหมด Team ต้องมีผู้เล่นครบ ${expectedPlayers} คน`);
+        }
+      }
+
+      const prepared = String(modeConfig.gameMode || 'attack') === 'worm'
+        ? ensureWormTeams(data)
+        : { players, teams: null };
+
       return {
         ...data,
+        players: prepared.players,
+        teams: prepared.teams,
         status: 'active',
         startedAtMs: Date.now(),
         updatedAtMs: Date.now(),
@@ -1033,6 +1126,121 @@ export async function submitDuelAnswer(roomId, payload) {
       if (!data) throw new Error('ไม่พบห้องดวลนี้');
       if (data.status !== 'active') {
         return data;
+      }
+      if (String(data?.modeConfig?.gameMode || 'attack') === 'worm') {
+        const players = { ...(data.players || {}) };
+        const me = { ...(players[uid] || {}) };
+        const nowMs = Date.now();
+        const roundIndex = getCurrentRoundIndex(data, nowMs);
+        if (roundIndex < 0) return data;
+        if (Number(me.lastAnsweredRound ?? -1) >= roundIndex) return data;
+        if (Number(me.stunnedUntilMs || 0) > nowMs) return data;
+
+        const isTeam = String(data?.modeConfig?.matchType || 'solo') === 'team';
+        const teams = { ...(data.teams || {}) };
+        if (isTeam) {
+          const myTeam = me.teamId || '';
+          const teamState = teams[myTeam];
+          if (!teamState || Number(teamState.activeRelayOrder) !== Number(me.relayOrder || 0)) return data;
+        }
+
+        const isCorrect = Boolean(payload?.isCorrect);
+        me.lastAnsweredRound = roundIndex;
+        let eventType = '';
+        let eventMessage = '';
+        let eventTargetUid = '';
+
+        if (isCorrect) {
+          me.correctCount = Number(me.correctCount || 0) + 1;
+          me.correctStreak = Number(me.correctStreak || 0) + 1;
+          me.wrongStreak = 0;
+          me.score = Math.max(0, Number(me.score || 0) + 1);
+          if (me.correctStreak >= 3) {
+            me.correctStreak = 0;
+            const candidates = Object.entries(players)
+              .filter(([pid, p]) => pid !== uid && (!isTeam || p?.teamId !== me.teamId))
+              .filter(([, p]) => (!isTeam || Number((teams[p?.teamId] || {}).activeRelayOrder || 0) === Number(p?.relayOrder || 0)));
+            const [targetUid, targetPayload] = candidates[0] || [];
+            if (targetUid && targetPayload) {
+              const target = { ...targetPayload };
+              target.score = Math.max(0, Number(target.score || 0) - 1);
+              target.updatedAt = nowMs;
+              players[targetUid] = target;
+              eventType = 'attack';
+              eventMessage = 'ตอบถูกติดกัน 3 ข้อ โจมตีคู่แข่ง -1';
+              eventTargetUid = targetUid;
+            }
+          }
+        } else {
+          me.wrongCount = Number(me.wrongCount || 0) + 1;
+          me.correctStreak = 0;
+          me.wrongStreak = Number(me.wrongStreak || 0) + 1;
+          if (me.wrongStreak >= 2) {
+            me.stunnedUntilMs = nowMs + WORM_STUN_MS;
+            eventType = 'stun';
+            eventMessage = 'ตอบผิดติดกัน โดน Stun 3 วินาที';
+            eventTargetUid = uid;
+          }
+          if (me.wrongStreak >= 3) {
+            me.score = Math.max(0, Number(me.score || 0) - 1);
+            eventType = 'stun_penalty';
+            eventMessage = 'ตอบผิดติดกัน โดน Stun และ -1';
+            eventTargetUid = uid;
+          }
+        }
+
+        if (isTeam) {
+          const teamId = me.teamId;
+          const teamState = { ...(teams[teamId] || {}) };
+          const relayOrder = Number(me.relayOrder || 0);
+          const finishedSegment = Number(me.score || 0) >= WORM_SEGMENT_GOAL;
+          if (finishedSegment && Number(teamState.activeRelayOrder || 0) === relayOrder) {
+            me.completedRelay = true;
+            const nextOrder = relayOrder + 1;
+            if (nextOrder >= Number(teamState.size || 0)) {
+              teamState.finished = true;
+              teamState.activeRelayOrder = relayOrder;
+            } else {
+              teamState.activeRelayOrder = nextOrder;
+            }
+            teams[teamId] = teamState;
+          }
+        }
+
+        me.updatedAt = nowMs;
+        players[uid] = me;
+
+        let nextStatus = data.status;
+        let winnerUid = data.winnerUid || '';
+        let winReason = data.winReason || '';
+        if (isTeam && teams.A?.finished && teams.B?.finished) {
+          const totalA = Object.values(players).filter((p) => p?.teamId === 'A').reduce((sum, p) => sum + Number(p?.score || 0), 0);
+          const totalB = Object.values(players).filter((p) => p?.teamId === 'B').reduce((sum, p) => sum + Number(p?.score || 0), 0);
+          nextStatus = 'finished';
+          winnerUid = totalA === totalB ? '' : (totalA > totalB ? 'team:A' : 'team:B');
+          winReason = 'team_finish';
+        }
+
+        const eventCounter = Number(data.eventCounter || 0) + (eventType ? 1 : 0);
+        return {
+          ...data,
+          players,
+          teams,
+          status: nextStatus,
+          winnerUid,
+          winReason,
+          eventCounter,
+          lastEvent: eventType ? {
+            id: `${eventCounter}_${nowMs}`,
+            type: eventType,
+            message: eventMessage,
+            actorUid: uid,
+            targetUid: eventTargetUid,
+            atMs: nowMs,
+          } : null,
+          endedAtMs: nextStatus === 'finished' ? nowMs : data.endedAtMs || null,
+          updatedAtMs: nowMs,
+        };
       }
 
       const players = { ...(data.players || {}) };
@@ -1174,7 +1382,9 @@ export async function finalizeDuelByTimeout(roomId) {
       }
 
       const players = data.players || {};
-      const result = pickDuelWinner(players);
+      const result = String(data?.modeConfig?.gameMode || 'attack') === 'worm'
+        ? pickWormWinner(data)
+        : pickDuelWinner(players);
       const eventCounter = Number(data.eventCounter || 0) + 1;
 
       return {
