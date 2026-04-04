@@ -6,16 +6,23 @@
       "$roomId": {
         ".read": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
         ".write": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
+        "roomId": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4,6}$/))"
+        },
+        "pin": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4,6}$/))"
+        },
+        "status": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
+        },
+        "hostUid": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
+        },
         "players": {
+          ".validate": "!newData.exists() || newData.hasChildren()",
           "$uid": {
-            ".validate": "newData.hasChildren(['name'])"
+            ".validate": "!newData.exists() || (newData.child('uid').isString() && newData.child('name').isString())"
           }
-        },
-        "settings": {
-          ".validate": "newData.hasChildren(['mode','competitionType','durationMinutes','quizId'])"
-        },
-        "state": {
-          ".validate": "newData.hasChildren(['status'])"
         }
       }
     },

@@ -11,7 +11,7 @@
 3. ค่อย ๆ ย้ายจากเงื่อนไข `|| signedIn()` ไปใช้ `isAdmin()` อย่างเดียว เมื่อมีระบบล็อกอินแอดมินจริง (เช่น Google Sign-In + custom claims)
 
 ## Duel Mode ใช้ฐานข้อมูลอะไร?
-- Duel Mode ถูกปรับให้ใช้ **Realtime Database** ที่ path `duel_rooms/{roomId}` แล้ว
+- Duel Mode ใช้ **Realtime Database** ที่ path `rooms/{roomId}`
 - ดังนั้น error `Missing or insufficient permissions` ของโหมดดวล จะเกี่ยวกับ **Realtime Database Rules** ไม่ใช่ `firestore.rules`
 - ควรเปิด Anonymous Auth และตั้ง RTDB Rules ให้ user ที่ล็อกอินแล้ว (รวม anonymous) อ่าน/เขียนห้องของ Duel ได้
 
@@ -21,22 +21,23 @@
    ```bash
    firebase deploy --only database
    ```
-3. ทดสอบใหม่โดยเปิดหน้า `duel.html` แล้วสร้างห้องรหัสใหม่ 4 หลัก
+3. ทดสอบใหม่โดยเปิดหน้า `duel.html` แล้วสร้างห้องรหัสใหม่ (รองรับ 4-6 หลัก)
 
 ไฟล์ `database.rules.json` ถูกตั้งค่าให้:
 - อนุญาต `read/write` เฉพาะ user ที่ login แล้ว (`auth != null`)
-- อนุญาตเฉพาะ `roomId` ที่เป็นตัวเลข 4 หลัก
-- จำกัด `players` ไม่เกิน 2 คน
+- อนุญาตเฉพาะ `roomId` ที่เป็นตัวเลข 4-6 หลัก
+- ตั้ง validation แบบยืดหยุ่น (schema-light) เพื่อรองรับโหมดเกมใหม่ในอนาคต โดยไม่ผูกตายกับโครงสร้าง `settings/state` แบบเก่า
+- ยังมี guard ขั้นพื้นฐานกับฟิลด์หลักที่ใช้บ่อย เช่น `roomId`, `pin`, `hostUid`, `players`
 
 ## ถ้ายังไม่หาย: รีเซ็ตระบบ Duel แล้วเริ่มใหม่
-ถ้าข้อมูลห้องเดิมค้าง/เพี้ยน ให้ลบ node `duel_rooms` ทั้งหมดใน Realtime Database แล้วเริ่มสร้างห้องใหม่:
+ถ้าข้อมูลห้องเดิมค้าง/เพี้ยน ให้ลบ node `rooms` ทั้งหมดใน Realtime Database แล้วเริ่มสร้างห้องใหม่:
 
 1. ไปที่ `Firebase Console > Realtime Database > Data`
-2. เลือก node `duel_rooms`
+2. เลือก node `rooms`
 3. กดเมนู `⋮` แล้วเลือก **Delete node**
 4. กลับไปหน้าเว็บ แล้วสร้างห้อง Duel ใหม่
 
-> หมายเหตุ: การลบ `duel_rooms` จะลบห้องดวลที่กำลังรอ/กำลังเล่นทั้งหมดทันที
+> หมายเหตุ: การลบ `rooms` จะลบห้องดวลที่กำลังรอ/กำลังเล่นทั้งหมดทันที
 
 ## วิธีหา UID แอดมิน
 - เปิดหน้า `adminchamp.html`
