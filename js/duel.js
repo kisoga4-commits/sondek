@@ -9,9 +9,16 @@ import {
   subscribeAuthStatus,
   subscribeCourses,
   subscribeDuelRoom,
-} from './db.js';
+} from './duelDb.js';
 import { isQuestionCorrect, normalizeQuestion, pickRandomQuestions } from './quiz.js';
-import { buildQuestionLoop, getRoundState, LOOP_QUESTION_COUNT, normalizeRoomIdInput, ROOM_ID_LENGTH } from './duelCore.js';
+import {
+  buildPersonalQuestionLoop,
+  buildQuestionLoop,
+  getRoundState,
+  LOOP_QUESTION_COUNT,
+  normalizeRoomIdInput,
+  ROOM_ID_LENGTH,
+} from './duelCore.js';
 
 const el = {
   showHostSetupBtn: document.getElementById('showHostSetupBtn'),
@@ -90,7 +97,22 @@ function syncHostModeOptions() {
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
 }
 
-const state = { uid: '', roomId: '', room: null, unsubRoom: null, timerId: null, questionBank: [], loadedCourseId: '', selectedAnswer: null, isSubmitting: false, authReady: false, shownFinishMarker: '' };
+const state = {
+  uid: '',
+  roomId: '',
+  room: null,
+  unsubRoom: null,
+  timerId: null,
+  questionBank: [],
+  loadedCourseId: '',
+  loadingCourseId: '',
+  selectedAnswer: null,
+  isSubmitting: false,
+  authReady: false,
+  shownFinishMarker: '',
+  personalLoopKey: '',
+  personalQuestionSequence: [],
+};
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
 const setStatus = (text) => { el.statusText.textContent = text; };
@@ -98,11 +120,40 @@ const openModal = (modal) => modal?.classList.remove('hidden');
 const closeModal = (modal) => modal?.classList.add('hidden');
 
 function getQuestionByRound(room, roundIdx) {
-  const sequence = Array.isArray(room?.questionSequence) ? room.questionSequence : [];
+  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
+  const sequence = gameMode === 'worm'
+    ? getPersonalQuestionSequence(room)
+    : (Array.isArray(room?.questionSequence) ? room.questionSequence : []);
   if (!sequence.length || !state.questionBank.length || roundIdx < 0) return null;
   const qid = String(sequence[roundIdx % sequence.length] || '');
   const row = state.questionBank.find((q) => String(q.id) === qid);
   return row ? normalizeQuestion(row) : null;
+}
+
+function getPersonalQuestionSequence(room) {
+  const roomId = String(room?.roomId || room?.id || state.roomId || '');
+  const actorKey = `${roomId}:${state.uid}`;
+  const cacheKey = `${roomId}:${state.uid}:${state.loadedCourseId}:${state.questionBank.length}`;
+  if (state.personalLoopKey !== cacheKey) {
+    state.personalQuestionSequence = buildPersonalQuestionLoop(state.questionBank, actorKey, { loopQuestionCount: LOOP_QUESTION_COUNT });
+    state.personalLoopKey = cacheKey;
+  }
+  return state.personalQuestionSequence;
+}
+
+function getActiveRound(room) {
+  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
+  if (gameMode === 'worm') {
+    return {
+      roundIndex: Math.max(0, Number(room?.currentRoundIndex || 0)),
+      isReveal: false,
+    };
+  }
+  const rs = getRoundState(room);
+  return {
+    roundIndex: rs.roundIndex,
+    isReveal: rs.isReveal,
+  };
 }
 
 function renderRace(room) {
@@ -135,7 +186,7 @@ function renderRace(room) {
 }
 
 function renderQuestion(room) {
-  const rs = getRoundState(room);
+  const rs = getActiveRound(room);
   const question = getQuestionByRound(room, rs.roundIndex);
   const me = room.players?.[state.uid] || {};
   const isStunned = Number(me?.stunUntilMs || 0) > Date.now();
@@ -173,7 +224,7 @@ function renderQuestion(room) {
 async function submitAnswer() {
   const room = state.room;
   if (!room || state.isSubmitting) return;
-  const rs = getRoundState(room);
+  const rs = getActiveRound(room);
   if (rs.roundIndex < 0 || rs.isReveal) return;
   const q = getQuestionByRound(room, rs.roundIndex);
   if (!q || !Number.isInteger(state.selectedAnswer)) return;
@@ -209,7 +260,7 @@ function ensureTimer(room) {
   const tick = () => {
     if (!room || roomStatus(room) !== 'playing') return;
     const remainSec = Math.ceil((Number(room.startedAtMs || 0) + (Number(room.durationSeconds || 120) * 1000) - Date.now()) / 1000);
-    const rs = getRoundState(room);
+    const rs = getActiveRound(room);
     el.timerText.textContent = `${String(Math.max(0, Math.floor(remainSec / 60))).padStart(2, '0')}:${String(Math.max(0, remainSec % 60)).padStart(2, '0')}`;
     el.roundText.textContent = rs.isReveal ? 'เฉลย / เปลี่ยนข้อ' : `ข้อที่ ${Math.max(1, rs.roundIndex + 1)}`;
     if (remainSec <= 0) void finalizeDuelByTimeout(state.roomId);
@@ -221,6 +272,7 @@ function ensureTimer(room) {
 function handleRoomUpdate(room) {
   if (!room) return;
   state.room = room;
+  void ensureRoomQuestionBank(room);
   const players = Object.values(room.players || {});
   const isHost = String(room.hostUid || '') === state.uid;
 
@@ -233,13 +285,16 @@ function handleRoomUpdate(room) {
   el.startGameBtn.classList.toggle('hidden', !(isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers));
   el.lobbyHint.textContent = players.length < minPlayers ? `ต้องมีผู้เล่นอย่างน้อย ${minPlayers} คน` : 'พร้อมเริ่มเกม';
 
-  const rs = getRoundState(room);
+  const rs = getActiveRound(room);
   const currentQuestion = getQuestionByRound(room, rs.roundIndex);
   const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
   el.lobbyModeText.textContent = gameLabel.toUpperCase();
   el.duelModeTitle.textContent = `${gameLabel} • ${String(room?.modeConfig?.matchType || 'solo').toUpperCase()}`;
   if (roomStatus(room) === 'playing' && currentQuestion) {
-    el.resultHint.textContent = 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
+    const gameMode = String(room?.modeConfig?.gameMode || 'quick');
+    el.resultHint.textContent = gameMode === 'worm'
+      ? 'โหมดหนอนกระดื้บ: ระบบจะเปลี่ยนข้อทันทีเมื่อมีการตอบ'
+      : 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
 
   el.entrySection.classList.add('hidden');
@@ -265,6 +320,25 @@ async function loadQuestionBank(courseId) {
   if (!rows.length) throw new Error('ไม่พบคลังโจทย์');
   state.questionBank = rows.map((q) => ({ ...q }));
   state.loadedCourseId = courseId;
+  state.personalLoopKey = '';
+  state.personalQuestionSequence = [];
+}
+
+async function ensureRoomQuestionBank(room) {
+  const courseId = String(room?.courseId || '').trim();
+  if (!courseId || state.loadedCourseId === courseId || state.loadingCourseId === courseId) return;
+  state.loadingCourseId = courseId;
+  try {
+    await loadQuestionBank(courseId);
+    if (state.room) {
+      renderRace(state.room);
+      renderQuestion(state.room);
+    }
+  } catch (error) {
+    setStatus(error.message || 'โหลดคำถามไม่สำเร็จ');
+  } finally {
+    state.loadingCourseId = '';
+  }
 }
 
 function subscribeRoom(roomId) {
