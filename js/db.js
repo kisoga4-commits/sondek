@@ -1082,7 +1082,7 @@ export async function startDuelRoom(roomId) {
 
       const players = data.players || {};
       const gameMode = String(data?.modeConfig?.gameMode || 'quick');
-      const matchType = gameMode === 'worm' ? 'solo' : String(data?.modeConfig?.matchType || 'solo');
+      const matchType = String(data?.modeConfig?.matchType || 'solo');
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
       const requiredPlayers = matchType === 'party' ? teamSize * 2 : 2;
       if (Object.keys(players).length < requiredPlayers) {
