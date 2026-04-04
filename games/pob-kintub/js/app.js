@@ -78,8 +78,14 @@ function shuffle(list) {
 }
 
 function rolePool(count) {
-  if (count === 4) return ['pob', 'shaman', 'hunter', 'monk'];
-  return ['pob', 'pob', 'shaman', 'monk', 'hunter', 'police', 'villager', 'villager'].slice(0, count);
+  const pools = {
+    4: ['pob', 'police', 'shaman', 'hunter'],
+    5: ['pob', 'police', 'shaman', 'monk', 'hunter'],
+    6: ['pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
+    7: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
+    8: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager', 'villager'],
+  };
+  return pools[count] || pools[8];
 }
 
 function alivePlayers(publicState = state.publicState) {
@@ -98,9 +104,6 @@ function formatRemain(ms) {
 
 function phaseDurationMs(phase) {
   if (phase === 'night') return 20000;
-  if (phase === 'vote') return 25000;
-  if (phase === 'morning') return 12000;
-  if (phase === 'identity') return 45000;
   return 0;
 }
 
@@ -154,8 +157,9 @@ function renderHome(message = '') {
 function phaseMetaHtml() {
   const phase = String(state.publicState?.phase || 'setup');
   const endsAt = Number(state.publicState?.phaseEndsAtMs || 0);
-  const remain = endsAt ? formatRemain(endsAt - Date.now()) : '--:--';
-  return `<p class="muted">เฟส: ${phase.toUpperCase()} • เหลือเวลา ${remain}</p>`;
+  if (phase !== 'night' || !endsAt) return `<p class="muted">เฟส: ${phase.toUpperCase()}</p>`;
+  const remain = formatRemain(endsAt - Date.now());
+  return `<p class="muted">เฟส: ${phase.toUpperCase()} • เวลาทำหน้าที่กลางคืน ${remain}</p>`;
 }
 
 function deadOverlayHtml() {
@@ -212,13 +216,15 @@ function renderSetup() {
         await tx(paths.public, () => ({
           phase: 'identity',
           day: 1,
+          isFirstDayVote: true,
           hostUid: state.uid,
           startedAtMs: Date.now(),
           hardStopAtMs: gameHardStopAtMs(Date.now()),
-          phaseEndsAtMs: Date.now() + phaseDurationMs('identity'),
+          phaseEndsAtMs: 0,
           players: playersMap,
           lastLogs: ['เริ่มเกมแล้ว'],
           voteSummary: {},
+          actionSeq: 0,
           nightHistory: [],
           jailedTonight: {},
           forceClosed: null,
@@ -254,7 +260,7 @@ function renderIdentity() {
         <p class="muted">${roleText}</p>
         <div class="sheet-actions">
           <button id="hideRoleSheet" class="btn secondary">ปิดม่าน</button>
-          ${state.isHost ? '<button id="goNight" class="btn">เริ่มช่วงกลางคืน</button>' : '<p class="muted">รอ Host กดเริ่มกลางคืน</p>'}
+          ${state.isHost ? '<button id="goFirstVote" class="btn">เริ่มตอนเช้าแรก (โหวต)</button>' : '<p class="muted">รอ Host เริ่มเช้าแรก</p>'}
         </div>
       </div>
       ` : `
@@ -278,13 +284,13 @@ function renderIdentity() {
     renderIdentity();
   });
 
-  const goNight = document.getElementById('goNight');
-  if (goNight) {
-    goNight.onclick = () => tx(paths.public, (data) => ({
+  const goFirstVote = document.getElementById('goFirstVote');
+  if (goFirstVote) {
+    goFirstVote.onclick = () => tx(paths.public, (data) => ({
       ...data,
-      phase: 'night',
-      phaseEndsAtMs: Date.now() + phaseDurationMs('night'),
-      lastLogs: [`คืนที่ ${Number(data?.day || 1)}`],
+      phase: 'vote',
+      phaseEndsAtMs: 0,
+      lastLogs: ['เช้าแรก: เริ่มโหวตผู้ต้องสงสัย'],
       updatedAtMs: Date.now(),
     }));
   }
@@ -293,13 +299,27 @@ function renderIdentity() {
 
 async function submitNightAction(targetId, acted = true) {
   const myRole = state.mePrivate?.role;
-  const now = Date.now();
+  if (state.mePrivate?.nightAction?.acted) {
+    window.alert('คืนนี้คุณใช้สิทธิ์ไปแล้ว');
+    return;
+  }
   const jailedTonight = state.publicState?.jailedTonight || {};
   const iAmJailed = Boolean(jailedTonight?.[state.uid]);
   if (iAmJailed) {
     window.alert('คุณโดนจับเข้าคุกแล้ว ใช้พลังคืนนี้ไม่ได้');
     return;
   }
+
+  const stamped = await tx(paths.public, (data) => {
+    if (String(data?.phase || '') !== 'night') return data;
+    return {
+      ...data,
+      actionSeq: Number(data?.actionSeq || 0) + 1,
+      updatedAtMs: Date.now(),
+    };
+  });
+  const order = Number(stamped?.actionSeq || 0);
+  const now = Date.now();
 
   if (myRole === 'police' && targetId) {
     await tx(paths.public, (data) => {
@@ -308,16 +328,13 @@ async function submitNightAction(targetId, acted = true) {
       if (!players?.[targetId]?.alive) return data;
       return {
         ...data,
-        jailedTonight: {
-          ...(data?.jailedTonight || {}),
-          [targetId]: { by: state.uid, at: now },
-        },
+        jailedTonight: { [targetId]: { by: state.uid, at: now, order } },
         updatedAtMs: now,
       };
     });
   }
 
-  await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now } }));
+  await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order } }));
 }
 
 function renderNight() {
@@ -347,7 +364,7 @@ function renderNight() {
   const actionsCount = alive.filter((p) => state.allPrivate?.[p.uid]?.nightAction?.acted).length;
 
   els.night.innerHTML = `
-    <h2>Step 3: Night Action</h2>
+    <h2>Step 4: Night Action</h2>
     ${phaseMetaHtml()}
     <p class="muted">ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}</p>
     <p class="muted">คนที่โดนจับคืนนี้: ${Object.keys(jailedTonight).length ? Object.keys(jailedTonight).map((uid) => state.publicState?.players?.[uid]?.name || 'ผู้เล่น').join(', ') : 'ยังไม่มี'}</p>
@@ -411,6 +428,19 @@ function markDead(nextPublic, uid, reason, logs) {
   logs.push(`${nextPublic.players[uid].name} ตาย (${reason})`);
 }
 
+function isBlockedByPolice(priv, jailedTonight, uid) {
+  if (!uid) return false;
+  const jailed = jailedTonight?.[uid] || null;
+  if (!jailed) return false;
+  const jailedOrder = Number(jailed?.order || 0);
+  const actedAt = Number(priv?.[uid]?.nightAction?.at || 0);
+  const actedOrder = Number(priv?.[uid]?.nightAction?.order || 0);
+  if (!actedAt) return true;
+  if (jailedOrder && actedOrder) return jailedOrder < actedOrder;
+  const jailedAt = Number(jailed?.at || 0);
+  return jailedAt < actedAt;
+}
+
 async function resolveMorningByHost() {
   if (!state.isHost || state.isResolvingMorning) return;
   state.isResolvingMorning = true;
@@ -419,50 +449,41 @@ async function resolveMorningByHost() {
   const priv = state.allPrivate || {};
   const alive = Object.values(pub.players || {}).filter((p) => p.alive);
   const uidByRole = (role) => alive.filter((p) => priv[p.uid]?.role === role).map((p) => p.uid);
-
-  const pobUid = uidByRole('pob')[0] || null;
-  const policeUid = uidByRole('police')[0] || null;
+  const pobUids = uidByRole('pob');
   const monkUid = uidByRole('monk')[0] || null;
   const hunterUid = uidByRole('hunter')[0] || null;
-
-  const pobAction = priv[pobUid]?.nightAction || null;
-  const policeAction = priv[policeUid]?.nightAction || null;
-  const pobTarget = pobAction?.targetId || null;
-  const jailed = policeAction?.targetId || null;
-  const protectedUid = priv[monkUid]?.nightAction?.targetId || null;
-  const hunterTarget = priv[hunterUid]?.nightAction?.targetId || null;
   const jailedTonight = pub?.jailedTonight || {};
 
   const logs = [];
-  const pobJailedAt = Number(jailedTonight?.[pobUid]?.at || 0);
-  const pobActAt = Number(pobAction?.at || 0);
-  const pobBlockedByJail = Boolean(pobUid && pobJailedAt && (!pobActAt || pobJailedAt <= pobActAt));
-
-  if (jailed) logs.push(`${pub.players?.[jailed]?.name || 'ผู้เล่น'} ถูกตำรวจจับ`);
-
-  if (pobTarget) {
-    if (pobBlockedByJail) {
-      logs.push('ตำรวจจับปอบได้ ยกเลิกการฆ่าปอบคืนนี้');
-    } else if (pobTarget === protectedUid) {
-      logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ได้รับการคุ้มครองจากหมอธรรม`);
-    } else if (pobTarget === jailed) {
-      logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} อยู่ในคุก จึงไม่ตาย`);
-    } else {
-      markDead(pub, pobTarget, 'โดนปอบฆ่า', logs);
-    }
+  const jailedList = Object.keys(jailedTonight);
+  if (jailedList.length) {
+    logs.push(`คนที่โดนขัง: ${jailedList.map((uid) => pub.players?.[uid]?.name || 'ผู้เล่น').join(', ')}`);
   }
 
-  if (hunterTarget) {
-    if (hunterTarget === jailed) {
-      logs.push(`${pub.players?.[hunterTarget]?.name || 'ผู้เล่น'} อยู่ในคุก เลยรอดจากพราน`);
+  const protectedUid = isBlockedByPolice(priv, jailedTonight, monkUid) ? null : (priv[monkUid]?.nightAction?.targetId || null);
+  pobUids.forEach((pobUid) => {
+    const pobTarget = priv[pobUid]?.nightAction?.targetId || null;
+    if (!pobTarget) return;
+    if (isBlockedByPolice(priv, jailedTonight, pobUid)) {
+      logs.push(`${pub.players?.[pobUid]?.name || 'ปอบ'} ถูกขังก่อนใช้พลัง`);
+    } else if (pobTarget === protectedUid) {
+      logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกคุ้มครองโดยหมอธรรม`);
+    } else if (jailedTonight[pobTarget]) {
+      logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงไม่ตาย`);
     } else {
-      markDead(pub, hunterTarget, 'โดนพรานยิง', logs);
+      markDead(pub, pobTarget, 'โดนจกตับ', logs);
     }
+  });
+
+  const hunterTarget = isBlockedByPolice(priv, jailedTonight, hunterUid) ? null : (priv[hunterUid]?.nightAction?.targetId || null);
+  if (hunterTarget) {
+    if (jailedTonight[hunterTarget]) logs.push(`${pub.players?.[hunterTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงรอดจากกระสุน`);
+    else markDead(pub, hunterTarget, 'โดนยิง', logs);
   }
 
   alive.filter((p) => priv[p.uid]?.role === 'villager').forEach((villager) => {
     const acted = Boolean(priv[villager.uid]?.nightAction?.acted);
-    if (!acted) markDead(pub, villager.uid, 'ไม่กดทำงาน', logs);
+    if (!acted) markDead(pub, villager.uid, 'อดตาย', logs);
   });
 
   await tx(paths.public, (data) => ({
@@ -478,7 +499,7 @@ async function resolveMorningByHost() {
         day: Number(data?.day || 1),
         policeTarget: Object.keys(jailedTonight).map((uid) => pub.players?.[uid]?.name || '').filter(Boolean).join(', '),
         monkTarget: protectedUid ? (pub.players?.[protectedUid]?.name || '') : '',
-        pobTarget: pobTarget ? (pub.players?.[pobTarget]?.name || '') : '',
+        pobTarget: pobUids.map((uid) => pub.players?.[priv[uid]?.nightAction?.targetId || '']?.name || '').filter(Boolean).join(', '),
         hunterTarget: hunterTarget ? (pub.players?.[hunterTarget]?.name || '') : '',
         logs: logs.length ? logs : ['คืนนี้ไม่มีคนตาย'],
       },
@@ -502,11 +523,11 @@ function renderMorning() {
   const players = Object.values(state.publicState?.players || {});
   const logs = state.publicState?.lastLogs || [];
   els.morning.innerHTML = `
-    <h2>Step 4: Morning (Public)</h2>
+    <h2>Step 5: Morning (Public)</h2>
     ${phaseMetaHtml()}
     <div class="result-list">${players.map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('')}</div>
-    ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">ไปช่วงโหวตลับ</button>' : '<p class="muted">รอ Host ไปช่วงโหวต</p>'}
+    ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">เริ่มโหวตช่วงเช้า</button>' : '<p class="muted">รอ Host เริ่มโหวต</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
@@ -514,7 +535,7 @@ function renderMorning() {
     await tx(paths.public, (data) => ({
       ...data,
       phase: 'vote',
-      phaseEndsAtMs: Date.now() + phaseDurationMs('vote'),
+      phaseEndsAtMs: 0,
       updatedAtMs: Date.now(),
     }));
   });
@@ -559,11 +580,13 @@ async function finalizeVoteByHost() {
     voteSummary: summary,
     phase: end ? 'end' : 'night',
     phaseEndsAtMs: end ? 0 : (Date.now() + phaseDurationMs('night')),
+    actionSeq: end ? Number(data?.actionSeq || 0) : 0,
     winner: end || '',
     revealRoles: end
       ? Object.fromEntries(Object.keys(pub.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
       : (data?.revealRoles || {}),
-    day: end ? data.day : Number(data.day || 1) + 1,
+    day: end ? data.day : Number(data.day || 1) + (data?.isFirstDayVote ? 0 : 1),
+    isFirstDayVote: false,
     lastLogs: outUid ? [`${pub.players?.[outUid]?.name || 'ผู้เล่น'} ถูกโหวตออก`] : ['ไม่มีใครถูกโหวตออก'],
     updatedAtMs: Date.now(),
   }));
@@ -583,9 +606,8 @@ async function finalizeVoteByHost() {
 function checkWinner(publicState, privateState) {
   const alive = Object.values(publicState.players || {}).filter((p) => p.alive);
   const pobAlive = alive.filter((p) => privateState[p.uid]?.role === 'pob').length;
-  const villagerAlive = alive.length - pobAlive;
   if (pobAlive === 0) return 'villager';
-  if (villagerAlive <= pobAlive) return 'pob';
+  if (alive.length === pobAlive) return 'pob';
   return '';
 }
 
@@ -593,7 +615,7 @@ function renderVote() {
   const alive = alivePlayers();
   const myVote = state.mePrivate?.voteTarget || '';
   els.vote.innerHTML = `
-    <h2>Step 5: Blind Vote</h2>
+    <h2>Step 3: Day Vote</h2>
     ${phaseMetaHtml()}
     <p class="muted">คะแนนจะรวมแบบไม่บอกว่าใครโหวตใคร</p>
     <div class="secret-wrapper">
@@ -628,7 +650,7 @@ function renderEnd() {
   `;
 
   document.getElementById('restartGame')?.addEventListener('click', async () => {
-    await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, lastLogs: ['รีเซ็ตเกม'], updatedAtMs: Date.now() }));
+    await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, lastLogs: ['รีเซ็ตเกม'], updatedAtMs: Date.now() }));
   });
   document.getElementById('goHome')?.addEventListener('click', async () => {
     await tx(paths.public, () => null);
@@ -655,6 +677,8 @@ async function leaveRoom() {
 function mountByPhase() {
   Object.values(els).forEach((x) => x.classList.add('hidden'));
   const phase = String(state.publicState?.phase || 'setup');
+  document.body.classList.toggle('is-day-phase', phase === 'vote' || phase === 'morning');
+  document.body.classList.toggle('is-night-phase', phase === 'night');
   if (phase !== 'night') state.roleSheetRevealed = false;
 
   if (phase === 'setup') {
@@ -687,16 +711,6 @@ function mountByPhase() {
 }
 
 function ensurePrivateAllListener() {
-  const canReadAllPrivate = state.isHost && String(state.publicState?.hostUid || '') === state.uid;
-  if (!canReadAllPrivate) {
-    if (typeof state.privateAllUnsub === 'function') {
-      state.privateAllUnsub();
-      state.privateAllUnsub = null;
-    }
-    state.allPrivate = {};
-    return;
-  }
-
   if (typeof state.privateAllUnsub === 'function') return;
 
   state.privateAllUnsub = onValue(paths.privateAll, (snap) => {
@@ -709,49 +723,9 @@ function ensurePrivateAllListener() {
 
 function ensurePhaseTicker() {
   if (state.timerId) clearInterval(state.timerId);
-  state.timerId = window.setInterval(async () => {
+  state.timerId = window.setInterval(() => {
     if (!state.publicState) return;
-    const endsAt = Number(state.publicState.phaseEndsAtMs || 0);
-    if (!endsAt) {
-      mountByPhase();
-      return;
-    }
-    const remain = endsAt - Date.now();
-    if (remain > 0) {
-      mountByPhase();
-      return;
-    }
-
-    if (!state.isHost) return;
-    const phase = String(state.publicState.phase || 'setup');
-    const hardStop = Number(state.publicState.hardStopAtMs || 0);
-    if (hardStop && Date.now() >= hardStop && phase !== 'end') {
-      await tx(paths.public, (data) => ({
-        ...data,
-        phase: 'end',
-        winner: 'cancelled',
-        phaseEndsAtMs: 0,
-        lastLogs: ['ระบบปิดเกมอัตโนมัติเมื่อครบ 1 ชั่วโมง'],
-        forceClosed: { reason: 'timeout_1h', at: Date.now() },
-        updatedAtMs: Date.now(),
-      }));
-      return;
-    }
-    if (phase === 'identity') {
-      await tx(paths.public, (data) => ({ ...data, phase: 'night', phaseEndsAtMs: Date.now() + phaseDurationMs('night'), updatedAtMs: Date.now() }));
-      return;
-    }
-    if (phase === 'night') {
-      await resolveMorningByHost();
-      return;
-    }
-    if (phase === 'morning') {
-      await tx(paths.public, (data) => ({ ...data, phase: 'vote', phaseEndsAtMs: Date.now() + phaseDurationMs('vote'), updatedAtMs: Date.now() }));
-      return;
-    }
-    if (phase === 'vote') {
-      await finalizeVoteByHost();
-    }
+    mountByPhase();
   }, 1000);
 }
 
