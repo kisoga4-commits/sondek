@@ -245,13 +245,17 @@ async function submitAnswer() {
   const q = getQuestionByRound(room, rs.roundIndex);
   if (!q || !Number.isInteger(state.selectedAnswer)) return;
   const isCorrect = isQuestionCorrect(q, state.selectedAnswer);
+  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
+  const isWormMode = gameMode === 'worm';
 
   state.isSubmitting = true;
   try {
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
     if (result?.accepted) {
       state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), rs.roundIndex);
-      el.resultHint.textContent = isCorrect ? '✅ ตอบถูก เดิน +1' : '❌ ตอบผิด รอข้อถัดไป';
+      el.resultHint.textContent = isCorrect
+        ? '✅ ตอบถูก เดิน +1'
+        : (isWormMode ? '❌ ตอบผิด ไปข้อถัดไปทันที' : '❌ ตอบผิด รอข้อถัดไป');
       playAnswerFeedback(isCorrect);
       renderQuestion(room);
     } else if (String(result?.reason || '')) {
@@ -342,12 +346,13 @@ function handleRoomUpdate(room) {
   const rs = getActiveRound(room);
   const currentQuestion = getQuestionByRound(room, rs.roundIndex);
   const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
+  const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
+  const matchType = String(room?.modeConfig?.matchType || 'solo');
   el.lobbyModeText.textContent = gameLabel.toUpperCase();
   el.duelModeTitle.textContent = `${gameLabel} • ${String(room?.modeConfig?.matchType || 'solo').toUpperCase()}`;
   if (roomStatus(room) === 'playing' && currentQuestion) {
-    const gameMode = String(room?.modeConfig?.gameMode || 'quick');
-    el.resultHint.textContent = gameMode === 'worm'
-      ? 'โหมดหนอนกระดื้บ: ตอบใครตอบมัน ตอบแล้วไปข้อใหม่ทันที'
+    el.resultHint.textContent = isWormMode
+      ? `โหมดหนอนกระดื้บ ${matchType === 'party' ? 'TEAM' : 'SOLO'}: ตอบใครตอบมัน ไปข้อถัดไปทันที ไม่ต้องรอใคร`
       : 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
 

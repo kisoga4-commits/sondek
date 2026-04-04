@@ -77,7 +77,19 @@ export function buildPersonalQuestionLoop(questionBank, actorKey, {
     }
     return cloned;
   };
-  return buildQuestionLoop(ids.map((id) => ({ id })), { loopQuestionCount, shuffleFn: seededShuffle });
+  if (ids.length <= 1) return buildQuestionLoop(ids.map((id) => ({ id })), { loopQuestionCount, shuffleFn: seededShuffle });
+
+  const loop = [];
+  while (loop.length < loopQuestionCount) {
+    const shuffled = seededShuffle(ids);
+    if (loop.length && shuffled.length > 1 && shuffled[0] === loop[loop.length - 1]) {
+      const swapped = shuffled[0];
+      shuffled[0] = shuffled[1];
+      shuffled[1] = swapped;
+    }
+    loop.push(...shuffled);
+  }
+  return loop.slice(0, loopQuestionCount);
 }
 
 function defaultShuffleArray(items) {

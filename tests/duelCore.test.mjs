@@ -89,3 +89,11 @@ test('buildPersonalQuestionLoop is deterministic per actor key and differs acros
   assert.equal(first.length, 8);
   assert.notDeepEqual(first, third);
 });
+
+test('buildPersonalQuestionLoop avoids immediate repeats across shuffle boundaries', () => {
+  const questionBank = [{ id: 1 }, { id: 2 }, { id: 3 }];
+  const loop = buildPersonalQuestionLoop(questionBank, 'actor-z', { loopQuestionCount: 15 });
+  for (let i = 1; i < loop.length; i += 1) {
+    assert.notEqual(loop[i], loop[i - 1]);
+  }
+});
