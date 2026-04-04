@@ -21,18 +21,39 @@ function maskPhoneNumber(value) {
   return `${raw.slice(0, 3)}xxxx${raw.slice(-2)}`;
 }
 
-function formatDateTime(value) {
-  if (!value) return '-';
-  if (value?.toDate instanceof Function) {
-    return value.toDate().toLocaleString('th-TH');
-  }
+function toDate(value) {
+  if (!value) return null;
+  if (value?.toDate instanceof Function) return value.toDate();
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   if (typeof value === 'number') {
-    return new Date(value).toLocaleString('th-TH');
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
   if (typeof value === 'string') {
-    return value;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
-  return '-';
+  return null;
+}
+
+function formatThaiEnrollmentDateTime(value) {
+  const dateValue = toDate(value);
+  if (!dateValue) return '-';
+
+  const dateText = new Intl.DateTimeFormat('th-TH-u-ca-buddhist', {
+    timeZone: 'Asia/Bangkok',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  }).format(dateValue);
+
+  const timeText = new Intl.DateTimeFormat('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dateValue);
+
+  return `${dateText} ${timeText}`;
 }
 
 async function onEnrollCourse(event) {
@@ -86,11 +107,11 @@ function renderOpenCourses(courseOffers) {
       .map((item, index) => {
         const studentName = escapeHtml(String(item?.studentName || '-').trim() || '-');
         const studentPhone = escapeHtml(maskPhoneNumber(item?.studentPhone));
-        const appliedAt = escapeHtml(formatDateTime(item?.createdAt));
+        const appliedAt = escapeHtml(formatThaiEnrollmentDateTime(item?.createdAt));
         return `<li class="enrollment-item">
           <div>
-            <strong>${index + 1}. ${studentName}</strong> · เบอร์ ${studentPhone}<br>
-            <span class="muted">เวลาสมัคร: ${appliedAt}</span>
+            <strong>${index + 1}. ${studentName}</strong> · เบอร์ ${studentPhone}
+            <p class="enrollment-meta">${appliedAt}</p>
           </div>
         </li>`;
       })

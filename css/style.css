@@ -1367,7 +1367,18 @@ select:focus {
   border: 1px solid #e2e8f0;
   border-radius: 0.65rem;
   padding: 0.5rem 0.6rem;
-  background: #f8fafc;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.enrollment-item strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.enrollment-meta {
+  margin: 0.22rem 0 0;
+  color: #64748b;
+  font-size: 0.86rem;
 }
 
 .public-course-list .course-card {
