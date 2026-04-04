@@ -832,6 +832,11 @@ select:focus {
   gap: 0.7rem;
 }
 
+.public-course-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+}
+
 .library-item,
 .course-card,
 .profile-card {
@@ -1363,6 +1368,10 @@ select:focus {
   border-radius: 0.65rem;
   padding: 0.5rem 0.6rem;
   background: #f8fafc;
+}
+
+.public-course-list .course-card {
+  height: 100%;
 }
 
 .enrollment-actions {
