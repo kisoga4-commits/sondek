@@ -261,6 +261,7 @@ async function submitAnswer() {
   const me = room.players?.[state.uid] || {};
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
+  const isWormSoloMode = isWormMode && !isPartyMode;
   if (!isWormMode && isPartyMode && !Boolean(me?.isActiveRunner)) {
     el.resultHint.textContent = '⏳ รอไม้จากเพื่อนร่วมทีมก่อน แล้วค่อยตอบ';
     return;
@@ -280,12 +281,19 @@ async function submitAnswer() {
         ? '✅ ตอบถูก เดิน +1'
         : (isWormMode ? '❌ ตอบผิด ไปข้อถัดไปทันที' : '❌ ตอบผิด รอข้อถัดไป');
       playAnswerFeedback(isCorrect);
-      renderQuestion(room);
+      if (isWormSoloMode) {
+        // Solo worm mode must move to the next personal question immediately
+        // and must not wait for remote room snapshots.
+        state.isSubmitting = false;
+        renderQuestion(state.room || room);
+        return;
+      }
     } else if (String(result?.reason || '')) {
       el.resultHint.textContent = '⏳ ยังตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง';
     }
   } finally {
     state.isSubmitting = false;
+    renderQuestion(state.room || room);
   }
 }
 
