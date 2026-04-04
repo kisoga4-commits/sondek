@@ -2,33 +2,39 @@
   "rules": {
     ".read": false,
     ".write": false,
+
+    "licenses": {
+      ".read": true,
+      ".write": false
+    },
+
     "rooms": {
       "$roomId": {
         ".read": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
         ".write": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
-        "roomId": {
-          ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4,6}$/))"
-        },
+        ".validate": "newData.hasChildren(['roomId','status','players']) && newData.child('roomId').isString() && newData.child('roomId').val().matches(/^[0-9]{4,6}$/) && newData.child('roomId').val() === $roomId",
+
         "pin": {
           ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]{4,6}$/))"
-        },
-        "status": {
-          ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
         },
         "hostUid": {
           ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
         },
         "players": {
-          ".validate": "!newData.exists() || newData.hasChildren()",
+          ".validate": "newData.hasChildren()",
           "$uid": {
             ".validate": "!newData.exists() || (newData.child('uid').isString() && newData.child('name').isString())"
           }
         }
       }
     },
+
     "duel_rooms": {
-      ".read": false,
-      ".write": false
+      "$roomId": {
+        ".read": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
+        ".write": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
+        ".validate": "newData.hasChildren(['roomId','status','players']) && newData.child('roomId').isString() && newData.child('roomId').val().matches(/^[0-9]{4,6}$/) && newData.child('roomId').val() === $roomId"
+      }
     }
   }
 }
