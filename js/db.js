@@ -931,7 +931,7 @@ export async function createDuelRoom(payload) {
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
   const gameMode = String(payload?.gameMode || '').toLowerCase() === 'worm' ? 'worm' : 'quick';
-  const matchType = gameMode === 'worm' ? 'solo' : requestedMatchType;
+  const matchType = requestedMatchType;
   const gameLabel = String(payload?.gameLabel || '').trim() || (gameMode === 'worm' ? 'หนอนกระดื้บ' : 'ตอบไว');
   const modeConfig = { gameMode, gameLabel, matchType, teamSize, finishDistance };
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
@@ -1097,13 +1097,14 @@ export async function startDuelRoom(roomId) {
         teams = { A: { members: [] }, B: { members: [] } };
         playerEntries.forEach(([playerUid, player], index) => {
           const teamId = index % 2 === 0 ? 'A' : 'B';
-          const relayOrder = Math.floor(index / 2) + 1;
+          const relayOrder = gameMode === 'worm' ? 1 : (Math.floor(index / 2) + 1);
+          const isActiveRunner = gameMode === 'worm' ? true : relayOrder === 1;
           teams[teamId].members.push(playerUid);
           normalizedPlayers[playerUid] = {
             ...player,
             teamId,
             relayOrder,
-            isActiveRunner: relayOrder === 1,
+            isActiveRunner,
             hasFinishedTurn: false,
             distance: 0,
             answeredRound: -1,
@@ -1273,13 +1274,25 @@ export async function submitDuelAnswer(roomId, payload) {
         ? getEffectiveFinishDistance(data?.modeConfig || {})
         : Number(data?.modeConfig?.finishDistance || 10);
       const matchType = String(data?.modeConfig?.matchType || 'solo');
-      if (!isWormMode && matchType === 'party') {
+      if (matchType === 'party') {
         const teamDistance = { A: 0, B: 0 };
         Object.values(players).forEach((p) => { if (p?.teamId === 'A' || p?.teamId === 'B') teamDistance[p.teamId] = Math.max(teamDistance[p.teamId], Number(p?.distance || 0)); });
         if (teamDistance.A >= finishDistance || teamDistance.B >= finishDistance) {
           nextStatus = 'finished';
           const winTeam = teamDistance.A >= finishDistance && teamDistance.B >= finishDistance ? '' : (teamDistance.A >= finishDistance ? 'A' : 'B');
-          winnerUid = winTeam ? (Object.keys(players).find((pid) => players[pid]?.teamId === winTeam && Number(players[pid]?.relayOrder || 0) === Number(data?.modeConfig?.teamSize || 2)) || '') : '';
+          winnerUid = winTeam
+            ? Object.entries(players)
+              .filter(([, player]) => String(player?.teamId || '') === winTeam)
+              .sort((a, b) => {
+                const [, pa] = a;
+                const [, pb] = b;
+                const distanceDiff = Number(pb?.distance || 0) - Number(pa?.distance || 0);
+                if (distanceDiff !== 0) return distanceDiff;
+                const correctDiff = Number(pb?.correctCount || 0) - Number(pa?.correctCount || 0);
+                if (correctDiff !== 0) return correctDiff;
+                return Number(pa?.wrongCount || 0) - Number(pb?.wrongCount || 0);
+              })[0]?.[0] || ''
+            : '';
           winReason = winTeam ? 'finish_line' : 'draw';
         }
       } else {
