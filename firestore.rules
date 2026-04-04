@@ -33,6 +33,11 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
+    match /course_offerings/{courseId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
     // -----------------------------
     // 2) leads = รายชื่อผู้เข้าสอบ / คะแนน / leaderboard
     // ตามโหมดง่าย: ต้อง login ก่อน ถึงจะอ่าน/เขียนได้
