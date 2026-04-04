@@ -1520,7 +1520,20 @@ select:focus {
 .duel-mini-opponent-bar > span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+  transition: width 0.45s ease, background 0.6s ease;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.duel-mini-opponent-bar > span.is-warning {
+  background: linear-gradient(90deg, #facc15, #f59e0b);
+}
+
+.duel-mini-opponent-bar > span.is-critical {
+  background: linear-gradient(90deg, #fb7185, #ef4444);
+}
+
+.duel-mini-opponent-bar > span.is-healthy {
+  background: linear-gradient(90deg, #4ade80, #22c55e);
 }
 
 .duel-race-board {
