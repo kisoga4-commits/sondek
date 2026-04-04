@@ -38,16 +38,16 @@
           ".read": "auth != null",
           ".write": "auth != null && (!data.exists() || data.child('hostUid').val() === auth.uid || newData.child('hostUid').val() === auth.uid)",
           "hostUid": {
-            ".validate": "!newData.exists() || newData.val() === root.child('rooms').child($roomId).child('hostUid').val()"
+            ".validate": "!newData.exists() || newData.val() === root.child('rooms').child($roomId).child('hostUid').val() || newData.val() === root.child('duel_rooms').child($roomId).child('hostUid').val()"
           }
         },
 
         "private": {
-          ".read": "auth != null && root.child('rooms').child($roomId).child('hostUid').val() === auth.uid",
-          ".write": "auth != null && root.child('rooms').child($roomId).child('hostUid').val() === auth.uid",
+          ".read": "auth != null && (root.child('rooms').child($roomId).child('hostUid').val() === auth.uid || root.child('duel_rooms').child($roomId).child('hostUid').val() === auth.uid)",
+          ".write": "auth != null && (root.child('rooms').child($roomId).child('hostUid').val() === auth.uid || root.child('duel_rooms').child($roomId).child('hostUid').val() === auth.uid)",
           "$uid": {
-            ".read": "auth != null && (auth.uid === $uid || root.child('rooms').child($roomId).child('hostUid').val() === auth.uid)",
-            ".write": "auth != null && (auth.uid === $uid || root.child('rooms').child($roomId).child('hostUid').val() === auth.uid)"
+            ".read": "auth != null && (auth.uid === $uid || root.child('rooms').child($roomId).child('hostUid').val() === auth.uid || root.child('duel_rooms').child($roomId).child('hostUid').val() === auth.uid)",
+            ".write": "auth != null && (auth.uid === $uid || root.child('rooms').child($roomId).child('hostUid').val() === auth.uid || root.child('duel_rooms').child($roomId).child('hostUid').val() === auth.uid)"
           }
         }
       }

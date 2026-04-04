@@ -19,6 +19,12 @@
    - ถ้ากติกา `.validate` บังคับรูปแบบไม่ตรง payload ที่เกมเขียนจริง (เช่น transaction update รอบเกม)
    - RTDB จะตอบกลับ `permission_denied`
 
+
+5. **กรณีเกม ปอบกินตับ (`pob_rooms`) อ่าน private ของตัวเองไม่ได้**
+   - โค้ดเกมอ่านที่ `pob_rooms/{roomId}/private/{uid}`
+   - ถ้า rules ไปอ้าง `hostUid` แค่ใต้ `rooms/{roomId}` แต่ห้องจริงอยู่ใต้ `duel_rooms/{roomId}` จะโดนปฏิเสธสิทธิ์
+   - ต้องตั้ง rule ให้รองรับทั้ง `rooms` และ `duel_rooms`
+
 ---
 
 ## สรุปสั้น ๆ ว่าต้องแก้อะไร
