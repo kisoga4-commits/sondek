@@ -1187,6 +1187,8 @@ export async function submitDuelAnswer(roomId, payload) {
       const nowMs = Date.now();
       const gameMode = String(data?.modeConfig?.gameMode || 'quick');
       const isWormMode = gameMode === 'worm';
+      const matchType = String(data?.modeConfig?.matchType || 'solo');
+      const isWormSoloMode = isWormMode && matchType === 'solo';
       const questionSeconds = Math.max(5, Number(data.questionSeconds || DUEL_QUESTION_SECONDS));
       const revealSeconds = Math.max(0.3, Number(data.revealSeconds || DUEL_REVEAL_SECONDS));
       const roundMs = Math.round((questionSeconds + revealSeconds) * 1000);
@@ -1217,7 +1219,7 @@ export async function submitDuelAnswer(roomId, payload) {
         me.wrongStreak = 0;
         me.distance = Math.max(0, Number(me.distance || 0) + 1);
         if (me.correctStreak >= 3) {
-          const isPartyMatch = String(data?.modeConfig?.matchType || 'solo') === 'party';
+          const isPartyMatch = matchType === 'party';
           const myTeamId = String(me.teamId || '');
           const candidates = Object.entries(players)
             .filter(([pid, candidate]) => {
@@ -1236,7 +1238,9 @@ export async function submitDuelAnswer(roomId, payload) {
           }
           me.correctStreak = 0;
           eventType = 'combo_attack';
-          eventMessage = 'คอมโบครบ 3 โจมตีคู่แข่งถอย -1';
+          eventMessage = targetUid
+            ? 'คอมโบครบ 3 โจมตีคู่แข่งถอย -1'
+            : 'คอมโบครบ 3 แต่ไม่มีเป้าหมายให้โจมตี';
         } else {
           eventType = 'correct';
           eventMessage = 'ตอบถูก เดิน +1';
@@ -1245,14 +1249,29 @@ export async function submitDuelAnswer(roomId, payload) {
         me.wrongCount = Number(me.wrongCount || 0) + 1;
         me.wrongStreak = Number(me.wrongStreak || 0) + 1;
         me.correctStreak = 0;
-        if (me.wrongStreak >= 2) {
-          me.stunUntilMs = nowMs + DUEL_STUN_MS;
+        if (isWormSoloMode) {
+          if (me.wrongStreak >= 2) {
+            me.stunUntilMs = nowMs + DUEL_STUN_MS;
+          }
+          if (me.wrongStreak >= 3) {
+            me.distance = Math.max(0, Number(me.distance || 0) - 1);
+          }
+          eventType = 'wrong';
+          eventMessage = me.wrongStreak >= 3
+            ? 'ผิดครั้งที่ 3+: STUN 3 วินาที และถอย -1'
+            : me.wrongStreak === 2
+              ? 'ผิดครั้งที่ 2: STUN 3 วินาที'
+              : 'ผิดครั้งที่ 1: ยังไม่โดนโทษ';
+        } else {
+          if (me.wrongStreak >= 2) {
+            me.stunUntilMs = nowMs + DUEL_STUN_MS;
+          }
+          if (me.wrongStreak >= 3) {
+            me.distance = Math.max(0, Number(me.distance || 0) - 1);
+          }
+          eventType = 'wrong';
+          eventMessage = me.wrongStreak >= 3 ? 'ผิดสะสม: STUN + ถอย -1' : me.wrongStreak === 2 ? 'ผิดสะสม: STUN 3 วินาที' : 'ตอบผิด';
         }
-        if (me.wrongStreak >= 3) {
-          me.distance = Math.max(0, Number(me.distance || 0) - 1);
-        }
-        eventType = 'wrong';
-        eventMessage = me.wrongStreak >= 3 ? 'ผิดสะสม: STUN + ถอย -1' : me.wrongStreak === 2 ? 'ผิดสะสม: STUN 3 วินาที' : 'ตอบผิด';
       }
 
       players[uid] = { ...me, updatedAt: nowMs };
@@ -1277,7 +1296,6 @@ export async function submitDuelAnswer(roomId, payload) {
       const finishDistance = isWormMode
         ? getEffectiveFinishDistance(data?.modeConfig || {})
         : Number(data?.modeConfig?.finishDistance || 10);
-      const matchType = String(data?.modeConfig?.matchType || 'solo');
       if (matchType === 'party') {
         const teamDistance = { A: 0, B: 0 };
         Object.values(players).forEach((p) => { if (p?.teamId === 'A' || p?.teamId === 'B') teamDistance[p.teamId] = Math.max(teamDistance[p.teamId], Number(p?.distance || 0)); });
