@@ -11,37 +11,23 @@
       <section class="card">
         <div class="hero-badge">DUEL MODE</div>
         <h1>⚔️ Host / Join</h1>
-        <p class="muted">เลือก Host เพื่อสร้างห้อง หรือ Join เพื่อเข้าห้องด้วยเลข 6 หลัก</p>
-        <div class="duel-setup-grid">
-          <label>ชื่อผู้เล่น
-            <input id="duelPlayerName" type="text" minlength="2" placeholder="เช่น ครูแชมป์" />
-          </label>
-          <label id="duelCourseWrap">บททดสอบ (เลือกจากชื่อ)
+        <p class="muted">เกมดวลเรียลไทม์: Host ตั้งค่าห้อง แล้วให้เพื่อน Join ด้วยรหัส 6 หลัก</p>
+        <div class="quiz-actions">
+          <button id="showHostSetupBtn" class="btn" type="button">Host</button>
+          <button id="showJoinSetupBtn" class="btn btn-secondary" type="button">Join</button>
+          <a class="btn" href="index.html">กลับหน้า Home</a>
+        </div>
+
+        <div id="duelHostSetup" class="duel-setup-grid hidden">
+          <label>บททดสอบ
             <select id="duelCourseId">
               <option value="">-- เลือกบททดสอบ --</option>
             </select>
           </label>
-          <label>Room ID (เฉพาะ Join)
-            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอก 6 หลัก" />
-          </label>
-        </div>
-
-        <div class="quiz-actions">
-          <button id="createRoomBtn" class="btn" type="button">Host</button>
-          <button id="joinRoomBtn" class="btn btn-secondary" type="button">Join</button>
-          <a class="btn" href="index.html">กลับหน้า Home</a>
-        </div>
-        <p id="duelStatusText" class="muted"></p>
-      </section>
-
-      <section class="card hidden" id="duelLobbySection">
-        <h2>ห้อง <span id="duelLobbyRoomId">----</span></h2>
-        <p class="muted" id="duelLobbyHint">รอผู้เล่นเข้าห้อง...</p>
-        <div id="duelHostControls" class="duel-setup-grid hidden">
           <label>โหมดเกม
             <select id="duelGameMode">
               <option value="attack">เกมส์ตอบให้ไว</option>
-              <option value="worm">วิ่งแข่ง / หนอนกระดื้บ</option>
+              <option value="worm">หนอนกระดื้บ</option>
             </select>
           </label>
           <label>ประเภทการแข่ง
@@ -50,7 +36,7 @@
               <option value="team">Team</option>
             </select>
           </label>
-          <label id="duelRelayWrap" class="hidden">ผลัด
+          <label id="duelRelayWrap" class="hidden">ผลัดทีม
             <select id="duelRelaySize">
               <option value="2">x2</option>
               <option value="3">x3</option>
@@ -64,7 +50,21 @@
               <option value="300">5 นาที</option>
             </select>
           </label>
+          <button id="createRoomBtn" class="btn" type="button">เริ่มสร้างห้อง</button>
         </div>
+
+        <div id="duelJoinSetup" class="duel-setup-grid hidden">
+          <label>Room ID
+            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 6 หลัก" />
+          </label>
+          <button id="joinRoomBtn" class="btn btn-secondary" type="button">เข้าห้อง</button>
+        </div>
+        <p id="duelStatusText" class="muted"></p>
+      </section>
+
+      <section class="card hidden" id="duelLobbySection">
+        <h2>ห้อง <span id="duelLobbyRoomId">----</span></h2>
+        <p class="muted" id="duelLobbyHint">รอผู้เล่นเข้าห้อง...</p>
         <div id="duelLobbyPlayers" class="duel-lobby-players"></div>
         <div class="quiz-actions">
           <button id="startGameBtn" class="btn hidden" type="button">เริ่มเกมส์</button>
