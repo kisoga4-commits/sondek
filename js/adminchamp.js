@@ -137,18 +137,39 @@ function parseMultilineUrls(value) {
     .filter(Boolean);
 }
 
-function formatDateTime(value) {
-  if (!value) return '-';
-  if (value?.toDate instanceof Function) {
-    return value.toDate().toLocaleString('th-TH');
-  }
+function toDate(value) {
+  if (!value) return null;
+  if (value?.toDate instanceof Function) return value.toDate();
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   if (typeof value === 'number') {
-    return new Date(value).toLocaleString('th-TH');
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
   if (typeof value === 'string') {
-    return value;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
-  return '-';
+  return null;
+}
+
+function formatThaiEnrollmentDateTime(value) {
+  const dateValue = toDate(value);
+  if (!dateValue) return '-';
+
+  const dateText = new Intl.DateTimeFormat('th-TH-u-ca-buddhist', {
+    timeZone: 'Asia/Bangkok',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  }).format(dateValue);
+
+  const timeText = new Intl.DateTimeFormat('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dateValue);
+
+  return `${dateText} ${timeText}`;
 }
 
 async function loadProfileForm() {
@@ -371,7 +392,7 @@ function renderCourseOfferings(courseOffers) {
       <div class="item-actions">
         <button class="btn btn-secondary btn-compact" type="button" data-action="edit-course">แก้ไขคอร์ส</button>
         <button class="btn btn-secondary btn-compact" type="button" data-action="toggle-status">
-          ${isOpen ? 'ปิดคอร์ส' : 'เปิดคอร์ส'}
+          ${isOpen ? 'ปิดรับสมัคร' : 'เปิดรับสมัคร'}
         </button>
         <button class="btn btn-secondary btn-compact btn-danger-soft" type="button" data-action="delete-course">ลบคอร์ส</button>
       </div>
@@ -396,12 +417,11 @@ function renderCourseOfferings(courseOffers) {
         const enrollmentId = escapeHtml(String(item?.enrollmentId || `${course.courseId}_idx_${index}`));
         const studentName = escapeHtml(String(item?.studentName || '-').trim() || '-');
         const studentPhone = escapeHtml(String(item?.studentPhone || '-').trim() || '-');
-        const appliedAt = escapeHtml(formatDateTime(item?.createdAt));
-        const classSchedule = escapeHtml(course?.scheduleDetails || course?.day || '-');
+        const appliedAt = escapeHtml(formatThaiEnrollmentDateTime(item?.createdAt));
         return `<li class="enrollment-item">
           <div>
-            <strong>#${index + 1} ${studentName}</strong> · เบอร์ ${studentPhone}<br>
-            <span class="muted">วันเรียน: ${classSchedule} · เวลาสมัคร: ${appliedAt}</span>
+            <strong>#${index + 1} ${studentName}</strong> · เบอร์ ${studentPhone}
+            <p class="enrollment-meta">${appliedAt}</p>
           </div>
           <div class="enrollment-actions">
             <button class="btn btn-secondary btn-compact" type="button" data-action="edit-enrollment" data-enrollment-id="${enrollmentId}">แก้ไข</button>
