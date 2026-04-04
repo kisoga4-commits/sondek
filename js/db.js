@@ -825,6 +825,7 @@ function syncDuelRoomShape(room = {}) {
   const settings = {
     mode: 'duel',
     competitionType: String(room?.modeConfig?.matchType || room?.settings?.competitionType || 'solo'),
+    gameMode: String(room?.modeConfig?.gameMode || room?.settings?.gameMode || 'attack'),
     relaySize: null,
     durationMinutes: Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60)),
     quizId: String(room.courseId || ''),
@@ -917,7 +918,8 @@ export async function createDuelRoom(payload) {
   const durationSecondsRaw = Number(payload?.durationSeconds || 120);
   const durationSeconds = [120, 180, 240, 300].includes(durationSecondsRaw) ? durationSecondsRaw : 120;
   const matchType = String(payload?.matchType || '').toLowerCase() === 'party' ? 'party' : 'solo';
-  const modeConfig = { gameMode: 'attack', matchType, relaySize: matchType === 'party' ? 4 : 1 };
+  const gameMode = String(payload?.gameMode || '').toLowerCase() === 'worm' ? 'worm' : 'attack';
+  const modeConfig = { gameMode, matchType, relaySize: matchType === 'party' ? 4 : 1 };
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
 
   let lastError = null;

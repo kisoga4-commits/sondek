@@ -33,6 +33,7 @@ const el = {
   hostNameInput: document.getElementById('duelHostName'),
   joinNameInput: document.getElementById('duelJoinName'),
   durationInput: document.getElementById('duelDuration'),
+  gameModeInput: document.getElementById('duelGameMode'),
   matchTypeInput: document.getElementById('duelMatchType'),
   roomIdInput: document.getElementById('duelRoomId'),
   createRoomBtn: document.getElementById('createRoomBtn'),
@@ -168,7 +169,9 @@ function renderBattle(room) {
   el.battleSection.classList.toggle('hidden', roomStatus === 'lobby');
   el.entrySection.classList.add('hidden');
   el.battleRoomId.textContent = room.pin || room.roomId || state.roomId;
-  el.duelModeTitle.textContent = 'Duel Mode';
+  const gameMode = String(room?.modeConfig?.gameMode || room?.settings?.gameMode || 'attack');
+  const gameModeLabel = gameMode === 'worm' ? 'Worm Race' : 'Attack';
+  el.duelModeTitle.textContent = `Duel Mode • ${gameModeLabel}`;
 
   el.othersHpWrap.innerHTML = '';
   Object.entries(room.players || {}).forEach(([uid, p]) => {
@@ -204,6 +207,7 @@ async function handleCreateRoom() {
     if (!courseId) throw new Error('เลือกบททดสอบก่อน');
     await loadQuestionBank(courseId);
     const matchType = String(el.matchTypeInput?.value || 'solo').toLowerCase() === 'party' ? 'party' : 'solo';
+    const gameMode = String(el.gameModeInput?.value || 'attack').toLowerCase() === 'worm' ? 'worm' : 'attack';
     const questionSequence = buildQuestionLoop(state.questionBank, {
       loopQuestionCount: LOOP_QUESTION_COUNT,
       shuffleFn: (ids) => pickRandomQuestions(ids, ids.length),
@@ -213,6 +217,7 @@ async function handleCreateRoom() {
       courseId,
       durationSeconds: Number(el.durationInput.value || 120),
       matchType,
+      gameMode,
       questionSequence,
     });
     state.roomId = created.roomId;
@@ -300,15 +305,17 @@ function renderLobbyMeta(room) {
   const duration = `${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`;
   const courseId = String(room.courseId || '-');
   const matchType = String(room?.modeConfig?.matchType || room?.settings?.competitionType || 'solo');
+  const gameMode = String(room?.modeConfig?.gameMode || room?.settings?.gameMode || 'attack');
   const matchLabel = matchType === 'party' ? 'Party' : 'Solo';
+  const gameModeLabel = gameMode === 'worm' ? 'Worm Race' : 'Attack';
   const items = [
-    `โหมด: Duel (${matchLabel})`,
+    `โหมด: Duel (${gameModeLabel} / ${matchLabel})`,
     `บททดสอบ: ${courseId}`,
     `เวลาเกม: ${duration}`,
     `สถานะ: ${getRoomStatus(room) === 'lobby' ? 'รอเริ่ม' : (getRoomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม')}`,
   ];
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
-  if (el.lobbyModeText) el.lobbyModeText.textContent = `DUEL ${matchLabel.toUpperCase()}`;
+  if (el.lobbyModeText) el.lobbyModeText.textContent = `DUEL ${gameModeLabel.toUpperCase()} • ${matchLabel.toUpperCase()}`;
 }
 
 function maybeShowFinishModal(room) {
@@ -356,7 +363,10 @@ function handleRoomUpdate(room) {
   } else if (needsPartyPlayers && players.length < 2) {
     el.lobbyHint.textContent = 'โหมด Party ต้องมีผู้เล่นอย่างน้อย 2 คน';
   } else if (!needsPartyPlayers) {
-    el.lobbyHint.textContent = 'โหมด Solo พร้อมเริ่มได้ทันที';
+    const gameMode = String(room?.modeConfig?.gameMode || room?.settings?.gameMode || 'attack');
+    el.lobbyHint.textContent = gameMode === 'worm'
+      ? 'โหมดหนอนกระดื้บพร้อมเริ่มได้ทันที'
+      : 'โหมด Solo พร้อมเริ่มได้ทันที';
   } else {
     el.lobbyHint.textContent = 'พร้อมเริ่มเกม';
   }
