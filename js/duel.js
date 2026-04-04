@@ -138,6 +138,7 @@ const state = {
   personalLoopKey: '',
   personalQuestionSequence: [],
   optimisticAnsweredRound: -1,
+  renderedQuestionKey: '',
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -231,6 +232,7 @@ function renderQuestion(room) {
   if (!question) {
     el.questionTitle.textContent = 'กำลังรอคำถาม...';
     el.choicesWrap.innerHTML = '';
+    state.renderedQuestionKey = '';
     return;
   }
 
@@ -241,18 +243,26 @@ function renderQuestion(room) {
     el.stunHint.textContent = `ติด STUN อีก ${remain} วินาที`;
   }
 
-  el.choicesWrap.innerHTML = '';
-  (question.choices || []).forEach((choice, idx) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn duel-answer-btn';
-    btn.textContent = choice;
-    btn.disabled = locked;
-    btn.addEventListener('click', () => {
-      state.selectedAnswer = idx;
-      void submitAnswer();
+  const questionKey = `${String(question.id || rs.roundIndex)}|${(question.choices || []).length}`;
+  if (state.renderedQuestionKey !== questionKey) {
+    el.choicesWrap.innerHTML = '';
+    (question.choices || []).forEach((choice, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn duel-answer-btn';
+      btn.textContent = choice;
+      btn.dataset.choiceIndex = String(idx);
+      btn.addEventListener('click', () => {
+        state.selectedAnswer = idx;
+        void submitAnswer();
+      });
+      el.choicesWrap.appendChild(btn);
     });
-    el.choicesWrap.appendChild(btn);
+    state.renderedQuestionKey = questionKey;
+  }
+
+  el.choicesWrap.querySelectorAll('.duel-answer-btn').forEach((btn) => {
+    btn.disabled = locked;
   });
 }
 
