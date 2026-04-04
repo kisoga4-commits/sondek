@@ -87,20 +87,20 @@ async function onEnrollCourse(event) {
   }
 }
 
-function renderOpenCourses(courseOffers) {
+function renderCourses(courseOffers) {
   if (!publicCourseList) return;
   publicCourseList.innerHTML = '';
 
-  const openCourses = (Array.isArray(courseOffers) ? courseOffers : [])
-    .filter((course) => String(course?.status || 'open') === 'open')
+  const courses = (Array.isArray(courseOffers) ? courseOffers : [])
     .sort((a, b) => String(a?.title || '').localeCompare(String(b?.title || ''), 'th'));
 
-  if (!openCourses.length) {
-    publicCourseList.innerHTML = '<p class="muted">ตอนนี้ยังไม่มีคอร์สที่เปิดรับสมัคร</p>';
+  if (!courses.length) {
+    publicCourseList.innerHTML = '<p class="muted">ตอนนี้ยังไม่มีคอร์ส</p>';
     return;
   }
 
-  openCourses.forEach((course) => {
+  courses.forEach((course) => {
+    const isOpen = String(course?.status || 'open') === 'open';
     const enrollments = Array.isArray(course?.enrollments) ? course.enrollments : [];
     const enrollmentRows = enrollments
       .slice(0, 8)
@@ -118,7 +118,7 @@ function renderOpenCourses(courseOffers) {
       .join('');
 
     const card = document.createElement('article');
-    card.className = 'course-card is-open';
+    card.className = `course-card ${isOpen ? 'is-open' : 'is-closed'}`;
     card.innerHTML = `
       <header class="course-card-head">
         <div>
@@ -126,10 +126,10 @@ function renderOpenCourses(courseOffers) {
           <p class="muted">วันเรียน: ${escapeHtml(course?.scheduleDetails || course?.day || '-')}</p>
           <p class="muted">ราคา: ${escapeHtml(course?.price || '-')}</p>
         </div>
-        <span class="status-pill">เปิดรับสมัคร</span>
+        <span class="status-pill ${isOpen ? '' : 'status-closed'}">${isOpen ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}</span>
       </header>
       <p class="muted">${escapeHtml(course?.content || 'ยังไม่ได้ระบุเนื้อหา')}</p>
-      <form class="course-enroll-form" data-course-id="${escapeHtml(course?.courseId || '')}">
+      <form class="course-enroll-form ${isOpen ? '' : 'is-hidden'}" data-course-id="${escapeHtml(course?.courseId || '')}">
         <p class="student-title">ส่งชื่อสมัครคอร์ส</p>
         <div class="form-split">
           <input type="text" name="studentName" placeholder="ชื่อของคุณ" required />
@@ -137,6 +137,7 @@ function renderOpenCourses(courseOffers) {
         </div>
         <button class="btn btn-compact" type="submit">ส่งชื่อสมัคร</button>
       </form>
+      ${isOpen ? '' : '<p class="muted">คอร์สนี้ปิดรับสมัครแล้ว</p>'}
       <div class="enrollment-admin-box">
         <p class="student-title">รายชื่อผู้สมัครล่าสุด (${enrollments.length})</p>
         ${enrollmentRows ? `<ul>${enrollmentRows}</ul>` : '<p class="muted">ยังไม่มีผู้สมัคร</p>'}
@@ -155,7 +156,7 @@ function renderOpenCourses(courseOffers) {
 }
 
 subscribeCourseOfferings((courseOffers) => {
-  renderOpenCourses(courseOffers);
+  renderCourses(courseOffers);
 }, (error) => {
   console.error(error);
   if (publicCourseList) {
