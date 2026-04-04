@@ -13,6 +13,9 @@ import { isQuestionCorrect, normalizeQuestion, shuffleArray } from './quiz.js';
 
 const START_HP = 10;
 const LOOP_QUESTION_COUNT = 50;
+const ROOM_ID_LENGTH = 6;
+const DEFAULT_QUESTION_SECONDS = 10;
+const DEFAULT_REVEAL_SECONDS = 0.8;
 
 const playerNameInput = document.getElementById('duelPlayerName');
 const courseIdInput = document.getElementById('duelCourseId');
@@ -58,6 +61,8 @@ const state = {
   lastQuestionId: '',
   questionLoadPromise: null,
   questionLoadCourseId: '',
+  answeredRoundIndex: -1,
+  currentRoundIndex: -1,
 };
 
 function setStatus(text) {
@@ -81,7 +86,7 @@ function toDuelErrorMessage(error, fallbackText) {
 }
 
 function normalizeRoomIdInput(value = '') {
-  return String(value || '').replace(/\D+/g, '').slice(0, 4);
+  return String(value || '').replace(/\D+/g, '').slice(0, ROOM_ID_LENGTH);
 }
 
 function renderHp(el, hp) {
@@ -115,17 +120,33 @@ function findQuestionById(questionId) {
   return state.questionBank.find((q) => String(q.id) === String(questionId));
 }
 
-function pickNextQuestionId() {
-  const ids = state.questionBank.map((q) => String(q.id));
-  if (!ids.length) return '';
-  if (ids.length === 1) return ids[0];
-  const filtered = ids.filter((id) => id !== state.lastQuestionId);
-  const pool = filtered.length ? filtered : ids;
-  return pool[Math.floor(Math.random() * pool.length)];
+function getRoundState(room) {
+  const startedAtMs = Number(room?.startedAtMs || 0);
+  const questionSeconds = Math.max(5, Number(room?.questionSeconds || DEFAULT_QUESTION_SECONDS));
+  const revealSeconds = Math.max(0.3, Number(room?.revealSeconds || DEFAULT_REVEAL_SECONDS));
+  const roundMs = Math.round((questionSeconds + revealSeconds) * 1000);
+  if (!startedAtMs || roundMs <= 0) {
+    return {
+      questionSeconds,
+      revealSeconds,
+      roundMs,
+      roundIndex: -1,
+      elapsedInRoundMs: 0,
+      isReveal: false,
+      questionRemainMs: questionSeconds * 1000,
+    };
+  }
+
+  const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+  const roundIndex = Math.floor(elapsedMs / roundMs);
+  const elapsedInRoundMs = elapsedMs % roundMs;
+  const isReveal = elapsedInRoundMs >= questionSeconds * 1000;
+  const questionRemainMs = Math.max(0, Math.ceil((questionSeconds * 1000) - elapsedInRoundMs));
+  return { questionSeconds, revealSeconds, roundMs, roundIndex, elapsedInRoundMs, isReveal, questionRemainMs };
 }
 
 function getCurrentQuestion() {
-  const questionId = state.currentQuestionId || state.questionSequence[state.currentIndex];
+  const questionId = state.currentQuestionId;
   const raw = findQuestionById(questionId);
   if (!raw) return null;
   return normalizeQuestion(raw);
@@ -228,7 +249,9 @@ function renderBattle(room) {
     });
   }
 
-  const isActionLocked = state.isSubmitting || room.status !== 'active';
+  const roundState = getRoundState(room);
+  const answeredThisRound = state.answeredRoundIndex === roundState.roundIndex;
+  const isActionLocked = state.isSubmitting || room.status !== 'active' || answeredThisRound || roundState.isReveal;
   submitBtn.disabled = isActionLocked;
   skipBtn.disabled = isActionLocked;
 
@@ -268,14 +291,25 @@ function ensureTimer(room) {
     if (!room || room.status !== 'active') return;
     const startedAtMs = Number(room.startedAtMs || 0);
     const duration = Number(room.durationSeconds || 120);
+    const roundState = getRoundState(room);
     if (!startedAtMs) {
-      timerText.textContent = formatTime(duration);
+      timerText.textContent = `${DEFAULT_QUESTION_SECONDS}s`;
       return;
     }
 
     const now = Date.now();
     const remainSec = Math.ceil((startedAtMs + (duration * 1000) - now) / 1000);
-    timerText.textContent = formatTime(remainSec);
+    timerText.textContent = roundState.isReveal
+      ? 'เฉลย...'
+      : `${Math.max(0, Math.ceil(roundState.questionRemainMs / 1000))}s`;
+
+    if (!roundState.isReveal && roundState.roundIndex >= 0) {
+      const hasAnsweredThisRound = state.answeredRoundIndex === roundState.roundIndex;
+      const hasSelection = Number.isInteger(state.selectedAnswer);
+      if (!hasAnsweredThisRound && !hasSelection && !state.isSubmitting) {
+        void submitCurrentAnswer(true, roundState.roundIndex);
+      }
+    }
 
     if (remainSec <= 0) {
       if (state.hasRequestedFinalize) return;
@@ -360,7 +394,6 @@ function handleRoomUpdate(room) {
     void ensureQuestionBankLoaded(roomCourseId)
       .then(() => {
         if (!courseIdInput.value) courseIdInput.value = roomCourseId;
-        if (!state.currentQuestionId) state.currentQuestionId = pickNextQuestionId();
         if (state.room?.status === 'active') renderQuestion(true);
       })
       .catch((error) => {
@@ -375,8 +408,14 @@ function handleRoomUpdate(room) {
 
   if (room.status === 'active') {
     if (state.questionBank.length) {
-      if (!state.currentQuestionId) state.currentQuestionId = pickNextQuestionId();
-      renderQuestion();
+      const roundState = getRoundState(room);
+      const sequence = Array.isArray(room.questionSequence) ? room.questionSequence : [];
+      if (sequence.length && roundState.roundIndex >= 0) {
+        state.currentRoundIndex = roundState.roundIndex;
+        state.currentIndex = roundState.roundIndex % sequence.length;
+        state.currentQuestionId = String(sequence[state.currentIndex] || '');
+      }
+      renderQuestion(true);
     } else {
       state.currentQuestionId = '';
       questionTitle.textContent = 'กำลังโหลดคำถาม...';
@@ -422,6 +461,8 @@ async function startSubscribeRoom(roomId) {
   state.hasRequestedFinalize = false;
   state.currentQuestionId = '';
   state.lastQuestionId = '';
+  state.answeredRoundIndex = -1;
+  state.currentRoundIndex = -1;
   if (state.finalResultTimerId) {
     window.clearTimeout(state.finalResultTimerId);
     state.finalResultTimerId = null;
@@ -482,7 +523,7 @@ async function handleJoinRoom() {
     const roomId = normalizeRoomIdInput(roomIdInput.value);
     const playerName = String(playerNameInput.value || '').trim();
 
-    if (roomId.length !== 4) throw new Error('กรอกรหัสห้อง 4 หลักก่อนเข้าห้อง');
+    if (roomId.length !== ROOM_ID_LENGTH) throw new Error('กรอกรหัสห้อง 6 หลักก่อนเข้าห้อง');
     if (!playerName) throw new Error('กรอกชื่อผู้เล่นก่อน');
     roomIdInput.value = roomId;
 
@@ -496,7 +537,7 @@ async function handleJoinRoom() {
   }
 }
 
-async function submitCurrentAnswer(forceWrong = false) {
+async function submitCurrentAnswer(forceWrong = false, expectedRoundIndex = null) {
   const room = state.room;
   if (!room || room.status !== 'active' || state.isSubmitting) return;
   const question = getCurrentQuestion();
@@ -506,6 +547,11 @@ async function submitCurrentAnswer(forceWrong = false) {
   if (!forceWrong && Number.isInteger(state.selectedAnswer)) {
     isCorrect = isQuestionCorrect(question, state.selectedAnswer);
   }
+
+  const roundState = getRoundState(room);
+  if (roundState.roundIndex < 0) return;
+  if (expectedRoundIndex !== null && expectedRoundIndex !== roundState.roundIndex) return;
+  if (state.answeredRoundIndex === roundState.roundIndex) return;
 
   state.isSubmitting = true;
   submitBtn.disabled = true;
@@ -521,10 +567,10 @@ async function submitCurrentAnswer(forceWrong = false) {
     ]);
 
     if (submitResult?.accepted) {
-      state.lastQuestionId = state.currentQuestionId;
-      state.currentQuestionId = pickNextQuestionId();
-      state.currentIndex = (state.currentIndex + 1) % Math.max(1, state.questionSequence.length || 1);
-      renderQuestion(true);
+      state.answeredRoundIndex = roundState.roundIndex;
+      state.selectedAnswer = null;
+      submitBtn.disabled = true;
+      setStatus(forceWrong ? '⏱️ หมดเวลา! ระบบส่งผิดให้อัตโนมัติ' : 'ส่งคำตอบแล้ว รอข้อถัดไป...');
       return;
     }
 
@@ -537,8 +583,11 @@ async function submitCurrentAnswer(forceWrong = false) {
   } finally {
     state.isSubmitting = false;
     if (state.room?.status === 'active') {
-      submitBtn.disabled = !Number.isInteger(state.selectedAnswer);
-      skipBtn.disabled = false;
+      const currentRound = getRoundState(state.room);
+      const answeredThisRound = state.answeredRoundIndex === currentRound.roundIndex;
+      const lockActions = answeredThisRound || currentRound.isReveal;
+      submitBtn.disabled = lockActions || !Number.isInteger(state.selectedAnswer);
+      skipBtn.disabled = lockActions;
     }
   }
 }
