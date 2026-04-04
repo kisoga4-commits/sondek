@@ -107,13 +107,17 @@ function getCurrentQuestion(room) {
 
 function renderQuestion(room) {
   const question = getCurrentQuestion(room);
+  const roundState = getRoundState(room);
   const me = (room?.players || {})[state.uid] || {};
   const stun = Math.max(0, Math.ceil((Number(me?.stunnedUntilMs || 0) - Date.now()) / 1000));
-  const isLocked = stun > 0;
+  const hasAnsweredThisRound = state.answeredRoundIndex === roundState.roundIndex;
+  const isLocked = stun > 0 || roundState.isReveal || hasAnsweredThisRound;
   el.submitBtn.disabled = true;
   el.skipBtn.disabled = isLocked;
-  el.stunHint.classList.toggle('hidden', !isLocked);
-  el.stunHint.textContent = `คุณติด STUN ${stun}s กรุณารอสักครู่`;
+  el.stunHint.classList.toggle('hidden', !(stun > 0 || roundState.isReveal || hasAnsweredThisRound));
+  if (stun > 0) el.stunHint.textContent = `คุณติด STUN ${stun}s กรุณารอสักครู่`;
+  else if (roundState.isReveal) el.stunHint.textContent = 'กำลังเปลี่ยนข้อ...';
+  else if (hasAnsweredThisRound) el.stunHint.textContent = 'ส่งคำตอบแล้ว รอข้อถัดไป';
   if (!question) {
     el.questionTitle.textContent = 'กำลังรอคำถาม...';
     el.choicesWrap.innerHTML = '';
@@ -133,6 +137,7 @@ function renderQuestion(room) {
       if (isLocked) return;
       state.selectedAnswer = Number(radio.value);
       el.submitBtn.disabled = false;
+      void submitCurrentAnswer(false);
     });
     const span = document.createElement('span');
     span.textContent = choice;
@@ -204,13 +209,20 @@ function renderBattle(room) {
     const div = document.createElement('div');
     div.className = 'duel-mini-opponent';
     const isMe = uid === state.uid;
-    const hpLabel = isWorm(room) ? `${Number(p?.score || 0)} แต้ม` : `${Number(p?.hp || 0)} / ${START_HP} HP`;
+    const currentValue = isWorm(room) ? Number(p?.score || 0) : Number(p?.hp || 0);
+    const maxValue = isWorm(room) ? Math.max(5, Number(room?.modeConfig?.segmentGoal || 5)) : START_HP;
+    const valueRatio = Math.max(0, Math.min(1, currentValue / Math.max(1, maxValue)));
+    const hpLabel = isWorm(room) ? `${currentValue} แต้ม` : `${currentValue} / ${START_HP} HP`;
     const stun = Math.max(0, Math.ceil((Number(p?.stunnedUntilMs || 0) - Date.now()) / 1000));
     const combo = Number(p?.combo || p?.streak || p?.correctStreak || 0);
     const pieces = [`${isMe ? 'ฉัน' : (p?.name || 'ผู้เล่น')}: ${hpLabel}`];
     if (combo >= 3) pieces.push(`x${combo} Combo`);
     if (stun > 0) pieces.push(`STUN ${stun}s`);
-    div.textContent = pieces.join(' • ');
+    const meterClass = valueRatio >= 0.6 ? 'is-healthy' : (valueRatio <= 0.3 ? 'is-critical' : 'is-warning');
+    div.innerHTML = `
+      <div class="duel-mini-opponent-name">${pieces.join(' • ')}</div>
+      <div class="duel-mini-opponent-bar"><span class="${meterClass}" style="width:${Math.round(valueRatio * 100)}%"></span></div>
+    `;
     el.othersHpWrap.appendChild(div);
   });
 
@@ -318,11 +330,11 @@ function ensureTimer(room) {
     const duration = Number(room.durationSeconds || 120);
     const remainSec = Math.ceil((Number(room.startedAtMs || 0) + duration * 1000 - Date.now()) / 1000);
     const roundState = getRoundState(room);
-    el.timerText.textContent = roundState.isReveal ? 'เฉลย...' : `${Math.max(0, Math.ceil(roundState.questionRemainMs / 1000))}s`;
-    el.roundText.textContent = roundState.isReveal ? 'เฉลย' : `ข้อ ${roundState.roundIndex + 1}`;
-    if (!roundState.isReveal && state.answeredRoundIndex !== roundState.roundIndex && !state.isSubmitting && !Number.isInteger(state.selectedAnswer)) {
-      void submitCurrentAnswer(true);
-    }
+    const gameRemainSec = Math.max(0, remainSec);
+    const mm = String(Math.floor(gameRemainSec / 60)).padStart(2, '0');
+    const ss = String(gameRemainSec % 60).padStart(2, '0');
+    el.timerText.textContent = `เวลารวม ${mm}:${ss}`;
+    el.roundText.textContent = roundState.isReveal ? 'กำลังเปลี่ยนข้อ...' : `ข้อ ${roundState.roundIndex + 1}`;
     if (remainSec <= 0 && !state.hasRequestedFinalize) {
       state.hasRequestedFinalize = true;
       void finalizeDuelByTimeout(state.roomId);
