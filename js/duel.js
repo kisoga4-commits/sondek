@@ -80,8 +80,8 @@ const GAME_DEFINITIONS = {
   worm: {
     label: 'หนอนกระดื้บ',
     getConfig: () => ({
-      matchType: String(el.matchTypeInput?.value || 'solo'),
-      teamSize: Number(el.teamSizeInput?.value || 2),
+      matchType: 'solo',
+      teamSize: 2,
       finishDistance: Number(el.finishDistanceInput?.value || 10),
       durationSeconds: Number(el.durationInput?.value || 120),
     }),
