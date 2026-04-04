@@ -1102,7 +1102,7 @@ export async function startDuelRoom(roomId) {
         playerEntries.forEach(([playerUid, player], index) => {
           const teamId = index % 2 === 0 ? 'A' : 'B';
           const relayOrder = Math.floor(index / 2) + 1;
-          const isActiveRunner = relayOrder === 1;
+          const isActiveRunner = gameMode === 'worm' ? true : relayOrder === 1;
           teams[teamId].members.push(playerUid);
           normalizedPlayers[playerUid] = {
             ...player,
@@ -1203,7 +1203,7 @@ export async function submitDuelAnswer(roomId, payload) {
       if (!me?.uid) return data;
       if (Number(me.stunUntilMs || 0) > nowMs) return data;
       if (Number(me.answeredRound ?? -1) >= roundIndex) return data;
-      if (String(data?.modeConfig?.matchType || 'solo') === 'party' && !me.isActiveRunner) return data;
+      if (!isWormMode && String(data?.modeConfig?.matchType || 'solo') === 'party' && !me.isActiveRunner) return data;
 
       const isCorrect = Boolean(payload?.isCorrect);
       me.answeredRound = roundIndex;
@@ -1257,7 +1257,7 @@ export async function submitDuelAnswer(roomId, payload) {
 
       players[uid] = { ...me, updatedAt: nowMs };
 
-      if (String(data?.modeConfig?.matchType || 'solo') === 'party') {
+      if (!isWormMode && String(data?.modeConfig?.matchType || 'solo') === 'party') {
         const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
         const finishDistance = getEffectiveFinishDistance(data?.modeConfig || {});
         const legDistance = Math.ceil(finishDistance / teamSize);

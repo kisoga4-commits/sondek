@@ -222,7 +222,7 @@ function renderQuestion(room) {
   const isStunned = Number(me?.stunUntilMs || 0) > Date.now();
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
-  const isRunnerLocked = isPartyMode && !Boolean(me?.isActiveRunner);
+  const isRunnerLocked = !isWormMode && isPartyMode && !Boolean(me?.isActiveRunner);
   const serverAnsweredRound = Number(me?.answeredRound ?? -1);
   const effectiveAnsweredRound = Math.max(serverAnsweredRound, Number(state.optimisticAnsweredRound ?? -1));
   const shouldLockBySubmit = !isWormMode && state.isSubmitting;
@@ -263,7 +263,7 @@ async function submitAnswer() {
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
   const isWormSoloMode = isWormMode && !isPartyMode;
-  if (isPartyMode && !Boolean(me?.isActiveRunner)) {
+  if (!isWormMode && isPartyMode && !Boolean(me?.isActiveRunner)) {
     el.resultHint.textContent = '⏳ รอไม้จากเพื่อนร่วมทีมก่อน แล้วค่อยตอบ';
     return;
   }
@@ -409,7 +409,7 @@ function handleRoomUpdate(room) {
   if (roomStatus(room) === 'playing' && currentQuestion) {
     el.resultHint.textContent = isWormMode
       ? (matchType === 'party'
-        ? 'โหมดหนอนกระดื้บ TEAM: เช็คเฉพาะ active runner ของทีม ตอบแล้วไปข้อต่อไปของตัวเองได้เลย'
+        ? 'โหมดหนอนกระดื้บ TEAM: ทุกคนตอบได้อิสระ ไปข้อต่อไปของตัวเองทันที คะแนนรวมตามทีม'
         : 'โหมดหนอนกระดื้บ SOLO: ตอบใครตอบมัน ไปข้อถัดไปทันที ไม่ต้องรอใคร')
       : 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
