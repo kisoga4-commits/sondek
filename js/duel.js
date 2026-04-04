@@ -35,6 +35,7 @@ const el = {
   gameModeInput: document.getElementById('duelGameMode'),
   quickOptionsWrap: document.getElementById('duelQuickOptions'),
   wormOptionsWrap: document.getElementById('duelWormOptions'),
+  pobOptionsWrap: document.getElementById('duelPobOptions'),
   durationInput: document.getElementById('duelDuration'),
   quickDurationInput: document.getElementById('duelQuickDuration'),
   matchTypeInput: document.getElementById('duelMatchType'),
@@ -86,6 +87,15 @@ const GAME_DEFINITIONS = {
       durationSeconds: Number(el.durationInput?.value || 120),
     }),
   },
+  pob: {
+    label: 'ปอบกินตับ',
+    getConfig: () => ({
+      matchType: 'solo',
+      teamSize: 2,
+      finishDistance: 10,
+      durationSeconds: Number(el.durationInput?.value || 300),
+    }),
+  },
 };
 
 const PRAISE_LINES = ['โคตรคม!', 'สุดจัด!', 'แม่นมาก!', 'เก่งเว่อร์!', 'เครื่องติดแล้ว!'];
@@ -100,6 +110,9 @@ function syncHostModeOptions() {
   const mode = getSelectedGameMode();
   el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
+  el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob');
+  const courseLabel = el.courseIdInput?.closest('label');
+  courseLabel?.classList.toggle('hidden', mode === 'pob');
   syncWormMatchOptions();
 }
 
@@ -121,6 +134,7 @@ const state = {
   isSubmitting: false,
   authReady: false,
   shownFinishMarker: '',
+  pobRedirectMarker: '',
   personalLoopKey: '',
   personalQuestionSequence: [],
   optimisticAnsweredRound: -1,
@@ -337,9 +351,12 @@ function ensureTimer(room) {
 function handleRoomUpdate(room) {
   if (!room) return;
   state.room = room;
+  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
   const serverAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? -1);
   state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), serverAnsweredRound);
-  void ensureRoomQuestionBank(room);
+  if (gameMode !== 'pob') {
+    void ensureRoomQuestionBank(room);
+  }
   const players = Object.values(room.players || {});
   const isHost = String(room.hostUid || '') === state.uid;
 
@@ -349,7 +366,10 @@ function handleRoomUpdate(room) {
   renderLobbyMeta(room);
 
   const partyRequiredPlayers = Math.max(4, Number(room?.modeConfig?.teamSize || 2) * 2);
-  const minPlayers = String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2;
+  const mode = String(room?.modeConfig?.gameMode || 'quick');
+  const minPlayers = mode === 'pob'
+    ? 4
+    : (String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2);
   el.startGameBtn.classList.toggle('hidden', !(isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers));
   el.lobbyHint.textContent = players.length < minPlayers ? `ต้องมีผู้เล่นอย่างน้อย ${minPlayers} คน` : 'พร้อมเริ่มเกม';
 
@@ -371,6 +391,21 @@ function handleRoomUpdate(room) {
   el.entrySection.classList.add('hidden');
   el.lobbySection.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.battleSection.classList.toggle('hidden', roomStatus(room) === 'lobby');
+
+  if (gameMode === 'pob' && roomStatus(room) === 'playing') {
+    const marker = `${room.roomId}_${room.startedAtMs || 0}_${state.uid}`;
+    if (state.pobRedirectMarker !== marker) {
+      state.pobRedirectMarker = marker;
+      const params = new URLSearchParams({
+        roomId: String(room.roomId || ''),
+        pin: String(room.pin || room.roomId || ''),
+        role: isHost ? 'host' : 'join',
+        player: String(room?.players?.[state.uid]?.name || ''),
+      });
+      window.location.href = `games/pob-kintub/index.html?${params.toString()}`;
+    }
+    return;
+  }
 
   renderRace(room);
   renderQuestion(room);
@@ -420,16 +455,22 @@ function subscribeRoom(roomId) {
 async function handleCreateRoom() {
   try {
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
-    const courseId = String(el.courseIdInput.value || '').trim();
-    if (!courseId) throw new Error('เลือกบททดสอบก่อน');
-    await loadQuestionBank(courseId);
-    const questionSequence = buildQuestionLoop(state.questionBank, { loopQuestionCount: LOOP_QUESTION_COUNT, shuffleFn: (ids) => pickRandomQuestions(ids, ids.length) });
     const gameMode = getSelectedGameMode();
     const gameDef = GAME_DEFINITIONS[gameMode] || GAME_DEFINITIONS.quick;
     const modeConfig = gameDef.getConfig();
+    const isPobMode = gameMode === 'pob';
+    const courseId = String(el.courseIdInput.value || '').trim();
+    let questionSequence = [];
+
+    if (!isPobMode) {
+      if (!courseId) throw new Error('เลือกบททดสอบก่อน');
+      await loadQuestionBank(courseId);
+      questionSequence = buildQuestionLoop(state.questionBank, { loopQuestionCount: LOOP_QUESTION_COUNT, shuffleFn: (ids) => pickRandomQuestions(ids, ids.length) });
+    }
+
     const created = await createDuelRoom({
       hostName: String(el.hostNameInput.value || '').trim() || 'Host',
-      courseId,
+      courseId: isPobMode ? '' : courseId,
       gameMode,
       gameLabel: gameDef.label,
       durationSeconds: Number(modeConfig.durationSeconds || 120),

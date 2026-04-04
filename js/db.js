@@ -930,9 +930,11 @@ export async function createDuelRoom(payload) {
   const requestedMatchType = String(payload?.matchType || '').toLowerCase() === 'party' ? 'party' : 'solo';
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
-  const gameMode = String(payload?.gameMode || '').toLowerCase() === 'worm' ? 'worm' : 'quick';
+  const requestedGameMode = String(payload?.gameMode || '').toLowerCase();
+  const gameMode = ['quick', 'worm', 'pob'].includes(requestedGameMode) ? requestedGameMode : 'quick';
   const matchType = requestedMatchType;
-  const gameLabel = String(payload?.gameLabel || '').trim() || (gameMode === 'worm' ? 'หนอนกระดื้บ' : 'ตอบไว');
+  const gameLabel = String(payload?.gameLabel || '').trim()
+    || (gameMode === 'worm' ? 'หนอนกระดื้บ' : gameMode === 'pob' ? 'ปอบกินตับ' : 'ตอบไว');
   const modeConfig = { gameMode, gameLabel, matchType, teamSize, finishDistance };
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
 
@@ -1084,13 +1086,15 @@ export async function startDuelRoom(roomId) {
       const gameMode = String(data?.modeConfig?.gameMode || 'quick');
       const matchType = String(data?.modeConfig?.matchType || 'solo');
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
-      const requiredPlayers = matchType === 'party' ? teamSize * 2 : 2;
+      const requiredPlayers = gameMode === 'pob'
+        ? 4
+        : (matchType === 'party' ? teamSize * 2 : 2);
       if (Object.keys(players).length < requiredPlayers) {
         throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${requiredPlayers} คนก่อนเริ่มดวล`);
       }
 
       const nowMs = Date.now();
-      const playerEntries = Object.entries(players).slice(0, matchType === 'party' ? teamSize * 2 : 4);
+      const playerEntries = Object.entries(players).slice(0, gameMode === 'pob' ? 8 : (matchType === 'party' ? teamSize * 2 : 4));
       const normalizedPlayers = {};
       let teams = null;
       if (matchType === 'party') {
