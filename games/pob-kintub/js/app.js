@@ -39,6 +39,7 @@ const state = {
   timerId: null,
   isResolvingMorning: false,
   isResolvingVote: false,
+  privateAllUnsub: null,
 };
 
 const els = {
@@ -508,10 +509,8 @@ function renderEnd() {
 
   document.getElementById('restartGame')?.addEventListener('click', async () => {
     await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, lastLogs: ['รีเซ็ตเกม'], updatedAtMs: Date.now() }));
-    await tx(paths.privateAll, () => null);
   });
   document.getElementById('goHome')?.addEventListener('click', async () => {
-    await tx(paths.privateAll, () => null);
     await tx(paths.public, () => null);
     window.location.href = '../../duel.html';
   });
@@ -548,6 +547,27 @@ function mountByPhase() {
   }
   els.end.classList.remove('hidden');
   renderEnd();
+}
+
+function ensurePrivateAllListener() {
+  const canReadAllPrivate = state.isHost && String(state.publicState?.hostUid || '') === state.uid;
+  if (!canReadAllPrivate) {
+    if (typeof state.privateAllUnsub === 'function') {
+      state.privateAllUnsub();
+      state.privateAllUnsub = null;
+    }
+    state.allPrivate = {};
+    return;
+  }
+
+  if (typeof state.privateAllUnsub === 'function') return;
+
+  state.privateAllUnsub = onValue(paths.privateAll, (snap) => {
+    state.allPrivate = snap.val() || {};
+    mountByPhase();
+  }, () => {
+    state.allPrivate = {};
+  });
 }
 
 function ensurePhaseTicker() {
@@ -605,6 +625,7 @@ async function initCloud() {
     const room = snap.val() || {};
     state.duelPlayers = room.players || {};
     state.isHost = String(room.hostUid || '') === state.uid;
+    ensurePrivateAllListener();
     if (!state.publicState) {
       mountByPhase();
     }
@@ -612,6 +633,7 @@ async function initCloud() {
 
   onValue(paths.public, (snap) => {
     state.publicState = snap.val() || { phase: 'setup', players: {}, day: 1, lastLogs: [] };
+    ensurePrivateAllListener();
     mountByPhase();
   }, () => mountError('อ่านข้อมูล public ไม่ได้ (ตรวจ rules RTDB)'));
 
@@ -620,16 +642,10 @@ async function initCloud() {
     mountByPhase();
   }, () => mountError('อ่านข้อมูล private ของตนเองไม่ได้ (ตรวจ rules RTDB)'));
 
-  onValue(paths.privateAll, (snap) => {
-    if (state.isHost) {
-      state.allPrivate = snap.val() || {};
-      mountByPhase();
-    }
-  });
-
   ensurePhaseTicker();
   window.addEventListener('beforeunload', () => {
     if (state.timerId) clearInterval(state.timerId);
+    if (typeof state.privateAllUnsub === 'function') state.privateAllUnsub();
   });
 }
 
