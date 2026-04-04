@@ -24,9 +24,15 @@ const el = {
   courseIdInput: document.getElementById('duelCourseId'),
   hostNameInput: document.getElementById('duelHostName'),
   joinNameInput: document.getElementById('duelJoinName'),
+  gameModeInput: document.getElementById('duelGameMode'),
+  quickOptionsWrap: document.getElementById('duelQuickOptions'),
+  wormOptionsWrap: document.getElementById('duelWormOptions'),
   durationInput: document.getElementById('duelDuration'),
+  quickDurationInput: document.getElementById('duelQuickDuration'),
   matchTypeInput: document.getElementById('duelMatchType'),
+  quickMatchTypeInput: document.getElementById('duelQuickMatchType'),
   teamSizeInput: document.getElementById('duelTeamSize'),
+  quickTeamSizeInput: document.getElementById('duelQuickTeamSize'),
   finishDistanceInput: document.getElementById('duelFinishDistance'),
   roomIdInput: document.getElementById('duelRoomId'),
   createRoomBtn: document.getElementById('createRoomBtn'),
@@ -50,6 +56,39 @@ const el = {
   choicesWrap: document.getElementById('duelChoices'),
   raceBoard: document.getElementById('duelRaceBoard'),
 };
+
+
+const GAME_DEFINITIONS = {
+  quick: {
+    label: 'ตอบไว',
+    getConfig: () => ({
+      matchType: String(el.quickMatchTypeInput?.value || 'solo'),
+      teamSize: Number(el.quickTeamSizeInput?.value || 2),
+      finishDistance: 10,
+      durationSeconds: Number(el.quickDurationInput?.value || 120),
+    }),
+  },
+  worm: {
+    label: 'หนอนกระดื้บ',
+    getConfig: () => ({
+      matchType: String(el.matchTypeInput?.value || 'solo'),
+      teamSize: Number(el.teamSizeInput?.value || 2),
+      finishDistance: Number(el.finishDistanceInput?.value || 10),
+      durationSeconds: Number(el.durationInput?.value || 120),
+    }),
+  },
+};
+
+const getSelectedGameMode = () => {
+  const requested = String(el.gameModeInput?.value || 'quick');
+  return Object.prototype.hasOwnProperty.call(GAME_DEFINITIONS, requested) ? requested : 'quick';
+};
+
+function syncHostModeOptions() {
+  const mode = getSelectedGameMode();
+  el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
+  el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
+}
 
 const state = { uid: '', roomId: '', room: null, unsubRoom: null, timerId: null, questionBank: [], loadedCourseId: '', selectedAnswer: null, isSubmitting: false, authReady: false, shownFinishMarker: '' };
 
@@ -152,9 +191,11 @@ async function submitAnswer() {
 }
 
 function renderLobbyMeta(room) {
+  const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
   const matchType = String(room?.modeConfig?.matchType || 'solo');
   const teamSize = Number(room?.modeConfig?.teamSize || 2);
   const items = [
+    `เกม: ${gameLabel}`,
     `โหมด: ${matchType === 'party' ? `Party Team x${teamSize}` : 'Solo'}`,
     `เส้นชัย: ${Number(room?.modeConfig?.finishDistance || 10)} ช่อง`,
     `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
@@ -194,7 +235,9 @@ function handleRoomUpdate(room) {
 
   const rs = getRoundState(room);
   const currentQuestion = getQuestionByRound(room, rs.roundIndex);
-  el.duelModeTitle.textContent = `หนอนกระดื้บ • ${String(room?.modeConfig?.matchType || 'solo').toUpperCase()}`;
+  const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
+  el.lobbyModeText.textContent = gameLabel.toUpperCase();
+  el.duelModeTitle.textContent = `${gameLabel} • ${String(room?.modeConfig?.matchType || 'solo').toUpperCase()}`;
   if (roomStatus(room) === 'playing' && currentQuestion) {
     el.resultHint.textContent = 'ตอบได้คนละ 1 ครั้งต่อข้อ ระบบจะเปลี่ยนข้อด้วยเวลาเดียวกันทั้งห้อง';
   }
@@ -236,13 +279,18 @@ async function handleCreateRoom() {
     if (!courseId) throw new Error('เลือกบททดสอบก่อน');
     await loadQuestionBank(courseId);
     const questionSequence = buildQuestionLoop(state.questionBank, { loopQuestionCount: LOOP_QUESTION_COUNT, shuffleFn: (ids) => pickRandomQuestions(ids, ids.length) });
+    const gameMode = getSelectedGameMode();
+    const gameDef = GAME_DEFINITIONS[gameMode] || GAME_DEFINITIONS.quick;
+    const modeConfig = gameDef.getConfig();
     const created = await createDuelRoom({
       hostName: String(el.hostNameInput.value || '').trim() || 'Host',
       courseId,
-      durationSeconds: Number(el.durationInput.value || 120),
-      matchType: String(el.matchTypeInput.value || 'solo'),
-      teamSize: Number(el.teamSizeInput.value || 2),
-      finishDistance: Number(el.finishDistanceInput.value || 10),
+      gameMode,
+      gameLabel: gameDef.label,
+      durationSeconds: Number(modeConfig.durationSeconds || 120),
+      matchType: modeConfig.matchType,
+      teamSize: Number(modeConfig.teamSize || 2),
+      finishDistance: Number(modeConfig.finishDistance || 10),
       questionSequence,
     });
     state.roomId = created.roomId;
@@ -284,13 +332,15 @@ async function init() {
     el.courseIdInput.value = current;
   }, () => {});
 
-  el.showHostSetupBtn.addEventListener('click', () => openModal(el.hostModal));
+  el.showHostSetupBtn.addEventListener('click', () => { syncHostModeOptions(); openModal(el.hostModal); });
   el.showJoinSetupBtn.addEventListener('click', () => openModal(el.joinModal));
   el.createRoomBtn.addEventListener('click', () => void handleCreateRoom());
   el.joinRoomBtn.addEventListener('click', () => void handleJoinRoom());
+  el.gameModeInput?.addEventListener('change', syncHostModeOptions);
   el.startGameBtn.addEventListener('click', () => void startDuelRoom(state.roomId));
   el.roomIdInput.addEventListener('input', () => { el.roomIdInput.value = normalizeRoomIdInput(el.roomIdInput.value); });
   document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', () => closeModal(document.getElementById(btn.dataset.closeModal))));
+  syncHostModeOptions();
 }
 
 void init();

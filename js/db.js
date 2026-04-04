@@ -830,7 +830,7 @@ function syncDuelRoomShape(room = {}) {
   const settings = {
     mode: 'duel',
     competitionType: String(room?.modeConfig?.matchType || room?.settings?.competitionType || 'solo'),
-    gameMode: 'worm',
+    gameMode: String(room?.modeConfig?.gameMode || room?.settings?.gameMode || 'quick'),
     relaySize: Number(room?.modeConfig?.teamSize || 1),
     durationMinutes: Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60)),
     quizId: String(room.courseId || ''),
@@ -929,7 +929,9 @@ export async function createDuelRoom(payload) {
   const matchType = String(payload?.matchType || '').toLowerCase() === 'party' ? 'party' : 'solo';
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
-  const modeConfig = { gameMode: 'worm', matchType, teamSize, finishDistance };
+  const gameMode = String(payload?.gameMode || '').toLowerCase() === 'worm' ? 'worm' : 'quick';
+  const gameLabel = String(payload?.gameLabel || '').trim() || (gameMode === 'worm' ? 'หนอนกระดื้บ' : 'ตอบไว');
+  const modeConfig = { gameMode, gameLabel, matchType, teamSize, finishDistance };
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
 
   let lastError = null;
