@@ -258,11 +258,11 @@ function renderQuestion(room) {
 
 async function submitAnswer() {
   const room = state.room;
-  if (!room || state.isSubmitting) return;
+  if (!room) return;
   const me = room.players?.[state.uid] || {};
   const isWormMode = String(room?.modeConfig?.gameMode || 'quick') === 'worm';
   const isPartyMode = String(room?.modeConfig?.matchType || 'solo') === 'party';
-  const isWormSoloMode = isWormMode && !isPartyMode;
+  if (!isWormMode && state.isSubmitting) return;
   if (!isWormMode && isPartyMode && !Boolean(me?.isActiveRunner)) {
     el.resultHint.textContent = '⏳ รอไม้จากเพื่อนร่วมทีมก่อน แล้วค่อยตอบ';
     return;
@@ -275,8 +275,9 @@ async function submitAnswer() {
   const submittingRound = rs.roundIndex;
   const serverAnsweredRound = Number(me?.answeredRound ?? -1);
   const prevOptimisticAnsweredRound = Number(state.optimisticAnsweredRound ?? -1);
+  const useOptimisticWormSubmit = isWormMode;
 
-  if (!isWormSoloMode) {
+  if (!useOptimisticWormSubmit) {
     state.isSubmitting = true;
   } else {
     state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
@@ -287,21 +288,19 @@ async function submitAnswer() {
   try {
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
     if (result?.accepted) {
-      if (!isWormSoloMode) {
-        state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
-        el.resultHint.textContent = isCorrect
-          ? '✅ ตอบถูก เดิน +1'
-          : (isWormMode ? '❌ ตอบผิด ไปข้อถัดไปทันที' : '❌ ตอบผิด รอข้อถัดไป');
-        playAnswerFeedback(isCorrect);
-      }
+      state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), submittingRound);
+      el.resultHint.textContent = isCorrect
+        ? '✅ ตอบถูก เดิน +1'
+        : (isWormMode ? '❌ ตอบผิด ไปข้อถัดไปทันที' : '❌ ตอบผิด รอข้อถัดไป');
+      if (!useOptimisticWormSubmit) playAnswerFeedback(isCorrect);
     } else if (String(result?.reason || '')) {
-      if (isWormSoloMode) {
+      if (useOptimisticWormSubmit) {
         state.optimisticAnsweredRound = prevOptimisticAnsweredRound;
       }
       el.resultHint.textContent = '⏳ ยังตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง';
     }
   } catch (_) {
-    if (isWormSoloMode) {
+    if (useOptimisticWormSubmit) {
       state.optimisticAnsweredRound = prevOptimisticAnsweredRound;
       el.resultHint.textContent = '⚠️ ส่งคำตอบไม่สำเร็จ กำลังซิงก์ใหม่';
     }
