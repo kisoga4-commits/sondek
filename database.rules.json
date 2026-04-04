@@ -29,6 +29,28 @@
       }
     },
 
+    "pob_rooms": {
+      "$roomId": {
+        ".read": "auth != null && root.child('rooms').child($roomId).exists()",
+        ".write": "auth != null && root.child('rooms').child($roomId).exists()",
+
+        "public": {
+          ".read": "auth != null",
+          ".write": "auth != null && (!data.exists() || root.child('rooms').child($roomId).child('hostUid').val() === auth.uid)",
+          "hostUid": {
+            ".validate": "!newData.exists() || newData.val() === root.child('rooms').child($roomId).child('hostUid').val()"
+          }
+        },
+
+        "private": {
+          "$uid": {
+            ".read": "auth != null && (auth.uid === $uid || root.child('rooms').child($roomId).child('hostUid').val() === auth.uid)",
+            ".write": "auth != null && (auth.uid === $uid || root.child('rooms').child($roomId).child('hostUid').val() === auth.uid)"
+          }
+        }
+      }
+    },
+
     "duel_rooms": {
       "$roomId": {
         ".read": "auth != null && $roomId.matches(/^[0-9]{4,6}$/)",
