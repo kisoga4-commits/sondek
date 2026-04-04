@@ -21,7 +21,10 @@ import {
 } from './duelCore.js';
 
 const el = {
-  playerNameInput: document.getElementById('duelPlayerName'),
+  showHostSetupBtn: document.getElementById('showHostSetupBtn'),
+  showJoinSetupBtn: document.getElementById('showJoinSetupBtn'),
+  hostSetup: document.getElementById('duelHostSetup'),
+  joinSetup: document.getElementById('duelJoinSetup'),
   courseIdInput: document.getElementById('duelCourseId'),
   durationInput: document.getElementById('duelDuration'),
   roomIdInput: document.getElementById('duelRoomId'),
@@ -34,7 +37,6 @@ const el = {
   lobbyHint: document.getElementById('duelLobbyHint'),
   lobbyPlayers: document.getElementById('duelLobbyPlayers'),
   battleSection: document.getElementById('duelBattleSection'),
-  hostControls: document.getElementById('duelHostControls'),
   gameMode: document.getElementById('duelGameMode'),
   matchType: document.getElementById('duelMatchType'),
   relayWrap: document.getElementById('duelRelayWrap'),
@@ -159,9 +161,8 @@ async function loadQuestionBank(courseId) {
 
 async function handleCreateRoom() {
   try {
-    const playerName = String(el.playerNameInput.value || '').trim();
     const courseId = String(el.courseIdInput.value || '').trim();
-    if (!playerName || !courseId) throw new Error('กรอกชื่อและเลือกบททดสอบก่อน');
+    if (!courseId) throw new Error('เลือกบททดสอบก่อน');
     await loadQuestionBank(courseId);
     const questionSequence = buildQuestionLoop(state.questionBank, {
       loopQuestionCount: LOOP_QUESTION_COUNT,
@@ -171,7 +172,7 @@ async function handleCreateRoom() {
     const matchType = el.matchType.value;
     const relaySize = Number(el.relaySize.value || 2);
     const created = await createDuelRoom({
-      hostName: playerName,
+      hostName: 'Host',
       courseId,
       durationSeconds: Number(el.durationInput.value || 120),
       questionSequence,
@@ -192,10 +193,8 @@ async function handleCreateRoom() {
 async function handleJoinRoom() {
   try {
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
-    const playerName = String(el.playerNameInput.value || '').trim();
     if (roomId.length !== ROOM_ID_LENGTH) throw new Error('กรอกรหัสห้อง 6 หลัก');
-    if (!playerName) throw new Error('กรอกชื่อก่อน');
-    const joined = await joinDuelRoom(roomId, playerName);
+    const joined = await joinDuelRoom(roomId, 'ผู้เล่น');
     state.roomId = roomId;
     state.uid = joined.uid || state.uid;
     setStatus(`เข้าห้อง ${roomId} สำเร็จ`);
@@ -278,7 +277,6 @@ function handleRoomUpdate(room) {
   });
 
   const isHost = String(room.hostUid || '') === state.uid;
-  el.hostControls.classList.toggle('hidden', !isHost || room.status !== 'waiting');
   el.startGameBtn.classList.toggle('hidden', !isHost || room.status !== 'waiting');
   el.createRoomBtn.disabled = Boolean(state.room && state.room.status !== 'finished');
 
@@ -314,6 +312,16 @@ function renderCourseIdOptions(courses) {
 }
 
 function init() {
+  el.showHostSetupBtn.addEventListener('click', () => {
+    el.hostSetup.classList.remove('hidden');
+    el.joinSetup.classList.add('hidden');
+    setStatus('ตั้งค่าห้องสำหรับ Host แล้วกด "เริ่มสร้างห้อง"');
+  });
+  el.showJoinSetupBtn.addEventListener('click', () => {
+    el.joinSetup.classList.remove('hidden');
+    el.hostSetup.classList.add('hidden');
+    setStatus('กรอกรหัสห้อง 6 หลักเพื่อ Join');
+  });
   el.roomIdInput.addEventListener('input', () => { el.roomIdInput.value = normalizeRoomIdInput(el.roomIdInput.value); });
   el.matchType.addEventListener('change', () => {
     el.relayWrap.classList.toggle('hidden', el.matchType.value !== 'team');
