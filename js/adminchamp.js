@@ -177,7 +177,7 @@ async function onSaveProfile(event) {
   };
 
   if (!payload.name || !payload.profile_image_url) {
-    alert('กรุณากรอกชื่อครู และลิงก์รูปโปรไฟล์');
+    alert('กรุณากรอกชื่อที่แสดง และลิงก์รูปโปรไฟล์');
     return;
   }
 
