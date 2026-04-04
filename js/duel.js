@@ -9,13 +9,16 @@ import {
   subscribeCourses,
   subscribeDuelRoom,
 } from './db.js';
-import { isQuestionCorrect, normalizeQuestion, shuffleArray } from './quiz.js';
-
-const START_HP = 10;
-const LOOP_QUESTION_COUNT = 50;
-const ROOM_ID_LENGTH = 6;
-const DEFAULT_QUESTION_SECONDS = 10;
-const DEFAULT_REVEAL_SECONDS = 0.8;
+import { isQuestionCorrect, normalizeQuestion, pickRandomQuestions } from './quiz.js';
+import {
+  buildQuestionLoop,
+  DEFAULT_QUESTION_SECONDS,
+  getRoundState,
+  LOOP_QUESTION_COUNT,
+  normalizeRoomIdInput,
+  ROOM_ID_LENGTH,
+  START_HP,
+} from './duelCore.js';
 
 const playerNameInput = document.getElementById('duelPlayerName');
 const courseIdInput = document.getElementById('duelCourseId');
@@ -85,10 +88,6 @@ function toDuelErrorMessage(error, fallbackText) {
   return 'ยังไม่มีสิทธิ์ใช้งาน Duel Mode (Missing or insufficient permissions) — เปิด Firebase Auth แบบ Anonymous และตรวจ Realtime Database Rules ให้อนุญาต create/join/update ที่ duel_rooms';
 }
 
-function normalizeRoomIdInput(value = '') {
-  return String(value || '').replace(/\D+/g, '').slice(0, ROOM_ID_LENGTH);
-}
-
 function renderHp(el, hp) {
   const value = Math.max(0, Math.min(START_HP, Number(hp || 0)));
   const ratio = (value / START_HP) * 100;
@@ -118,31 +117,6 @@ function getPlayerEntries(room) {
 
 function findQuestionById(questionId) {
   return state.questionBank.find((q) => String(q.id) === String(questionId));
-}
-
-function getRoundState(room) {
-  const startedAtMs = Number(room?.startedAtMs || 0);
-  const questionSeconds = Math.max(5, Number(room?.questionSeconds || DEFAULT_QUESTION_SECONDS));
-  const revealSeconds = Math.max(0.3, Number(room?.revealSeconds || DEFAULT_REVEAL_SECONDS));
-  const roundMs = Math.round((questionSeconds + revealSeconds) * 1000);
-  if (!startedAtMs || roundMs <= 0) {
-    return {
-      questionSeconds,
-      revealSeconds,
-      roundMs,
-      roundIndex: -1,
-      elapsedInRoundMs: 0,
-      isReveal: false,
-      questionRemainMs: questionSeconds * 1000,
-    };
-  }
-
-  const elapsedMs = Math.max(0, Date.now() - startedAtMs);
-  const roundIndex = Math.floor(elapsedMs / roundMs);
-  const elapsedInRoundMs = elapsedMs % roundMs;
-  const isReveal = elapsedInRoundMs >= questionSeconds * 1000;
-  const questionRemainMs = Math.max(0, Math.ceil((questionSeconds * 1000) - elapsedInRoundMs));
-  return { questionSeconds, revealSeconds, roundMs, roundIndex, elapsedInRoundMs, isReveal, questionRemainMs };
 }
 
 function getCurrentQuestion() {
@@ -435,21 +409,15 @@ function handleRoomUpdate(room) {
 async function loadQuestionBank(courseId) {
   const rows = await getQuestionsByCourse(courseId);
   if (!rows.length) throw new Error('ไม่พบคลังโจทย์ของคอร์สนี้');
-  state.questionBank = rows;
+  state.questionBank = rows.map((row) => ({
+    ...row,
+    choices: Array.isArray(row?.choices) ? [...row.choices] : row?.choices,
+    acceptedAnswers: Array.isArray(row?.acceptedAnswers) ? [...row.acceptedAnswers] : row?.acceptedAnswers,
+    orderingItems: Array.isArray(row?.orderingItems) ? [...row.orderingItems] : row?.orderingItems,
+  }));
   state.loadedCourseId = String(courseId || '').trim();
   state.currentQuestionId = '';
   state.lastQuestionId = '';
-}
-
-function buildQuestionLoop(questionBank) {
-  const ids = questionBank.map((item) => String(item.id));
-  if (!ids.length) return [];
-
-  const loop = [];
-  while (loop.length < LOOP_QUESTION_COUNT) {
-    loop.push(...shuffleArray(ids));
-  }
-  return loop.slice(0, LOOP_QUESTION_COUNT);
 }
 
 async function startSubscribeRoom(roomId) {
@@ -497,7 +465,10 @@ async function handleCreateRoom() {
     setStatus('กำลังโหลดคลังโจทย์...');
     await loadQuestionBank(courseId);
 
-    const questionSequence = buildQuestionLoop(state.questionBank);
+    const questionSequence = buildQuestionLoop(state.questionBank, {
+      loopQuestionCount: LOOP_QUESTION_COUNT,
+      shuffleFn: (ids) => pickRandomQuestions(ids, ids.length),
+    });
     if (!questionSequence.length) throw new Error('ไม่สามารถสร้างชุดโจทย์ดวลได้');
 
     const durationSeconds = Number(durationInput.value) === 180 ? 180 : 120;
