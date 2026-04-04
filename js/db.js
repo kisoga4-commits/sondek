@@ -84,7 +84,6 @@ const DUEL_MAX_HP = 10;
 const DUEL_ROOM_ID_LENGTH = 6;
 const DUEL_QUESTION_SECONDS = 10;
 const DUEL_REVEAL_SECONDS = 0.8;
-const DUEL_ROUND_MS = Math.round((DUEL_QUESTION_SECONDS + DUEL_REVEAL_SECONDS) * 1000);
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
@@ -818,6 +817,8 @@ function syncDuelRoomShape(room = {}) {
         wrongStreak: Number(player?.wrongStreak || 0),
         correctStreak: Number(player?.correctStreak || 0),
         lastAnsweredRound: Number(player?.lastAnsweredRound ?? -1),
+        questionCursor: Math.max(0, Number(player?.questionCursor || 0)),
+        submittedCursor: Number(player?.submittedCursor ?? -1),
       }];
     }),
   );
@@ -852,17 +853,12 @@ function buildDuelPlayerPayload(name) {
     wrongStreak: 0,
     correctStreak: 0,
     lastAnsweredRound: -1,
+    questionCursor: 0,
+    submittedCursor: -1,
     updatedAt: Date.now(),
   };
 }
 
-
-function getCurrentRoundIndex(room, nowMs = Date.now()) {
-  const startedAtMs = Number(room?.startedAtMs || 0);
-  if (!startedAtMs) return -1;
-  const elapsedMs = Math.max(0, nowMs - startedAtMs);
-  return Math.floor(elapsedMs / DUEL_ROUND_MS);
-}
 
 function pickTopTargetUids(players, actorUid, targetCount) {
   const aliveOpponents = Object.entries(players)
@@ -1133,10 +1129,10 @@ export async function submitDuelAnswer(roomId, payload) {
 
       const isCorrect = Boolean(payload?.isCorrect);
       const nowMs = Date.now();
-      const roundIndex = getCurrentRoundIndex(data, nowMs);
-      if (roundIndex < 0) return data;
-      if (Number(me.lastAnsweredRound ?? -1) >= roundIndex) return data;
-      me.lastAnsweredRound = roundIndex;
+      if (Number(me.submittedCursor ?? -1) >= Number(me.questionCursor || 0)) return data;
+      me.lastAnsweredRound = Number(me.lastAnsweredRound ?? -1) + 1;
+      me.submittedCursor = Number(me.questionCursor || 0);
+      me.questionCursor = Number(me.questionCursor || 0) + 1;
 
       if (isCorrect) {
         me.correctCount = Number(me.correctCount || 0) + 1;

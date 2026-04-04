@@ -62,7 +62,7 @@ const el = {
 
 const state = {
   uid: '', roomId: '', room: null, unsubRoom: null, timerId: null, questionBank: [], loadedCourseId: '',
-  selectedAnswer: null, answeredRoundIndex: -1, currentQuestionId: '', isSubmitting: false, hasRequestedFinalize: false,
+  selectedAnswer: null, currentQuestionId: '', isSubmitting: false, hasRequestedFinalize: false,
   authReady: false, soundEnabled: true, shownFinishRoomId: '', personalQuestionLoop: [],
 };
 
@@ -100,8 +100,8 @@ function ensurePersonalLoop(room) {
 }
 
 function getCurrentQuestion(room) {
-  const idx = getRoundState(room).roundIndex;
-  if (idx < 0) return null;
+  const me = (room?.players || {})[state.uid] || {};
+  const idx = Math.max(0, Number(me.questionCursor || 0));
   ensurePersonalLoop(room);
   const sequence = state.personalQuestionLoop;
   if (!sequence.length) return null;
@@ -113,13 +113,9 @@ function getCurrentQuestion(room) {
 
 function renderQuestion(room) {
   const question = getCurrentQuestion(room);
-  const roundState = getRoundState(room);
-  const hasAnsweredThisRound = state.answeredRoundIndex === roundState.roundIndex;
-  const isLocked = roundState.isReveal || hasAnsweredThisRound;
+  const isLocked = state.isSubmitting || getRoomStatus(room) !== 'playing';
   el.skipBtn.disabled = isLocked;
-  el.stunHint.classList.toggle('hidden', !(roundState.isReveal || hasAnsweredThisRound));
-  if (roundState.isReveal) el.stunHint.textContent = 'กำลังเปลี่ยนข้อ...';
-  else if (hasAnsweredThisRound) el.stunHint.textContent = 'ส่งคำตอบแล้ว รอข้อถัดไป';
+  el.stunHint.classList.add('hidden');
 
   if (!question) {
     el.questionTitle.textContent = 'กำลังรอคำถาม...';
@@ -133,7 +129,7 @@ function renderQuestion(room) {
     label.className = 'choice';
     const radio = document.createElement('input');
     radio.type = 'radio';
-    radio.name = `duelChoice_${roundState.roundIndex}`;
+    radio.name = `duelChoice_${state.currentQuestionId || 'q'}`;
     radio.value = String(idx);
     radio.disabled = isLocked;
     radio.addEventListener('change', () => {
@@ -256,8 +252,6 @@ async function handleStartGame() {
 async function submitCurrentAnswer(forceWrong = false) {
   const room = state.room;
   if (!room || getRoomStatus(room) !== 'playing' || state.isSubmitting) return;
-  const roundIndex = getRoundState(room).roundIndex;
-  if (state.answeredRoundIndex === roundIndex) return;
 
   let isCorrect = false;
   const question = getCurrentQuestion(room);
@@ -270,7 +264,6 @@ async function submitCurrentAnswer(forceWrong = false) {
     playUiTone(forceWrong ? 'warn' : 'ok');
     const result = await submitDuelAnswer(state.roomId, { isCorrect });
     if (result?.accepted) {
-      state.answeredRoundIndex = roundIndex;
       state.selectedAnswer = null;
       el.resultHint.textContent = isCorrect ? '✅ ถูกต้อง ไปข้อต่อไป' : '❌ ไม่ถูก ไปข้อต่อไป';
     }
@@ -302,8 +295,10 @@ function ensureTimer(room) {
 
 function renderLobbyMeta(room) {
   const duration = `${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`;
+  const courseId = String(room.courseId || '-');
   const items = [
-    'โหมด: Duel',
+    'โหมด: Duel (โจมตี)',
+    `บททดสอบ: ${courseId}`,
     `เวลาเกม: ${duration}`,
     `สถานะ: ${getRoomStatus(room) === 'lobby' ? 'รอเริ่ม' : (getRoomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม')}`,
   ];
@@ -355,6 +350,10 @@ function handleRoomUpdate(room) {
     if (!winnerUid) el.resultHint.textContent = 'เสมอ';
     else if (winnerUid === state.uid) el.resultHint.textContent = '🎉 คุณชนะ';
     else el.resultHint.textContent = 'คุณแพ้';
+  }
+
+  if (roomStatus === 'playing') {
+    el.resultHint.textContent = 'เลือกคำตอบได้เลย ระบบจะส่งทันที ไม่มีปุ่มยืนยัน';
   }
 
   renderBattle(room);
