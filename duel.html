@@ -8,69 +8,23 @@
   </head>
   <body>
     <main class="container home-layout">
-      <section class="card">
+      <section class="card" id="duelEntrySection">
         <div class="hero-badge">DUEL MODE</div>
-        <h1>⚔️ Host / Join</h1>
-        <p class="muted">เกมดวลเรียลไทม์: Host ตั้งค่าห้อง แล้วให้เพื่อน Join ด้วยรหัส 6 หลัก</p>
+        <h1>⚔️ Duel Mode</h1>
+        <p class="muted">Duel ปกติ = ตอบคำถามแข่งกันให้เร็วและแม่น</p>
+        <p class="muted">วิ่งแข่ง / หนอนกระดื้บ = ตอบถูกเพื่อขยับไปข้างหน้า</p>
         <div class="quiz-actions">
           <button id="showHostSetupBtn" class="btn" type="button">Host</button>
           <button id="showJoinSetupBtn" class="btn btn-secondary" type="button">Join</button>
           <a class="btn" href="index.html">กลับหน้า Home</a>
         </div>
-
-        <div id="duelHostSetup" class="duel-setup-grid hidden">
-          <label>ชื่อ Host
-            <input id="duelHostName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
-          </label>
-          <label>บททดสอบ
-            <select id="duelCourseId">
-              <option value="">-- เลือกบททดสอบ --</option>
-            </select>
-          </label>
-          <label>โหมดเกม
-            <select id="duelGameMode">
-              <option value="attack">เกมส์ตอบให้ไว</option>
-              <option value="worm">หนอนกระดื้บ</option>
-            </select>
-          </label>
-          <label>ประเภทการแข่ง
-            <select id="duelMatchType">
-              <option value="solo">Solo</option>
-              <option value="team">Team</option>
-            </select>
-          </label>
-          <label id="duelRelayWrap" class="hidden">ผลัดทีม
-            <select id="duelRelaySize">
-              <option value="2">x2</option>
-              <option value="3">x3</option>
-            </select>
-          </label>
-          <label>เวลาเกม
-            <select id="duelDuration">
-              <option value="120">2 นาที</option>
-              <option value="180">3 นาที</option>
-              <option value="240">4 นาที</option>
-              <option value="300">5 นาที</option>
-            </select>
-          </label>
-          <button id="createRoomBtn" class="btn" type="button">เริ่มสร้างห้อง</button>
-        </div>
-
-        <div id="duelJoinSetup" class="duel-setup-grid hidden">
-          <label>ชื่อผู้เล่น
-            <input id="duelJoinName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
-          </label>
-          <label>Room ID
-            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 6 หลัก" />
-          </label>
-          <button id="joinRoomBtn" class="btn btn-secondary" type="button">เข้าห้อง</button>
-        </div>
         <p id="duelStatusText" class="muted"></p>
       </section>
 
       <section class="card hidden" id="duelLobbySection">
-        <h2>ห้อง <span id="duelLobbyRoomId">----</span></h2>
+        <h2>ห้องรอ PIN <span id="duelLobbyRoomId">----</span></h2>
         <p class="muted" id="duelLobbyHint">รอผู้เล่นเข้าห้อง...</p>
+        <div id="duelLobbyMeta" class="duel-lobby-meta"></div>
         <div id="duelLobbyPlayers" class="duel-lobby-players"></div>
         <div class="quiz-actions">
           <button id="startGameBtn" class="btn hidden" type="button">เริ่มเกมส์</button>
@@ -103,6 +57,70 @@
         </div>
       </section>
     </main>
+
+    <section id="hostModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="hostModalTitle">
+      <article class="card feedback-modal-card">
+        <h3 id="hostModalTitle">สร้างห้อง Duel</h3>
+        <div class="duel-setup-grid">
+          <label>ชื่อผู้เล่น
+            <input id="duelHostName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
+          </label>
+          <label>บททดสอบ
+            <select id="duelCourseId">
+              <option value="">-- เลือกบททดสอบ --</option>
+            </select>
+          </label>
+          <label>โหมดเกม
+            <select id="duelGameMode">
+              <option value="attack">Duel ปกติ</option>
+              <option value="worm">วิ่งแข่ง / หนอนกระดื้บ</option>
+            </select>
+          </label>
+          <label>ประเภทการแข่งขัน
+            <select id="duelMatchType">
+              <option value="solo">Solo</option>
+              <option value="team">Team</option>
+            </select>
+          </label>
+          <label id="duelRelayWrap" class="hidden">จำนวนคนต่อทีม
+            <select id="duelRelaySize">
+              <option value="2">x2</option>
+              <option value="3">x3</option>
+            </select>
+          </label>
+          <label>เวลาเกม
+            <select id="duelDuration">
+              <option value="120">2 นาที</option>
+              <option value="180">3 นาที</option>
+              <option value="240">4 นาที</option>
+              <option value="300">5 นาที</option>
+            </select>
+          </label>
+        </div>
+        <div class="quiz-actions">
+          <button id="createRoomBtn" class="btn" type="button">สร้างห้อง</button>
+          <button class="btn btn-secondary" type="button" data-close-modal="hostModal">ยกเลิก</button>
+        </div>
+      </article>
+    </section>
+
+    <section id="joinModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="joinModalTitle">
+      <article class="card" style="width:min(540px,100%);">
+        <h3 id="joinModalTitle">เข้าห้อง Duel</h3>
+        <div class="duel-setup-grid">
+          <label>ชื่อผู้เล่น
+            <input id="duelJoinName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
+          </label>
+          <label>PIN ห้อง
+            <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 4-6 หลัก" />
+          </label>
+        </div>
+        <div class="quiz-actions">
+          <button id="joinRoomBtn" class="btn btn-secondary" type="button">เข้าห้อง</button>
+          <button class="btn" type="button" data-close-modal="joinModal">ยกเลิก</button>
+        </div>
+      </article>
+    </section>
 
     <script type="module" src="js/duel.js"></script>
     <a class="home-fab" href="index.html" aria-label="กลับหน้าแรก">🏠</a>
