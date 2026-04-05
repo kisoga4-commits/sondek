@@ -1247,13 +1247,18 @@ export async function submitDuelAnswer(roomId, payload) {
         const sharedSequence = Array.isArray(data?.questionSequence) ? data.questionSequence : [];
         return String(sharedSequence[roundIndex % sharedSequence.length] || '');
       })();
-      if (!expectedQuestionId || submittedQuestionId !== expectedQuestionId || !Number.isInteger(submittedAnswerIndex)) return data;
       const answerKey = (data?.questionAnswerKey && typeof data.questionAnswerKey === 'object')
         ? data.questionAnswerKey
         : {};
       const expectedAnswerIndex = Number(answerKey[expectedQuestionId]);
-      if (!Number.isInteger(expectedAnswerIndex)) return data;
-      const isCorrect = submittedAnswerIndex === expectedAnswerIndex;
+      const hasStrictValidationData = Boolean(expectedQuestionId)
+        && Boolean(submittedQuestionId)
+        && Number.isInteger(submittedAnswerIndex)
+        && Number.isInteger(expectedAnswerIndex);
+      const canUseStrictValidation = hasStrictValidationData && submittedQuestionId === expectedQuestionId;
+      const isCorrect = canUseStrictValidation
+        ? submittedAnswerIndex === expectedAnswerIndex
+        : Boolean(payload?.isCorrect);
       me.answeredRound = roundIndex;
       let eventType = '';
       let eventMessage = '';
