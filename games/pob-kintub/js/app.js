@@ -61,7 +61,9 @@ const state = {
   isAdvancingPhase: false,
   isSubmittingNightAction: false,
   isSubmittingVote: false,
+  selectedNightTargetId: '',
   lastRenderedPhase: '',
+  lastRenderedDay: 0,
   wasAlive: true,
 };
 
@@ -249,11 +251,11 @@ function getNightActionStatusByUid(uid) {
   const player = state.publicState?.players?.[uid];
   if (!player?.alive) return { done: false, text: '💀 ตายแล้ว' };
   const role = state.allPrivate?.[uid]?.role || '';
-  const acted = hasNightActionForCurrentDay(state.allPrivate?.[uid]?.nightAction);
-  if (!role) return { done: false, text: '… ยังไม่ระบุบท' };
-  return acted
-    ? { done: true, text: `✅ ${ROLES[role]?.label || role} ทำหน้าที่แล้ว` }
-    : { done: false, text: `⬜ ${ROLES[role]?.label || role} ยังไม่ทำหน้าที่` };
+  const submitted = hasSubmittedNightAction(uid);
+  const roleLabel = ROLES[role]?.label || 'ผู้เล่น';
+  return submitted
+    ? { done: true, text: `✅ ${roleLabel} ส่งคำสั่งแล้ว` }
+    : { done: false, text: `⬜ ${roleLabel} ยังไม่ส่งคำสั่ง` };
 }
 
 function getCurrentDay() {
@@ -265,6 +267,25 @@ function hasNightActionForCurrentDay(action) {
   const actionDay = Number(action?.day || 0);
   if (!Number.isFinite(actionDay) || actionDay <= 0) return true;
   return actionDay === getCurrentDay();
+}
+
+function getNightSubmittedMap() {
+  return state.publicState?.nightSubmittedBy || {};
+}
+
+function hasSubmittedNightAction(uid) {
+  return Boolean(getNightSubmittedMap()?.[uid]);
+}
+
+function isNightActionRequired(uid) {
+  if (!uid || !state.publicState?.players?.[uid]?.alive) return false;
+  const role = String(state.allPrivate?.[uid]?.role || '');
+  return Boolean(role);
+}
+
+function nightPendingPlayers() {
+  const alive = alivePlayers();
+  return alive.filter((player) => isNightActionRequired(player.uid) && !hasSubmittedNightAction(player.uid));
 }
 
 function personalNightNoticeHtml() {
@@ -284,9 +305,20 @@ function currentNightActionStatusHtml() {
   const targetId = String(action?.targetId || '').trim();
   const targetName = targetId ? (state.publicState?.players?.[targetId]?.name || 'ผู้เล่น') : '';
   const text = role === 'villager'
-    ? `✅ คุณไถนาแล้วในคืนนี้`
-    : `✅ คุณเลือก${actionLabel} เป้าหมาย: ${targetName || 'ไม่ระบุ'}`;
+    ? '✅ คุณใช้สิทธิ์คืนนี้แล้ว (ไถนา) • รอระบบประมวลผล'
+    : `✅ คุณใช้สิทธิ์คืนนี้แล้ว (${actionLabel} ${targetName || 'ไม่ระบุ'}) • รอระบบประมวลผล`;
   return `<div class="tag ready" style="margin-top:.55rem;">${text}</div>`;
+}
+
+function nightPhaseProgressHtml() {
+  const phase = String(state.publicState?.phase || '');
+  if (phase !== 'night') return '';
+  const pending = nightPendingPlayers();
+  if (!pending.length) {
+    return '<div class="tag ready" style="margin-top:.55rem;">✅ ทุกคนส่งคำสั่งครบแล้ว กำลังประมวลผลไปช่วงเช้า...</div>';
+  }
+  const waitingNames = pending.map((p) => p.name || 'ผู้เล่น').join(', ');
+  return `<div class="tag" style="margin-top:.55rem;">⌛ รอคำสั่งจาก: ${waitingNames}</div>`;
 }
 
 function ensurePopupRoot() {
@@ -390,6 +422,8 @@ function renderSetup() {
           actionSeq: 0,
           nightHistory: [],
           jailedTonight: {},
+          nightSubmittedBy: {},
+          nightResolveLock: null,
           forceClosed: null,
           updatedAtMs: Date.now(),
         }));
@@ -509,7 +543,17 @@ async function submitNightAction(targetId, acted = true) {
     };
     mountByPhase();
     await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now, day } });
+    await tx(paths.public, (data) => {
+      if (String(data?.phase || '') !== 'night') return data;
+      const nextSubmitted = { ...(data?.nightSubmittedBy || {}), [state.uid]: now };
+      return {
+        ...(data || {}),
+        nightSubmittedBy: nextSubmitted,
+        updatedAtMs: Date.now(),
+      };
+    });
     state.roleSheetRevealed = false;
+    state.selectedNightTargetId = '';
     mountByPhase();
     const actionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
     const targetName = state.publicState?.players?.[normalizedTarget]?.name || 'เป้าหมาย';
@@ -525,6 +569,7 @@ async function submitNightAction(targetId, acted = true) {
       }
     }
     openPopup({ title: 'ส่งคำสั่งสำเร็จ', message });
+    await maybeResolveNightByConsensus('submit');
   } catch (error) {
     state.mePrivate = {
       ...(state.mePrivate || {}),
@@ -540,6 +585,102 @@ async function submitNightAction(targetId, acted = true) {
   }
 }
 
+function allAliveSubmittedNight(publicState) {
+  const alive = alivePlayers(publicState);
+  const submitted = publicState?.nightSubmittedBy || {};
+  return alive.every((player) => Boolean(submitted[player.uid]));
+}
+
+async function claimNightResolveLock(reason = 'auto') {
+  const lockTtlMs = 15000;
+  const now = Date.now();
+  const result = await tx(paths.public, (data) => {
+    if (String(data?.phase || '') !== 'night') return data;
+    const submittedEnough = allAliveSubmittedNight(data) || (Number(data?.phaseEndsAtMs || 0) > 0 && now >= Number(data.phaseEndsAtMs));
+    if (!submittedEnough) return data;
+    const currentLock = data?.nightResolveLock || null;
+    const lockFresh = currentLock?.at && (now - Number(currentLock.at) < lockTtlMs);
+    if (lockFresh && currentLock?.by && currentLock.by !== state.uid) return data;
+    return {
+      ...(data || {}),
+      nightResolveLock: {
+        by: state.uid,
+        at: now,
+        reason,
+      },
+      updatedAtMs: now,
+    };
+  }, { timeoutMs: 8000, maxAttempts: 4 });
+  return String(result?.nightResolveLock?.by || '') === state.uid;
+}
+
+async function resolveMorningWithPrivate(privateSnapshot) {
+  const pub = JSON.parse(JSON.stringify(state.publicState || {}));
+  const priv = privateSnapshot || {};
+  const resolvedNight = resolveNight(pub, priv);
+  const nextPublicForWinner = { ...pub, players: resolvedNight.players };
+  const end = checkWinner(nextPublicForWinner, priv);
+
+  await tx(paths.public, (data) => {
+    if (String(data?.phase || '') !== 'night') return data;
+    const lockBy = String(data?.nightResolveLock?.by || '');
+    if (lockBy && lockBy !== state.uid) return data;
+    return {
+      ...data,
+      players: resolvedNight.players,
+      jailedTonight: resolvedNight.jailedTonight,
+      nightSubmittedBy: {},
+      nightResolveLock: null,
+      phase: end ? 'end' : 'morning',
+      phaseEndsAtMs: end ? 0 : (Date.now() + phaseDurationMs('morning')),
+      winner: end || '',
+      revealRoles: end
+        ? Object.fromEntries(Object.keys(resolvedNight.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
+        : (data?.revealRoles || {}),
+      lastLogs: resolvedNight.logs,
+      nightHistory: [
+        ...(Array.isArray(data?.nightHistory) ? data.nightHistory : []),
+        { ...resolvedNight.nightHistoryEntry, day: Number(data?.day || 1) },
+      ],
+      updatedAtMs: Date.now(),
+    };
+  });
+
+  await tx(paths.privateAll, (data) => {
+    const next = { ...(data || {}) };
+    Object.keys(next).forEach((uid) => {
+      const roleMessages = resolvedNight?.roleResults?.[uid] || [];
+      next[uid] = {
+        ...next[uid],
+        nightAction: null,
+        voteTarget: null,
+        nightNotice: roleMessages.join(' | '),
+      };
+    });
+    return next;
+  });
+}
+
+async function maybeResolveNightByConsensus(reason = 'auto') {
+  if (state.isResolvingMorning) return;
+  if (String(state.publicState?.phase || '') !== 'night') return;
+  const submittedEnough = allAliveSubmittedNight(state.publicState);
+  const endsAt = Number(state.publicState?.phaseEndsAtMs || 0);
+  const timedOut = endsAt > 0 && Date.now() >= endsAt;
+  if (!submittedEnough && !timedOut) return;
+
+  state.isResolvingMorning = true;
+  try {
+    const claimed = await claimNightResolveLock(reason);
+    if (!claimed) return;
+    const privateSnap = await readWithTimeout(paths.privateAll, 7000);
+    const privateData = privateSnap.val() || {};
+    await resolveMorningWithPrivate(privateData);
+  } finally {
+    state.isResolvingMorning = false;
+  }
+}
+
 function renderNight() {
   const me = state.publicState?.players?.[state.uid];
   const myRole = state.mePrivate?.role;
@@ -551,16 +692,23 @@ function renderNight() {
   const roleText = ROLE_UI_TEXT[myRole]?.(partners) || 'ไม่พบบทบาทของคุณ';
   const jailedTonight = state.publicState?.jailedTonight || {};
   const iAmJailed = Boolean(jailedTonight[state.uid]);
+  const selectedTarget = String(state.selectedNightTargetId || '').trim();
 
   let actionHtml = '<div class="tag">คุณออกจากเกมแล้ว</div>';
   if (me?.alive && state.roleSheetRevealed) {
     if (iAmJailed) {
       actionHtml = '<div class="tag out">คืนนี้คุณโดนตำรวจจับ ใช้พลังไม่ได้</div>';
-    } else
-    if (myRole === 'villager') {
-      actionHtml = `<button id="workBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>🌾 ทำงาน/ไถนา</button>`;
+    } else if (myRole === 'villager') {
+      actionHtml = `
+        <div class="tag">กดปุ่มด้านล่างเพื่อยืนยันว่าไถนาแล้ว</div>
+        <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>🌾 ยืนยันทำงาน/ไถนา</button>
+      `;
     } else {
-      actionHtml = `<div class="big-grid">${others.map((p) => `<button class="btn big-btn targetNight" data-id="${p.uid}" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${p.name}</button>`).join('')}</div>`;
+      actionHtml = `
+        <div class="big-grid">${others.map((p) => `<button class="btn big-btn targetNight ${selectedTarget === p.uid ? 'ready' : ''}" data-id="${p.uid}" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${p.name}${selectedTarget === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
+        <div class="tag" style="margin-top:.5rem;">เป้าหมายที่เลือก: ${selectedTarget ? (state.publicState?.players?.[selectedTarget]?.name || 'ผู้เล่น') : 'ยังไม่ได้เลือก'}</div>
+        <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction || !selectedTarget) ? 'disabled' : ''}>ยืนยันใช้สกิล</button>
+      `;
     }
   }
 
@@ -572,6 +720,7 @@ function renderNight() {
     ${phaseMetaHtml()}
     <p class="muted">${actionProgressText}</p>
     <p class="muted">คนที่โดนจับคืนนี้: ${Object.keys(jailedTonight).length ? Object.keys(jailedTonight).map((uid) => state.publicState?.players?.[uid]?.name || 'ผู้เล่น').join(', ') : 'ยังไม่มี'}</p>
+    <p class="muted">สถานะรอบ: ส่งคำสั่งแล้ว ${Object.keys(getNightSubmittedMap()).length}/${alive.length} คน</p>
     <h3>วงหมู่บ้าน</h3>
     ${renderVillageGridHtml(allPlayers)}
     <div class="hidden-sheet ${isAlive() ? '' : 'is-dead'}">
@@ -595,8 +744,9 @@ function renderNight() {
       `}
     </div>
     ${currentNightActionStatusHtml()}
+    ${nightPhaseProgressHtml()}
     ${personalNightNoticeHtml()}
-    ${state.isHost ? '<button id="resolveMorning" class="btn">ข้ามเวลาและประมวลผลตอนเช้า</button>' : '<p class="muted">รอ Host ประมวลผลเช้า หรือรอหมดเวลา</p>'}
+    ${state.isHost ? '<button id="resolveMorning" class="btn">ประมวลผลไปช่วงเช้า</button>' : '<p class="muted">ระบบจะพาไปเช้าอัตโนมัติเมื่อครบเงื่อนไข</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
@@ -609,65 +759,26 @@ function renderNight() {
     renderNight();
   });
 
-  document.getElementById('workBtn')?.addEventListener('click', () => {
-    void submitNightAction(state.uid, true);
+  document.getElementById('confirmNightActionBtn')?.addEventListener('click', () => {
+    const target = myRole === 'villager' ? state.uid : state.selectedNightTargetId;
+    void submitNightAction(target, true);
   });
   document.querySelectorAll('.targetNight').forEach((btn) => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.id;
-      void submitNightAction(targetId, true);
+      state.selectedNightTargetId = String(targetId || '');
+      renderNight();
     });
   });
 
-  document.getElementById('resolveMorning')?.addEventListener('click', () => { void resolveMorningByHost(); });
+  document.getElementById('resolveMorning')?.addEventListener('click', () => { void maybeResolveNightByConsensus('manual-host'); });
   document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 
 async function resolveMorningByHost() {
-  if (!state.isHost || state.isResolvingMorning) return;
-  state.isResolvingMorning = true;
-  try {
-  const pub = JSON.parse(JSON.stringify(state.publicState || {}));
-  const priv = state.allPrivate || {};
-  const resolvedNight = resolveNight(pub, priv);
-  const nextPublicForWinner = { ...pub, players: resolvedNight.players };
-  const end = checkWinner(nextPublicForWinner, priv);
-
-  await tx(paths.public, (data) => ({
-    ...data,
-    players: resolvedNight.players,
-    jailedTonight: resolvedNight.jailedTonight,
-    phase: end ? 'end' : 'morning',
-    phaseEndsAtMs: end ? 0 : (Date.now() + phaseDurationMs('morning')),
-    winner: end || '',
-    revealRoles: end
-      ? Object.fromEntries(Object.keys(resolvedNight.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
-      : (data?.revealRoles || {}),
-    lastLogs: resolvedNight.logs,
-    nightHistory: [
-      ...(Array.isArray(data?.nightHistory) ? data.nightHistory : []),
-      { ...resolvedNight.nightHistoryEntry, day: Number(data?.day || 1) },
-    ],
-    updatedAtMs: Date.now(),
-  }));
-
-  await tx(paths.privateAll, (data) => {
-    const next = { ...(data || {}) };
-    Object.keys(next).forEach((uid) => {
-      const roleMessages = resolvedNight?.roleResults?.[uid] || [];
-      next[uid] = {
-        ...next[uid],
-        nightAction: null,
-        voteTarget: null,
-        nightNotice: roleMessages.join(' | '),
-      };
-    });
-    return next;
-  });
-  } finally {
-    state.isResolvingMorning = false;
-  }
+  if (!state.isHost) return;
+  await maybeResolveNightByConsensus('manual-host');
 }
 
 function renderMorning() {
@@ -765,6 +876,8 @@ async function finalizeVoteByHost() {
       : (data?.revealRoles || {}),
     day: voteResult.winner ? data.day : Number(data.day || 1) + (data?.isFirstDayVote ? 0 : 1),
     isFirstDayVote: false,
+    nightSubmittedBy: {},
+    nightResolveLock: null,
     lastLogs: outUid ? [`${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} ถูกโหวตออก`] : ['ไม่มีใครถูกโหวตออก'],
     updatedAtMs: Date.now(),
   }));
@@ -826,7 +939,7 @@ function renderEnd() {
   `;
 
   document.getElementById('restartGame')?.addEventListener('click', async () => {
-    await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, lastLogs: ['รีเซ็ตเกม'], updatedAtMs: Date.now() }));
+    await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, lastLogs: ['รีเซ็ตเกม'], updatedAtMs: Date.now() }));
   });
   document.getElementById('goHome')?.addEventListener('click', async () => {
     await tx(paths.public, () => null);
@@ -853,14 +966,20 @@ async function leaveRoom() {
 function mountByPhase() {
   Object.values(els).forEach((x) => x.classList.add('hidden'));
   const phase = String(state.publicState?.phase || 'setup');
+  const day = getCurrentDay();
   const phaseChanged = state.lastRenderedPhase !== phase;
+  const dayChanged = state.lastRenderedDay !== day;
   const currentlyAlive = isAlive();
   if (state.wasAlive && !currentlyAlive) state.roleSheetRevealed = false;
   state.wasAlive = currentlyAlive;
   state.lastRenderedPhase = phase;
+  state.lastRenderedDay = day;
   document.body.classList.toggle('is-day-phase', phase === 'vote' || phase === 'morning');
   document.body.classList.toggle('is-night-phase', phase === 'night');
-  if (phaseChanged) state.roleSheetRevealed = false;
+  if (phaseChanged || dayChanged) {
+    state.roleSheetRevealed = false;
+    state.selectedNightTargetId = '';
+  }
 
   if (phase === 'setup') {
     els.setup.classList.remove('hidden');
@@ -914,24 +1033,25 @@ function ensurePhaseTicker() {
   if (state.timerId) clearInterval(state.timerId);
   state.timerId = window.setInterval(() => {
     if (!state.publicState) return;
-    void maybeAutoAdvancePhaseByHost();
+    void maybeAutoAdvancePhase();
     mountByPhase();
   }, 1000);
 }
 
-async function maybeAutoAdvancePhaseByHost() {
-  if (!state.isHost || state.isAdvancingPhase) return;
+async function maybeAutoAdvancePhase() {
+  if (state.isAdvancingPhase) return;
   const phase = String(state.publicState?.phase || '');
   const endsAt = Number(state.publicState?.phaseEndsAtMs || 0);
-  if (!endsAt || Date.now() < endsAt) return;
+  const isTimedOut = endsAt && Date.now() >= endsAt;
   state.isAdvancingPhase = true;
   try {
-    if (phase === 'identity') {
-      await advanceIdentityToVoteByHost();
+    if (phase === 'night') {
+      await maybeResolveNightByConsensus('ticker');
       return;
     }
-    if (phase === 'night') {
-      await resolveMorningByHost();
+    if (!state.isHost || !isTimedOut) return;
+    if (phase === 'identity') {
+      await advanceIdentityToVoteByHost();
       return;
     }
     if (phase === 'morning') {
