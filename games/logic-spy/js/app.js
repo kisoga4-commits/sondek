@@ -68,8 +68,11 @@ function getModeratorUid() {
 }
 
 function canModerate() {
+  const uid = String(state.uid || '');
+  if (!uid) return false;
   const hostUid = String(state.duel?.hostUid || '');
-  return Boolean(state.uid) && Boolean(hostUid) && state.uid === hostUid;
+  const moderatorUid = getModeratorUid();
+  return uid === moderatorUid || (Boolean(hostUid) && uid === hostUid);
 }
 
 function setStartFlowMessage(message) {
@@ -161,7 +164,7 @@ function ui() {
     <div class="chips">${chips}</div>
     ${isMeModerator
       ? `<button class="btn" id="startRoundBtn" ${players.length < 3 ? 'disabled' : ''}>เริ่มรอบใหม่</button>`
-      : '<p>รอ Host เริ่มรอบ</p>'}
+      : '<p>รอ Host / Moderator เริ่มรอบ</p>'}
     <hr/>
     ${scoreRows}
   `;
@@ -187,12 +190,13 @@ function ui() {
   const activeUid = String(order[activeIndex] || '');
   const activeName = String(duelPlayersByUid[activeUid]?.name || '-');
   const turnRemain = phaseRemainSeconds(game?.discussion?.turnEndsAtMs);
+  const canAdvanceDiscussion = isMeModerator || (Boolean(state.uid) && state.uid === activeUid);
 
   el.discussion.innerHTML = `
     <h3>Discussion</h3>
     <p>คนที่กำลังพูด: <b>${activeName}</b> • เหลือ <b>${turnRemain}s</b></p>
     <div class="chips">${order.map((uid) => `<span class="chip">${duelPlayersByUid[uid]?.name || uid}${uid === activeUid ? ' 🎤' : ''}</span>`).join('')}</div>
-    ${isMeModerator ? '<button class="btn" id="nextTurnBtn">ข้ามไปคนถัดไป</button>' : '<p>รอ Host กดข้ามตา</p>'}
+    ${canAdvanceDiscussion ? '<button class="btn" id="nextTurnBtn">ข้ามไปคนถัดไป</button>' : '<p>รอผู้พูดปัจจุบันหรือ Moderator กดข้ามตา</p>'}
   `;
 
   document.getElementById('nextTurnBtn')?.addEventListener('click', () => {
@@ -360,12 +364,17 @@ async function toDiscussion(playerIds) {
 }
 
 async function nextTurn(activeUid) {
-  if (!canModerate()) return;
+  const uid = String(state.uid || '');
+  if (!uid) return;
+  if (!canModerate() && uid !== String(activeUid || '')) return;
 
   await runTransaction(gamePublicRef, (game) => {
+    const order = Array.isArray(game?.discussion?.order) ? game.discussion.order : [];
+    const currentActiveUid = String(order[Number(game?.discussion?.activeIndex || 0)] || '');
+    if (!canModerate() && uid !== currentActiveUid) return game;
+    
     if (!game || String(game.status || '') !== 'discussion') return game;
     const nowMs = Date.now();
-    const order = Array.isArray(game?.discussion?.order) ? game.discussion.order : [];
     const nextIndex = Number(game?.discussion?.activeIndex || 0) + 1;
 
     if (nextIndex >= order.length) {
