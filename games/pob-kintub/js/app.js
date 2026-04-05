@@ -234,13 +234,21 @@ function deadOverlayHtml() {
 }
 
 function renderVillageGridHtml(players) {
+  const jailedTonight = state.publicState?.jailedTonight || {};
+  const statusMeta = (player) => {
+    if (player.alive && jailedTonight[player.uid]) return { icon: '🧱', text: 'โดนตำรวจขังคืนนี้', className: 'out' };
+    if (player.alive) return { icon: '🛟', text: 'ยังรอดชีวิต', className: '' };
+    if (player.deathCause === 'โดนจกตับ') return { icon: '🩸', text: 'ตายจากโดนจกตับ', className: 'out' };
+    return { icon: '💀', text: 'ตายแล้ว/ถูกกำจัด', className: 'out' };
+  };
   return `
+    <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🧱 โดนตำรวจขัง • 🩸 โดนจกตับ</div>
     <div class="village-grid">
       ${players.map((p) => `
         <div class="villager-card ${p.alive ? '' : 'dead'}">
-          <div class="villager-icon">${p.alive ? '🙂' : '🩸'}</div>
+          <div class="villager-icon ${statusMeta(p).className}">${statusMeta(p).icon}</div>
           <div class="villager-name">${p.name}${p.uid === state.uid ? ' 👤' : ''}</div>
-          <div class="villager-status">${p.alive ? 'ยังอยู่ในเกม' : 'ตายแล้ว (โดนจกตับ/ถูกกำจัด)'}</div>
+          <div class="villager-status">${statusMeta(p).text}</div>
         </div>
       `).join('')}
     </div>
@@ -631,9 +639,12 @@ function allAliveSubmittedNight(publicState) {
 async function claimNightResolveLock(reason = 'auto') {
   const lockTtlMs = 15000;
   const now = Date.now();
+  const manualHostForce = reason === 'manual-host' && state.isHost;
   const result = await tx(paths.public, (data) => {
     if (String(data?.phase || '') !== 'night') return data;
-    const submittedEnough = allAliveSubmittedNight(data) || (Number(data?.phaseEndsAtMs || 0) > 0 && now >= Number(data.phaseEndsAtMs));
+    const submittedEnough = manualHostForce
+      || allAliveSubmittedNight(data)
+      || (Number(data?.phaseEndsAtMs || 0) > 0 && now >= Number(data.phaseEndsAtMs));
     if (!submittedEnough) return data;
     const currentLock = data?.nightResolveLock || null;
     const lockFresh = currentLock?.at && (now - Number(currentLock.at) < lockTtlMs);
@@ -701,10 +712,11 @@ async function resolveMorningWithPrivate(privateSnapshot) {
 async function maybeResolveNightByConsensus(reason = 'auto') {
   if (state.isResolvingMorning) return;
   if (String(state.publicState?.phase || '') !== 'night') return;
+  const manualHostForce = reason === 'manual-host' && state.isHost;
   const submittedEnough = allAliveSubmittedNight(state.publicState);
   const endsAt = Number(state.publicState?.phaseEndsAtMs || 0);
   const timedOut = endsAt > 0 && Date.now() >= endsAt;
-  if (!submittedEnough && !timedOut) return;
+  if (!manualHostForce && !submittedEnough && !timedOut) return;
 
   state.isResolvingMorning = true;
   try {
@@ -944,11 +956,12 @@ async function finalizeVoteByHost() {
 function renderVote() {
   const alive = alivePlayers();
   const myVote = state.mePrivate?.voteTarget || '';
+  const requiredVotes = Math.floor(alive.length / 2) + 1;
   const votesSubmitted = alive.filter((p) => state.allPrivate?.[p.uid]?.voteTarget && state.publicState?.players?.[state.allPrivate?.[p.uid]?.voteTarget]?.alive).length;
   els.vote.innerHTML = `
     <h2>Step 3: Day Vote</h2>
     ${phaseMetaHtml()}
-    <p class="muted">คะแนนจะรวมแบบไม่บอกว่าใครโหวตใคร</p>
+    <p class="muted">คะแนนจะรวมแบบไม่บอกว่าใครโหวตใคร และจะขับออกเมื่อได้เสียงเกินครึ่งของผู้รอดชีวิต (${requiredVotes} เสียงขึ้นไป)</p>
     <p class="muted">${state.isHost ? `สถานะโหวต ${votesSubmitted}/${alive.length} คน` : `คุณ${myVote ? 'โหวตแล้ว ✅' : 'ยังไม่โหวต ⬜'}`}</p>
     ${personalNightNoticeHtml()}
     <div class="secret-wrapper">
