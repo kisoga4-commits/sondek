@@ -165,6 +165,7 @@ h2 { margin: 0 0 .8rem; font-size: 1.15rem; }
   place-items: center;
   padding: 1rem;
 }
+.game-popup-backdrop.hidden { display: none; }
 .game-popup-card {
   width: min(460px, 100%);
   border: 1px solid #3c6d5e;

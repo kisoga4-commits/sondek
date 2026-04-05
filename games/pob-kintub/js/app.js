@@ -274,7 +274,10 @@ function getNightSubmittedMap() {
 }
 
 function hasSubmittedNightAction(uid) {
-  return Boolean(getNightSubmittedMap()?.[uid]);
+  const submittedByPublic = Boolean(getNightSubmittedMap()?.[uid]);
+  if (submittedByPublic) return true;
+  const privateAction = state.allPrivate?.[uid]?.nightAction;
+  return hasNightActionForCurrentDay(privateAction);
 }
 
 function isNightActionRequired(uid) {
@@ -543,15 +546,17 @@ async function submitNightAction(targetId, acted = true) {
     };
     mountByPhase();
     await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now, day } });
-    await tx(paths.public, (data) => {
-      if (String(data?.phase || '') !== 'night') return data;
-      const nextSubmitted = { ...(data?.nightSubmittedBy || {}), [state.uid]: now };
-      return {
-        ...(data || {}),
-        nightSubmittedBy: nextSubmitted,
-        updatedAtMs: Date.now(),
-      };
-    });
+    if (state.isHost) {
+      await tx(paths.public, (data) => {
+        if (String(data?.phase || '') !== 'night') return data;
+        const nextSubmitted = { ...(data?.nightSubmittedBy || {}), [state.uid]: now };
+        return {
+          ...(data || {}),
+          nightSubmittedBy: nextSubmitted,
+          updatedAtMs: Date.now(),
+        };
+      });
+    }
     state.roleSheetRevealed = false;
     state.selectedNightTargetId = '';
     mountByPhase();
@@ -588,7 +593,11 @@ async function submitNightAction(targetId, acted = true) {
 function allAliveSubmittedNight(publicState) {
   const alive = alivePlayers(publicState);
   const submitted = publicState?.nightSubmittedBy || {};
-  return alive.every((player) => Boolean(submitted[player.uid]));
+  return alive.every((player) => {
+    if (submitted[player.uid]) return true;
+    const privateAction = state.allPrivate?.[player.uid]?.nightAction;
+    return hasNightActionForCurrentDay(privateAction);
+  });
 }
 
 async function claimNightResolveLock(reason = 'auto') {
