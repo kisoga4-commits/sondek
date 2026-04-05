@@ -622,7 +622,11 @@ export async function getQuestionsByCourse(courseId) {
   const snap = await getDocs(q);
   return snap.docs
     .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
-    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    .sort((a, b) => {
+      const orderDiff = Number(a.order || 0) - Number(b.order || 0);
+      if (orderDiff !== 0) return orderDiff;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
 }
 
 export function subscribeQuestionsByCourse(courseId, callback, onError) {
@@ -634,7 +638,11 @@ export function subscribeQuestionsByCourse(courseId, callback, onError) {
       unsubscribe = onSnapshot(q, (snap) => {
         const rows = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+          .sort((a, b) => {
+            const orderDiff = Number(a.order || 0) - Number(b.order || 0);
+            if (orderDiff !== 0) return orderDiff;
+            return String(a.id || '').localeCompare(String(b.id || ''));
+          });
         callback(rows);
       }, onError);
     })
