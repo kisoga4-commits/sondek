@@ -219,11 +219,22 @@ function getNightActionStatusByUid(uid) {
   const player = state.publicState?.players?.[uid];
   if (!player?.alive) return { done: false, text: '💀 ตายแล้ว' };
   const role = state.allPrivate?.[uid]?.role || '';
-  const acted = Boolean(state.allPrivate?.[uid]?.nightAction?.acted);
+  const acted = hasNightActionForCurrentDay(state.allPrivate?.[uid]?.nightAction);
   if (!role) return { done: false, text: '… ยังไม่ระบุบท' };
   return acted
     ? { done: true, text: `✅ ${ROLES[role]?.label || role} ทำหน้าที่แล้ว` }
     : { done: false, text: `⬜ ${ROLES[role]?.label || role} ยังไม่ทำหน้าที่` };
+}
+
+function getCurrentDay() {
+  return Math.max(1, Number(state.publicState?.day || 1));
+}
+
+function hasNightActionForCurrentDay(action) {
+  if (!action?.acted) return false;
+  const actionDay = Number(action?.day || 0);
+  if (!Number.isFinite(actionDay) || actionDay <= 0) return true;
+  return actionDay === getCurrentDay();
 }
 
 function personalNightNoticeHtml() {
@@ -234,14 +245,14 @@ function personalNightNoticeHtml() {
 
 function currentNightActionStatusHtml() {
   const action = state.mePrivate?.nightAction;
-  if (!action?.acted) return '';
+  if (!hasNightActionForCurrentDay(action)) return '';
   const role = String(state.mePrivate?.role || '');
   const actionLabel = ROLE_ACTION_CONFIG[role]?.actionLabel || 'ใช้สกิล';
   const targetId = String(action?.targetId || '').trim();
   const targetName = targetId ? (state.publicState?.players?.[targetId]?.name || 'ผู้เล่น') : '';
   const text = role === 'villager'
     ? `✅ คุณไถนาแล้วในคืนนี้`
-    : `✅ คุณเลือก${actionLabel}เป้าหมาย: ${targetName || 'ไม่ระบุ'}`;
+    : `✅ คุณเลือก${actionLabel} เป้าหมาย: ${targetName || 'ไม่ระบุ'}`;
   return `<div class="tag ready" style="margin-top:.55rem;">${text}</div>`;
 }
 
@@ -443,7 +454,7 @@ async function submitNightAction(targetId, acted = true) {
     openPopup({ title: 'เป้าหมายตายแล้ว', message: 'ไม่สามารถใช้สกิลกับผู้เล่นที่ตายแล้วได้' });
     return;
   }
-  if (state.mePrivate?.nightAction?.acted) {
+  if (hasNightActionForCurrentDay(state.mePrivate?.nightAction)) {
     openPopup({ title: 'แจ้งเตือน', message: 'คืนนี้คุณใช้สิทธิ์ไปแล้ว' });
     return;
   }
@@ -457,12 +468,13 @@ async function submitNightAction(targetId, acted = true) {
   try {
     state.isSubmittingNightAction = true;
     const now = Date.now();
+    const day = getCurrentDay();
     state.mePrivate = {
       ...(state.mePrivate || {}),
-      nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now },
+      nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now, day },
     };
     mountByPhase();
-    await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now } });
+    await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now, day } });
     const actionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
     const targetName = state.publicState?.players?.[normalizedTarget]?.name || 'เป้าหมาย';
     const message = myRole === 'villager'
@@ -489,7 +501,7 @@ function renderNight() {
   const myRole = state.mePrivate?.role;
   const alive = alivePlayers();
   const others = alive.filter((p) => p.uid !== state.uid);
-  const acted = Boolean(state.mePrivate?.nightAction?.acted);
+  const acted = hasNightActionForCurrentDay(state.mePrivate?.nightAction);
   const allPlayers = Object.values(state.publicState?.players || {});
   const partners = myRole === 'pob' ? (state.mePrivate?.partners || []) : [];
   const roleText = ROLE_UI_TEXT[myRole]?.(partners) || 'ไม่พบบทบาทของคุณ';
