@@ -104,14 +104,18 @@ function shuffle(list) {
 }
 
 function rolePool(count) {
-  const pools = {
-    4: ['pob', 'police', 'shaman', 'hunter'],
-    5: ['pob', 'police', 'shaman', 'monk', 'hunter'],
-    6: ['pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
-    7: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
-    8: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager', 'villager'],
-  };
-  return pools[count] || pools[8];
+  const totalPlayers = Math.max(4, Math.min(12, Number(count || 4)));
+  const pobCount = Math.max(1, Math.floor(totalPlayers / 4));
+  const guaranteedRoles = Array(pobCount).fill('pob');
+
+  if (totalPlayers >= 4) guaranteedRoles.push('police');
+  if (totalPlayers >= 5) guaranteedRoles.push('shaman');
+  if (totalPlayers >= 6) guaranteedRoles.push('monk');
+  if (totalPlayers >= 8) guaranteedRoles.push('hunter');
+
+  const roles = [...guaranteedRoles];
+  while (roles.length < totalPlayers) roles.push('villager');
+  return roles;
 }
 
 function buildRandomizedGameState(entries, hostUid) {
@@ -490,10 +494,10 @@ function bindTap(target, handler) {
 
 function renderSetup() {
   const players = Object.values(state.duelPlayers || {});
-  const canStart = state.isHost && players.length >= 4 && players.length <= 8;
+  const canStart = state.isHost && players.length >= 4 && players.length <= 12;
   els.setup.innerHTML = `
     <h2>Step 1: เริ่มเกม (รอ Host กดเริ่ม)</h2>
-    <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-8 คน</p>
+    <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-12 คน</p>
     <p class="muted">สมาชิกในห้องตอนนี้: ${players.length} คน</p>
     ${phaseMetaHtml()}
     <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
@@ -1106,7 +1110,7 @@ function renderEnd() {
     mountByPhase();
     try {
       const entries = Object.values(state.duelPlayers || {});
-      if (entries.length < 4 || entries.length > 8) {
+      if (entries.length < 4 || entries.length > 12) {
         await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, voteResolveLock: null, lastLogs: ['รีเซ็ตเกม: จำนวนผู้เล่นไม่พอ กรุณารอ Host เริ่มใหม่'], updatedAtMs: Date.now() }));
       } else {
         await seedGameFromEntries(entries, state.uid);
@@ -1279,7 +1283,7 @@ async function initCloud() {
     const status = String(room?.status || room?.state?.status || 'lobby');
     if (mode === 'pob' && status === 'playing' && state.isHost && !state.publicState) {
       const entries = Object.values(state.duelPlayers || {});
-      if (entries.length >= 4 && entries.length <= 8) {
+      if (entries.length >= 4 && entries.length <= 12) {
         void seedGameFromEntries(entries, state.uid).catch(() => {});
       }
     }
