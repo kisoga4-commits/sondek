@@ -43,11 +43,11 @@
         },
 
         "private": {
-          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid",
-          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid",
+          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
+          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
           "$uid": {
-            ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && (auth.uid === $uid || root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid)",
-            ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && (auth.uid === $uid || root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid)"
+            ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
+            ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null"
           }
         }
       }
