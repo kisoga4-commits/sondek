@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { checkWinner, resolveNight } from '../games/pob-kintub/js/gameEngine.js';
+import { checkWinner, resolveNight, resolveVote } from '../games/pob-kintub/js/gameEngine.js';
 
 function baseState() {
   return {
@@ -141,4 +141,37 @@ test('checkWinner does not end game when private roles are incomplete (legacy/st
   };
   const priv = { pob1: { role: 'pob' } };
   assert.equal(checkWinner(pub, priv), '');
+});
+
+
+test('resolveVote eliminates only a unique top-voted alive target', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.pob1.voteTarget = 'vill1';
+  priv.monk1.voteTarget = 'vill1';
+  priv.police1.voteTarget = 'vill1';
+  priv.hunter1.voteTarget = 'pob1';
+  priv.vill1.voteTarget = 'pob1';
+  priv.sham1.voteTarget = 'pob1';
+
+  const result = resolveVote(pub, priv);
+  assert.equal(result.eliminatedUid, null);
+  assert.equal(result.players.vill1.alive, true);
+  assert.equal(result.players.pob1.alive, true);
+});
+
+test('resolveVote ignores self-vote and dead-target vote', () => {
+  const pub = baseState();
+  pub.players.sham1.alive = false;
+  const priv = basePrivate();
+  priv.pob1.voteTarget = 'pob1';
+  priv.monk1.voteTarget = 'sham1';
+  priv.police1.voteTarget = 'vill1';
+  priv.hunter1.voteTarget = 'vill1';
+  priv.vill1.voteTarget = 'vill1';
+
+  const result = resolveVote(pub, priv);
+  assert.equal(result.eliminatedUid, 'vill1');
+  assert.equal(result.players.vill1.alive, false);
+  assert.equal(result.voteSummary['ชาวนา'], 2);
 });

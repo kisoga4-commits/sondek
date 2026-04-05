@@ -77,6 +77,40 @@ export function checkWinner(publicState, privateState) {
   return '';
 }
 
+
+export function resolveVote(publicState, privateState) {
+  const pub = JSON.parse(JSON.stringify(publicState || {}));
+  const priv = privateState || {};
+  const alive = Object.values(pub.players || {}).filter((p) => p.alive);
+  const tally = {};
+
+  alive.forEach((p) => {
+    const target = String(priv[p.uid]?.voteTarget || '').trim();
+    if (!target || !pub.players?.[target]?.alive || target === p.uid) return;
+    tally[target] = (tally[target] || 0) + 1;
+  });
+
+  const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  let outUid = null;
+  if (sorted.length) {
+    const top = sorted[0][1];
+    const tieTop = sorted.filter(([, c]) => c === top).length > 1;
+    if (!tieTop && top > 0) outUid = sorted[0][0];
+  }
+
+  if (outUid) pub.players[outUid].alive = false;
+
+  const summary = Object.fromEntries(sorted.map(([uid, score]) => [pub.players?.[uid]?.name || uid, score]));
+  const end = checkWinner(pub, priv);
+
+  return {
+    players: pub.players,
+    voteSummary: summary,
+    eliminatedUid: outUid,
+    winner: end || '',
+  };
+}
+
 export function resolveNight(publicState, privateState) {
   const pub = JSON.parse(JSON.stringify(publicState || {}));
   const priv = privateState || {};
