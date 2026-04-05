@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
-import { getDatabase, onValue, ref, runTransaction } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
+import { getDatabase, onValue, ref, runTransaction, update } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
 import { checkWinner, resolveNight } from './gameEngine.js';
 
 const firebaseConfig = {
@@ -127,13 +127,28 @@ function gameHardStopAtMs(startedAtMs) {
 
 async function tx(pathRef, updater, options = {}) {
   const maxAttempts = Math.max(1, Number(options.maxAttempts || 3));
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs || 8000));
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const result = await runTransaction(pathRef, updater);
+    const result = await Promise.race([
+      runTransaction(pathRef, updater),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('การเชื่อมต่อช้าเกินไป กรุณาลองอีกครั้ง')), timeoutMs);
+      }),
+    ]);
     if (result.committed) return result.snapshot.val();
     if (attempt >= maxAttempts) break;
     await new Promise((resolve) => setTimeout(resolve, 120 * attempt));
   }
   throw new Error('บันทึกข้อมูลไม่สำเร็จ');
+}
+
+async function updateWithTimeout(pathRef, payload, timeoutMs = 8000) {
+  await Promise.race([
+    update(pathRef, payload),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('การเชื่อมต่อช้าเกินไป กรุณาลองอีกครั้ง')), timeoutMs);
+    }),
+  ]);
 }
 
 async function ensureAuth() {
@@ -447,7 +462,7 @@ async function submitNightAction(targetId, acted = true) {
       nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now },
     };
     mountByPhase();
-    await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now } }));
+    await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now } });
     const actionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
     const targetName = state.publicState?.players?.[normalizedTarget]?.name || 'เป้าหมาย';
     const message = myRole === 'villager'
@@ -493,10 +508,7 @@ function renderNight() {
     }
   }
 
-  const actionsCount = alive.filter((p) => state.allPrivate?.[p.uid]?.nightAction?.acted).length;
-  const actionProgressText = state.isHost
-    ? `ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}`
-    : 'ส่งคำสั่งของคุณได้ตามปกติ ระบบจะรวมผลให้ Host อัตโนมัติ';
+  const actionProgressText = 'ส่งคำสั่งของคุณได้ตามปกติ ระบบจะประมวลผลอัตโนมัติเมื่อจบรอบ';
   const roleActionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
 
   els.night.innerHTML = `
@@ -528,15 +540,6 @@ function renderNight() {
     </div>
     ${currentNightActionStatusHtml()}
     ${personalNightNoticeHtml()}
-    ${state.isHost ? `
-      <h3 style="margin-top:.9rem;">บอร์ดสถานะการทำหน้าที่ (Host)</h3>
-      <div class="role-progress-grid">
-        ${alive.map((p) => {
-          const status = getNightActionStatusByUid(p.uid);
-          return `<div class="tag ${status.done ? 'ready' : ''}">${p.name} • ${status.text}</div>`;
-        }).join('')}
-      </div>
-    ` : ''}
     ${state.isHost ? '<button id="resolveMorning" class="btn">ข้ามเวลาและประมวลผลตอนเช้า</button>' : '<p class="muted">รอ Host ประมวลผลเช้า หรือรอหมดเวลา</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
