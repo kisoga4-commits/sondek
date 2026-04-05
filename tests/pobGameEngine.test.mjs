@@ -56,6 +56,16 @@ test('police can block pob action when jailed before pob acts', () => {
   assert.match(result.logs.join(' | '), /ถูกขังก่อนใช้พลัง/);
 });
 
+test('police action from private state can block pob without public jailedTonight write', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
+  priv.pob1.nightAction = { targetId: 'vill1', acted: true, at: 100, order: 2 };
+  const result = resolveNight(pub, priv);
+  assert.equal(result.players.vill1.alive, true);
+  assert.match(result.logs.join(' | '), /ถูกขังก่อนใช้พลัง/);
+});
+
 test('hunter can shoot and kill target', () => {
   const pub = baseState();
   const priv = basePrivate();
