@@ -168,9 +168,15 @@ function getQuestionByRound(room, roundIdx) {
 function getPersonalQuestionSequence(room) {
   const roomId = String(room?.roomId || room?.id || state.roomId || '');
   const actorKey = `${roomId}:${state.uid}`;
-  const cacheKey = `${roomId}:${state.uid}:${state.loadedCourseId}:${state.questionBank.length}`;
+  const roomPoolIds = Array.isArray(room?.questionPoolIds) && room.questionPoolIds.length
+    ? room.questionPoolIds.map((id) => String(id || '')).filter(Boolean)
+    : [...new Set((Array.isArray(room?.questionSequence) ? room.questionSequence : []).map((id) => String(id || '')).filter(Boolean))];
+  const sourceIds = roomPoolIds.length
+    ? roomPoolIds
+    : state.questionBank.map((q) => String(q?.id || '')).filter(Boolean);
+  const cacheKey = `${roomId}:${state.uid}:${sourceIds.join('|')}:${state.loadedCourseId}:${state.questionBank.length}`;
   if (state.personalLoopKey !== cacheKey) {
-    state.personalQuestionSequence = buildPersonalQuestionLoop(state.questionBank, actorKey, { loopQuestionCount: LOOP_QUESTION_COUNT });
+    state.personalQuestionSequence = buildPersonalQuestionLoop(sourceIds.map((id) => ({ id })), actorKey, { loopQuestionCount: LOOP_QUESTION_COUNT });
     state.personalLoopKey = cacheKey;
   }
   return state.personalQuestionSequence;
