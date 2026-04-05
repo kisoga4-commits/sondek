@@ -74,6 +74,7 @@ test('hunter can shoot and kill target', () => {
   const result = resolveNight(pub, priv);
   assert.equal(result.players.sham1.alive, false);
   assert.match(result.logs.join(' | '), /โดนยิง/);
+  assert.match((result.roleResults?.hunter1 || []).join(' | '), /ยิง .* สำเร็จ/);
 });
 
 test('villager dies from starvation when not working', () => {
@@ -84,6 +85,24 @@ test('villager dies from starvation when not working', () => {
   const result = resolveNight(pub, priv);
   assert.equal(result.players.vill1.alive, false);
   assert.match(result.logs.join(' | '), /อดตาย/);
+  assert.match((result.roleResults?.vill1 || []).join(' | '), /อดตาย/);
+});
+
+test('shaman can inspect role and receive role result text', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.pob1.nightAction = { targetId: null, acted: false, at: 100, order: 2 };
+  priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
+  const result = resolveNight(pub, priv);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /พบว่าเป็น ปอบ/);
+});
+
+test('police jailing is exposed as role feedback for jailed target', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
+  const result = resolveNight(pub, priv);
+  assert.match((result.roleResults?.pob1 || []).join(' | '), /ถูกตำรวจจับเข้าคุก/);
 });
 
 test('checkWinner follows new rule: ends only when one faction is fully dead', () => {
