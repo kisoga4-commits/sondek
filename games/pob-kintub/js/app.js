@@ -283,12 +283,19 @@ function renderVillageGridHtml(players) {
     if (player.alive && jailedTonight[player.uid]) return { icon: '🧱', text: 'โดนตำรวจขังคืนนี้', className: 'out' };
     if (player.alive) return { icon: '🛟', text: 'ยังรอดชีวิต', className: '' };
     if (player.deathCause === 'โดนจกตับ') return { icon: '🩸', text: 'ตายจากโดนจกตับ', className: 'out' };
+
     if (player.deathCause === 'โดนยิง') return { icon: '🏹', text: 'ตายจากโดนนายพรานยิง', className: 'out' };
     if (player.deathCause === 'โดนขับไล่') return { icon: '🚫', text: 'ตายจากโดนขับไล่', className: 'out' };
     return { icon: '💀', text: 'ตายแล้ว (ไม่ทราบสาเหตุ)', className: 'out' };
   };
   return `
     <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🧱 โดนตำรวจขัง • 🩸 โดนจกตับ • 🏹 โดนนายพรานยิง • 🚫 โดนขับไล่</div>
+
+    return { icon: '💀', text: 'ตายแล้ว/ถูกกำจัด', className: 'out' };
+  };
+  return `
+    <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🧱 โดนตำรวจขัง • 🩸 โดนจกตับ</div>
+
     <div class="village-grid">
       ${players.map((p) => `
         <div class="villager-card ${p.alive ? '' : 'dead'}">
@@ -1003,10 +1010,13 @@ function renderVote() {
   const alive = alivePlayers();
   const myVote = state.mePrivate?.voteTarget || '';
   const requiredVotes = Math.floor(alive.length / 2) + 1;
+
   const stepLabel = state.publicState?.isFirstDayVote ? 'Step 2' : 'Step 5';
   const titleText = state.publicState?.isFirstDayVote
     ? `${stepLabel}: ประชุมลูกบ้านรอบแรก (โหวตหรือไม่โหวตก็ได้)`
     : `${stepLabel}: ประชุมหมู่บ้าน (โหวตผู้ต้องสงสัย)`;
+
+
   const votesSubmitted = alive.filter((p) => state.allPrivate?.[p.uid]?.voteTarget && state.publicState?.players?.[state.allPrivate?.[p.uid]?.voteTarget]?.alive).length;
   els.vote.innerHTML = `
     <h2>${titleText}</h2>

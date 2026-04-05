@@ -199,7 +199,11 @@ test('resolveVote eliminates when unique top vote is greater than half of alive 
   assert.equal(result.requiredVotes, 3);
   assert.equal(result.eliminatedUid, 'b');
   assert.equal(result.players.b.alive, false);
+
   assert.equal(result.players.b.deathCause, 'โดนขับไล่');
+
+  assert.equal(result.players.b.deathCause, 'vote_eliminated');
+
 });
 
 test('resolveVote ignores self-vote and dead-target vote (and still respects majority rule)', () => {
