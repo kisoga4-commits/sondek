@@ -49,6 +49,8 @@ const state = {
   isResolvingVote: false,
   privateAllUnsub: null,
   roleSheetRevealed: false,
+  isAdvancingPhase: false,
+  lastRenderedPhase: '',
 };
 
 const els = {
@@ -103,7 +105,7 @@ function formatRemain(ms) {
 }
 
 function phaseDurationMs(phase) {
-  if (phase === 'night') return 20000;
+  if (phase === 'identity' || phase === 'night' || phase === 'morning' || phase === 'vote') return 60000;
   return 0;
 }
 
@@ -157,9 +159,9 @@ function renderHome(message = '') {
 function phaseMetaHtml() {
   const phase = String(state.publicState?.phase || 'setup');
   const endsAt = Number(state.publicState?.phaseEndsAtMs || 0);
-  if (phase !== 'night' || !endsAt) return `<p class="muted">เฟส: ${phase.toUpperCase()}</p>`;
+  if (!endsAt) return `<p class="muted">เฟส: ${phase.toUpperCase()}</p>`;
   const remain = formatRemain(endsAt - Date.now());
-  return `<p class="muted">เฟส: ${phase.toUpperCase()} • เวลาทำหน้าที่กลางคืน ${remain}</p>`;
+  return `<p class="muted">เฟส: ${phase.toUpperCase()} • เวลาคงเหลือ ${remain}</p>`;
 }
 
 function deadOverlayHtml() {
@@ -220,7 +222,7 @@ function renderSetup() {
           hostUid: state.uid,
           startedAtMs: Date.now(),
           hardStopAtMs: gameHardStopAtMs(Date.now()),
-          phaseEndsAtMs: 0,
+          phaseEndsAtMs: Date.now() + phaseDurationMs('identity'),
           players: playersMap,
           lastLogs: ['เริ่มเกมแล้ว'],
           voteSummary: {},
@@ -285,16 +287,22 @@ function renderIdentity() {
   });
 
   const goFirstVote = document.getElementById('goFirstVote');
-  if (goFirstVote) {
-    goFirstVote.onclick = () => tx(paths.public, (data) => ({
+  if (goFirstVote) goFirstVote.onclick = () => { void advanceIdentityToVoteByHost(); };
+  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
+}
+
+async function advanceIdentityToVoteByHost() {
+  if (!state.isHost) return;
+  await tx(paths.public, (data) => {
+    if (String(data?.phase || '') !== 'identity') return data;
+    return {
       ...data,
       phase: 'vote',
-      phaseEndsAtMs: 0,
+      phaseEndsAtMs: Date.now() + phaseDurationMs('vote'),
       lastLogs: ['เช้าแรก: เริ่มโหวตผู้ต้องสงสัย'],
       updatedAtMs: Date.now(),
-    }));
-  }
-  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
+    };
+  });
 }
 
 async function submitNightAction(targetId, acted = true) {
@@ -389,7 +397,7 @@ function renderNight() {
       </div>
       `}
     </div>
-    ${state.isHost ? '<button id="resolveMorning" class="btn">ประมวลผลตอนเช้า</button>' : '<p class="muted">รอ Host ประมวลผลเช้า</p>'}
+    ${state.isHost ? '<button id="resolveMorning" class="btn">ข้ามเวลาและประมวลผลตอนเช้า</button>' : '<p class="muted">รอ Host ประมวลผลเช้า หรือรอหมดเวลา</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
@@ -527,19 +535,32 @@ function renderMorning() {
     ${phaseMetaHtml()}
     <div class="result-list">${players.map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('')}</div>
-    ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">เริ่มโหวตช่วงเช้า</button>' : '<p class="muted">รอ Host เริ่มโหวต</p>'}
+    ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">ข้ามเวลาและเริ่มโหวตช่วงเช้า</button>' : '<p class="muted">รอ Host เริ่มโหวต หรือรอหมดเวลา</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   document.getElementById('toVote')?.addEventListener('click', async () => {
     await tx(paths.public, (data) => ({
-      ...data,
+      ...(data || {}),
       phase: 'vote',
-      phaseEndsAtMs: 0,
+      phaseEndsAtMs: Date.now() + phaseDurationMs('vote'),
       updatedAtMs: Date.now(),
     }));
   });
   document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
+}
+
+async function advanceMorningToVoteByHost() {
+  if (!state.isHost) return;
+  await tx(paths.public, (data) => {
+    if (String(data?.phase || '') !== 'morning') return data;
+    return {
+      ...data,
+      phase: 'vote',
+      phaseEndsAtMs: Date.now() + phaseDurationMs('vote'),
+      updatedAtMs: Date.now(),
+    };
+  });
 }
 
 async function submitVote(targetId) {
@@ -623,7 +644,7 @@ function renderVote() {
       <div class="big-grid">${alive.filter((p) => p.uid !== state.uid).map((p) => `<button class="btn big-btn voteBtn" data-id="${p.uid}" ${isAlive() ? '' : 'disabled'}>${p.name}${myVote === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
     </div>
     <div class="grid" style="margin-top:.7rem;">${Object.entries(state.publicState?.voteSummary || {}).map(([name, score]) => `<div class="tag">${name} = ${score} คะแนน</div>`).join('') || '<div class="tag">รอรวมผลโหวต</div>'}</div>
-    ${state.isHost ? '<button id="finalVote" class="btn" style="margin-top:.7rem;">รวมคะแนนโหวต</button>' : '<p class="muted">รอ Host รวมคะแนน</p>'}
+    ${state.isHost ? '<button id="finalVote" class="btn" style="margin-top:.7rem;">ข้ามเวลาและรวมคะแนนโหวต</button>' : '<p class="muted">รอ Host รวมคะแนน หรือรอหมดเวลา</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
@@ -677,9 +698,11 @@ async function leaveRoom() {
 function mountByPhase() {
   Object.values(els).forEach((x) => x.classList.add('hidden'));
   const phase = String(state.publicState?.phase || 'setup');
+  const phaseChanged = state.lastRenderedPhase !== phase;
+  state.lastRenderedPhase = phase;
   document.body.classList.toggle('is-day-phase', phase === 'vote' || phase === 'morning');
   document.body.classList.toggle('is-night-phase', phase === 'night');
-  if (phase !== 'night') state.roleSheetRevealed = false;
+  if (phaseChanged) state.roleSheetRevealed = false;
 
   if (phase === 'setup') {
     els.setup.classList.remove('hidden');
@@ -725,8 +748,36 @@ function ensurePhaseTicker() {
   if (state.timerId) clearInterval(state.timerId);
   state.timerId = window.setInterval(() => {
     if (!state.publicState) return;
+    void maybeAutoAdvancePhaseByHost();
     mountByPhase();
   }, 1000);
+}
+
+async function maybeAutoAdvancePhaseByHost() {
+  if (!state.isHost || state.isAdvancingPhase) return;
+  const phase = String(state.publicState?.phase || '');
+  const endsAt = Number(state.publicState?.phaseEndsAtMs || 0);
+  if (!endsAt || Date.now() < endsAt) return;
+  state.isAdvancingPhase = true;
+  try {
+    if (phase === 'identity') {
+      await advanceIdentityToVoteByHost();
+      return;
+    }
+    if (phase === 'night') {
+      await resolveMorningByHost();
+      return;
+    }
+    if (phase === 'morning') {
+      await advanceMorningToVoteByHost();
+      return;
+    }
+    if (phase === 'vote') {
+      await finalizeVoteByHost();
+    }
+  } finally {
+    state.isAdvancingPhase = false;
+  }
 }
 
 async function initCloud() {
