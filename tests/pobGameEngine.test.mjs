@@ -12,7 +12,7 @@ function baseState() {
       police1: { uid: 'police1', name: 'ตำรวจ', alive: true },
       hunter1: { uid: 'hunter1', name: 'นายพราน', alive: true },
       vill1: { uid: 'vill1', name: 'ชาวนา', alive: true },
-      sham1: { uid: 'sham1', name: 'หมอผี', alive: true },
+      sham1: { uid: 'sham1', name: 'หมอดู', alive: true },
     },
     jailedTonight: {},
   };
@@ -66,6 +66,16 @@ test('police action from private state can block pob without public jailedTonigh
   assert.match(result.logs.join(' | '), /ถูกขังก่อนใช้พลัง/);
 });
 
+test('pob can still act if action happens before being jailed later', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.pob1.nightAction = { targetId: 'vill1', acted: true, at: 60, order: 1 };
+  priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 120, order: 3 };
+  const result = resolveNight(pub, priv);
+  assert.equal(result.players.vill1.alive, false);
+  assert.match(result.logs.join(' | '), /โดนจกตับ/);
+});
+
 test('hunter can shoot and kill target', () => {
   const pub = baseState();
   const priv = basePrivate();
@@ -95,6 +105,16 @@ test('shaman can inspect role and receive role result text', () => {
   priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
   const result = resolveNight(pub, priv);
   assert.match((result.roleResults?.sham1 || []).join(' | '), /พบว่าเป็น ปอบ/);
+});
+
+test('shaman cannot inspect a jailed target', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.pob1.nightAction = { targetId: null, acted: false, at: 100, order: 2 };
+  priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
+  priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
+  const result = resolveNight(pub, priv);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /ถูกขังอยู่ จึงส่องบทบาทไม่ได้/);
 });
 
 test('police jailing is exposed as role feedback for jailed target', () => {
