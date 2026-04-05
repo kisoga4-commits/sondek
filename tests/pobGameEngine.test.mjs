@@ -164,7 +164,7 @@ test('checkWinner does not end game when private roles are incomplete (legacy/st
 });
 
 
-test('resolveVote eliminates only a unique top-voted alive target', () => {
+test('resolveVote does not eliminate when top vote is not over half of alive players', () => {
   const pub = baseState();
   const priv = basePrivate();
   priv.pob1.voteTarget = 'vill1';
@@ -180,7 +180,29 @@ test('resolveVote eliminates only a unique top-voted alive target', () => {
   assert.equal(result.players.pob1.alive, true);
 });
 
-test('resolveVote ignores self-vote and dead-target vote', () => {
+test('resolveVote eliminates when unique top vote is greater than half of alive players', () => {
+  const pub = {
+    players: {
+      a: { uid: 'a', name: 'A', alive: true },
+      b: { uid: 'b', name: 'B', alive: true },
+      c: { uid: 'c', name: 'C', alive: true },
+      d: { uid: 'd', name: 'D', alive: true },
+    },
+  };
+  const priv = {
+    a: { role: 'villager', voteTarget: 'b' },
+    b: { role: 'villager', voteTarget: 'c' },
+    c: { role: 'villager', voteTarget: 'b' },
+    d: { role: 'pob', voteTarget: 'b' },
+  };
+  const result = resolveVote(pub, priv);
+  assert.equal(result.requiredVotes, 3);
+  assert.equal(result.eliminatedUid, 'b');
+  assert.equal(result.players.b.alive, false);
+  assert.equal(result.players.b.deathCause, 'vote_eliminated');
+});
+
+test('resolveVote ignores self-vote and dead-target vote (and still respects majority rule)', () => {
   const pub = baseState();
   pub.players.sham1.alive = false;
   const priv = basePrivate();
@@ -191,7 +213,8 @@ test('resolveVote ignores self-vote and dead-target vote', () => {
   priv.vill1.voteTarget = 'vill1';
 
   const result = resolveVote(pub, priv);
-  assert.equal(result.eliminatedUid, 'vill1');
-  assert.equal(result.players.vill1.alive, false);
+  assert.equal(result.requiredVotes, 3);
+  assert.equal(result.eliminatedUid, null);
+  assert.equal(result.players.vill1.alive, true);
   assert.equal(result.voteSummary['ชาวนา'], 2);
 });
