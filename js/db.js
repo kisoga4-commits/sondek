@@ -757,6 +757,8 @@ export async function saveResultFeedbackConfig(feedbackByBucket) {
   }, { merge: true });
 }
 
+
+
 export function subscribeAuthStatus(callback) {
   return onAuthStateChanged(auth, (user) => {
     callback({
@@ -940,10 +942,10 @@ export async function createDuelRoom(payload) {
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
   const requestedGameMode = String(payload?.gameMode || '').toLowerCase();
-  const gameMode = ['quick', 'worm', 'pob'].includes(requestedGameMode) ? requestedGameMode : 'quick';
+  const gameMode = ['quick', 'worm', 'pob', 'logicspy'].includes(requestedGameMode) ? requestedGameMode : 'quick';
   const matchType = requestedMatchType;
   const gameLabel = String(payload?.gameLabel || '').trim()
-    || (gameMode === 'worm' ? 'หนอนกระดื้บ' : gameMode === 'pob' ? 'ปอบกินตับ' : 'ตอบไว');
+    || (gameMode === 'worm' ? 'หนอนกระดื้บ' : gameMode === 'pob' ? 'ปอบกินตับ' : gameMode === 'logicspy' ? 'ใครต่างจากเพื่อน' : 'ตอบไว');
   const questionPoolIds = Array.isArray(payload?.questionPoolIds)
     ? [...new Set(payload.questionPoolIds.map((id) => String(id || '').trim()).filter(Boolean))]
     : [];
@@ -1110,13 +1112,15 @@ export async function startDuelRoom(roomId) {
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
       const requiredPlayers = gameMode === 'pob'
         ? 4
-        : (matchType === 'party' ? teamSize * 2 : 2);
+        : gameMode === 'logicspy'
+          ? 3
+          : (matchType === 'party' ? teamSize * 2 : 2);
       if (Object.keys(players).length < requiredPlayers) {
         throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${requiredPlayers} คนก่อนเริ่มดวล`);
       }
 
       const nowMs = Date.now();
-      const playerEntries = Object.entries(players).slice(0, gameMode === 'pob' ? 8 : (matchType === 'party' ? teamSize * 2 : 4));
+      const playerEntries = Object.entries(players).slice(0, gameMode === 'pob' ? 8 : gameMode === 'logicspy' ? 5 : (matchType === 'party' ? teamSize * 2 : 4));
       const normalizedPlayers = {};
       let teams = null;
       if (matchType === 'party') {

@@ -17,6 +17,7 @@ import {
   updateCourseOffering,
 } from './db.js';
 import { getDefaultFeedbackMap } from './quiz.js';
+import { getLogicSpyWordSetConfig, saveLogicSpyWordSetConfig } from './logicSpyWordSets.js';
 
 const quizLibrary = document.getElementById('quizLibrary');
 const authStatusNotice = document.getElementById('authStatusNotice');
@@ -44,6 +45,59 @@ const offerContentInput = document.getElementById('offerContentInput');
 const saveCourseOfferBtn = document.getElementById('saveCourseOfferBtn');
 const courseOfferStatus = document.getElementById('courseOfferStatus');
 const courseOfferList = document.getElementById('courseOfferList');
+
+const logicSpyWordSetsInput = document.getElementById('logicSpyWordSetsInput');
+const saveLogicSpyWordSetsBtn = document.getElementById('saveLogicSpyWordSetsBtn');
+const logicSpyWordSetsStatus = document.getElementById('logicSpyWordSetsStatus');
+
+function parseLogicSpySetsFromTextarea(value) {
+  return String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.split('|').map((word) => word.trim()).filter(Boolean))
+    .filter((entry) => entry.length === 4);
+}
+
+function formatLogicSpySetsForTextarea(sets) {
+  if (!Array.isArray(sets)) return '';
+  return sets
+    .filter((entry) => Array.isArray(entry) && entry.length === 4)
+    .map((entry) => entry.map((word) => String(word || '').trim()).join('|'))
+    .join('\n');
+}
+
+async function loadLogicSpyWordSets() {
+  if (!logicSpyWordSetsInput) return;
+  try {
+    const config = await getLogicSpyWordSetConfig();
+    const sets = Array.isArray(config?.sets) ? config.sets : [];
+    logicSpyWordSetsInput.value = formatLogicSpySetsForTextarea(sets);
+    if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = sets.length ? `โหลดคลังคำแล้ว ${sets.length} ชุด` : 'ยังไม่มีชุดคำที่บันทึกไว้ (ระบบจะใช้ค่าเริ่มต้น)';
+  } catch (error) {
+    if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = 'โหลดคลังคำไม่สำเร็จ';
+  }
+}
+
+async function onSaveLogicSpyWordSets() {
+  if (!logicSpyWordSetsInput) return;
+  const sets = parseLogicSpySetsFromTextarea(logicSpyWordSetsInput.value);
+  if (!sets.length) {
+    alert('กรุณากรอกอย่างน้อย 1 ชุดคำ (4 คำต่อบรรทัด)');
+    return;
+  }
+  try {
+    if (saveLogicSpyWordSetsBtn) saveLogicSpyWordSetsBtn.disabled = true;
+    await saveLogicSpyWordSetConfig(sets);
+    if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = `บันทึกคลังคำสำเร็จ ${sets.length} ชุด`;
+  } catch (error) {
+    if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = 'บันทึกคลังคำไม่สำเร็จ';
+    alert('บันทึกคลังคำไม่สำเร็จ');
+  } finally {
+    if (saveLogicSpyWordSetsBtn) saveLogicSpyWordSetsBtn.disabled = false;
+  }
+}
+
 
 const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 function getBucketRangeLabel(bucket) {
@@ -823,6 +877,7 @@ if (profileForm) {
 initQuizLibrary();
 void loadFeedbackConfig();
 void loadProfileForm();
+void loadLogicSpyWordSets();
 initCourseOfferingSection();
 subscribeAuthStatus(renderAuthStatus);
 updateProfileImagePreviewStatus();
@@ -852,5 +907,11 @@ if (openCourseDestinationBtn) {
 if (courseOfferForm) {
   courseOfferForm.addEventListener('submit', (event) => {
     void onSaveCourseOffering(event);
+  });
+}
+
+if (saveLogicSpyWordSetsBtn) {
+  saveLogicSpyWordSetsBtn.addEventListener('click', () => {
+    void onSaveLogicSpyWordSets();
   });
 }
