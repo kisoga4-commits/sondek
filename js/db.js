@@ -87,6 +87,8 @@ const DUEL_STUN_MS = 3000;
 const DUEL_ROOM_ID_LENGTH = 6;
 const DUEL_QUESTION_SECONDS = 10;
 const DUEL_REVEAL_SECONDS = 0.8;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const MAINTENANCE_STORAGE_KEY = 'duel_weekly_maintenance_at';
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
@@ -145,6 +147,45 @@ async function ensureAuthReady() {
 
 export async function ensureDuelAuthReady() {
   await ensureAuthReady();
+  void runWeeklyDuelMaintenance();
+}
+
+export async function runWeeklyDuelMaintenance(options = {}) {
+  await ensureAuthReady();
+  const nowMs = Number(options.nowMs || Date.now());
+  const force = Boolean(options.force);
+  const lastRunMs = Number(window.localStorage.getItem(MAINTENANCE_STORAGE_KEY) || 0);
+  if (!force && lastRunMs > 0 && (nowMs - lastRunMs) < WEEK_MS) return { skipped: true };
+
+  const removeOlderThanMs = nowMs - WEEK_MS;
+  const cleanupPaths = ['rooms', 'logic_spy_rooms'];
+  const summary = {};
+
+  await Promise.all(cleanupPaths.map(async (path) => {
+    const pathRef = rtdbRef(rtdb, path);
+    try {
+      await runRtdbTransaction(pathRef, (data) => {
+        if (!data || typeof data !== 'object') return data;
+        const next = { ...data };
+        let removedCount = 0;
+        Object.entries(data).forEach(([roomId, room]) => {
+          const updatedAtMs = Number(room?.updatedAtMs || room?.endedAtMs || room?.createdAtMs || 0);
+          const isTooOld = updatedAtMs > 0 && updatedAtMs < removeOlderThanMs;
+          if (isTooOld) {
+            delete next[roomId];
+            removedCount += 1;
+          }
+        });
+        summary[path] = removedCount;
+        return next;
+      });
+    } catch (_) {
+      summary[path] = -1;
+    }
+  }));
+
+  window.localStorage.setItem(MAINTENANCE_STORAGE_KEY, String(nowMs));
+  return { skipped: false, removed: summary };
 }
 
 async function ensureWriteAccess() {
