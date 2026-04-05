@@ -120,7 +120,7 @@ function syncHostModeOptions() {
   const mode = getSelectedGameMode();
   el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
-  el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob');
+  el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob' && mode !== 'logicspy');
   const courseLabel = el.courseIdInput?.closest('label');
   courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'logicspy');
   syncWormMatchOptions();
@@ -147,6 +147,7 @@ const state = {
   loadingCourseId: '',
   selectedAnswer: null,
   isSubmitting: false,
+  isStartingGame: false,
   authReady: false,
   shownFinishMarker: '',
   pobRedirectMarker: '',
@@ -599,6 +600,27 @@ async function handleJoinRoom() {
   }
 }
 
+
+async function handleStartGame() {
+  if (!state.roomId || state.isStartingGame) return;
+  state.isStartingGame = true;
+  const defaultLabel = el.startGameBtn.textContent;
+  el.startGameBtn.disabled = true;
+  el.startGameBtn.textContent = 'กำลังเริ่ม...';
+  try {
+    await startDuelRoom(state.roomId);
+    setStatus('เริ่มเกมสำเร็จ กำลังพาเข้าห้องแข่ง...');
+  } catch (error) {
+    const message = error?.message || 'เริ่มเกมไม่สำเร็จ กรุณาลองอีกครั้ง';
+    setStatus(message);
+    el.lobbyHint.textContent = message;
+  } finally {
+    state.isStartingGame = false;
+    el.startGameBtn.disabled = false;
+    el.startGameBtn.textContent = defaultLabel;
+  }
+}
+
 async function init() {
   setStatus('กำลังเชื่อมต่อระบบ...');
   subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
@@ -626,7 +648,7 @@ async function init() {
   el.gameModeInput?.addEventListener('change', syncHostModeOptions);
   el.matchTypeInput?.addEventListener('change', syncWormMatchOptions);
   el.quickMatchTypeInput?.addEventListener('change', syncQuickMatchOptions);
-  el.startGameBtn.addEventListener('click', () => void startDuelRoom(state.roomId));
+  el.startGameBtn.addEventListener('click', () => void handleStartGame());
   el.roomIdInput.addEventListener('input', () => { el.roomIdInput.value = normalizeRoomIdInput(el.roomIdInput.value); });
   document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', () => closeModal(document.getElementById(btn.dataset.closeModal))));
   syncHostModeOptions();
