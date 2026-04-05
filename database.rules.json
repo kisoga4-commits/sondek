@@ -35,19 +35,19 @@
         ".write": false,
 
         "public": {
-          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
-          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && (!data.exists() || data.child('hostUid').val() === auth.uid || newData.child('hostUid').val() === auth.uid)",
+          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists()",
+          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists()",
           "hostUid": {
             ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
           }
         },
 
         "private": {
-          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
-          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
+          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists()",
+          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists()",
           "$uid": {
-            ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
-            ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null"
+            ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists()",
+            ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists()"
           }
         }
       }
