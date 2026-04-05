@@ -290,12 +290,6 @@ function renderVillageGridHtml(players) {
   };
   return `
     <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🧱 โดนตำรวจขัง • 🩸 โดนจกตับ • 🏹 โดนนายพรานยิง • 🚫 โดนขับไล่</div>
-
-    return { icon: '💀', text: 'ตายแล้ว/ถูกกำจัด', className: 'out' };
-  };
-  return `
-    <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🧱 โดนตำรวจขัง • 🩸 โดนจกตับ</div>
-
     <div class="village-grid">
       ${players.map((p) => `
         <div class="villager-card ${p.alive ? '' : 'dead'}">
