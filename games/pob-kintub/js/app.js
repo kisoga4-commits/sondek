@@ -29,6 +29,14 @@ const ROLE_UI_TEXT = {
   police: () => 'คุณคือตำรวจ เลือกจับคนเข้าคุกได้ 1 คน (ถ้าจับปอบ ปอบจะฆ่าใครไม่ได้)',
   villager: () => "คุณคือชาวนา ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
 };
+const ROLE_ACTION_CONFIG = {
+  pob: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จกตับ' },
+  shaman: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ส่องบทบาท' },
+  monk: { requiresTarget: true, allowSelfTarget: true, actionLabel: 'คุ้มครอง' },
+  hunter: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ยิง' },
+  police: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จับเข้าคุก' },
+  villager: { requiresTarget: true, allowSelfTarget: true, actionLabel: 'ไถนา' },
+};
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
@@ -183,6 +191,36 @@ function renderVillageGridHtml(players) {
       `).join('')}
     </div>
   `;
+}
+
+function getNightActionStatusByUid(uid) {
+  const player = state.publicState?.players?.[uid];
+  if (!player?.alive) return { done: false, text: '💀 ตายแล้ว' };
+  const role = state.allPrivate?.[uid]?.role || '';
+  const acted = Boolean(state.allPrivate?.[uid]?.nightAction?.acted);
+  if (!role) return { done: false, text: '… ยังไม่ระบุบท' };
+  return acted
+    ? { done: true, text: `✅ ${ROLES[role]?.label || role} ทำหน้าที่แล้ว` }
+    : { done: false, text: `⬜ ${ROLES[role]?.label || role} ยังไม่ทำหน้าที่` };
+}
+
+function personalNightNoticeHtml() {
+  const notice = String(state.mePrivate?.nightNotice || '').trim();
+  if (!notice) return '';
+  return `<div class="tag" style="margin-top:.55rem;">📌 ผลการทำหน้าที่เมื่อคืน: ${notice}</div>`;
+}
+
+function currentNightActionStatusHtml() {
+  const action = state.mePrivate?.nightAction;
+  if (!action?.acted) return '';
+  const role = String(state.mePrivate?.role || '');
+  const actionLabel = ROLE_ACTION_CONFIG[role]?.actionLabel || 'ใช้สกิล';
+  const targetId = String(action?.targetId || '').trim();
+  const targetName = targetId ? (state.publicState?.players?.[targetId]?.name || 'ผู้เล่น') : '';
+  const text = role === 'villager'
+    ? `✅ คุณไถนาแล้วในคืนนี้`
+    : `✅ คุณเลือก${actionLabel}เป้าหมาย: ${targetName || 'ไม่ระบุ'}`;
+  return `<div class="tag ready" style="margin-top:.55rem;">${text}</div>`;
 }
 
 function ensurePopupRoot() {
@@ -364,6 +402,24 @@ async function advanceIdentityToVoteByHost() {
 
 async function submitNightAction(targetId, acted = true) {
   const myRole = state.mePrivate?.role;
+  const actionConfig = ROLE_ACTION_CONFIG[myRole] || { requiresTarget: false, allowSelfTarget: false };
+  const normalizedTarget = String(targetId || '').trim();
+  if (actionConfig.requiresTarget && !normalizedTarget) {
+    openPopup({ title: 'เลือกเป้าหมายก่อน', message: 'กรุณาเลือกเป้าหมายให้ถูกต้องก่อนยืนยันคำสั่ง' });
+    return;
+  }
+  if (!actionConfig.allowSelfTarget && normalizedTarget === state.uid) {
+    openPopup({ title: 'เลือกเป้าหมายไม่ถูกต้อง', message: 'บทบาทนี้เลือกตัวเองไม่ได้' });
+    return;
+  }
+  if (normalizedTarget && !state.publicState?.players?.[normalizedTarget]) {
+    openPopup({ title: 'ไม่พบผู้เล่น', message: 'ไม่พบเป้าหมายที่เลือกในเกมนี้' });
+    return;
+  }
+  if (normalizedTarget && !state.publicState?.players?.[normalizedTarget]?.alive) {
+    openPopup({ title: 'เป้าหมายตายแล้ว', message: 'ไม่สามารถใช้สกิลกับผู้เล่นที่ตายแล้วได้' });
+    return;
+  }
   if (state.mePrivate?.nightAction?.acted) {
     openPopup({ title: 'แจ้งเตือน', message: 'คืนนี้คุณใช้สิทธิ์ไปแล้ว' });
     return;
@@ -379,10 +435,16 @@ async function submitNightAction(targetId, acted = true) {
     const now = Date.now();
     state.mePrivate = {
       ...(state.mePrivate || {}),
-      nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order: now },
+      nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now },
     };
     mountByPhase();
-    await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order: now } }));
+    await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now } }));
+    const actionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
+    const targetName = state.publicState?.players?.[normalizedTarget]?.name || 'เป้าหมาย';
+    const message = myRole === 'villager'
+      ? 'บันทึกแล้ว: คืนนี้คุณไถนาเรียบร้อย'
+      : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
+    openPopup({ title: 'ส่งคำสั่งสำเร็จ', message });
   } catch (error) {
     state.mePrivate = {
       ...(state.mePrivate || {}),
@@ -424,6 +486,7 @@ function renderNight() {
   const actionProgressText = state.isHost
     ? `ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}`
     : 'ส่งคำสั่งของคุณได้ตามปกติ ระบบจะรวมผลให้ Host อัตโนมัติ';
+  const roleActionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
 
   els.night.innerHTML = `
     <h2>Step 4: Night Action</h2>
@@ -437,6 +500,7 @@ function renderNight() {
       <div class="sheet-revealed">
         <h3>${ROLES[myRole]?.icon || '❓'} ${ROLES[myRole]?.label || 'ไม่ทราบบท'}</h3>
         <p class="muted">${roleText}</p>
+        <p class="muted">คำสั่งคืนนี้: ${roleActionLabel}</p>
         <div class="sheet-actions">
           ${actionHtml}
           <button id="hideRoleSheet" class="btn secondary">ปิดม่าน</button>
@@ -451,6 +515,17 @@ function renderNight() {
       </div>
       `}
     </div>
+    ${currentNightActionStatusHtml()}
+    ${personalNightNoticeHtml()}
+    ${state.isHost ? `
+      <h3 style="margin-top:.9rem;">บอร์ดสถานะการทำหน้าที่ (Host)</h3>
+      <div class="role-progress-grid">
+        ${alive.map((p) => {
+          const status = getNightActionStatusByUid(p.uid);
+          return `<div class="tag ${status.done ? 'ready' : ''}">${p.name} • ${status.text}</div>`;
+        }).join('')}
+      </div>
+    ` : ''}
     ${state.isHost ? '<button id="resolveMorning" class="btn">ข้ามเวลาและประมวลผลตอนเช้า</button>' : '<p class="muted">รอ Host ประมวลผลเช้า หรือรอหมดเวลา</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
@@ -512,7 +587,13 @@ async function resolveMorningByHost() {
   await tx(paths.privateAll, (data) => {
     const next = { ...(data || {}) };
     Object.keys(next).forEach((uid) => {
-      next[uid] = { ...next[uid], nightAction: null, voteTarget: null };
+      const roleMessages = resolvedNight?.roleResults?.[uid] || [];
+      next[uid] = {
+        ...next[uid],
+        nightAction: null,
+        voteTarget: null,
+        nightNotice: roleMessages.join(' | '),
+      };
     });
     return next;
   });
@@ -529,6 +610,7 @@ function renderMorning() {
     ${phaseMetaHtml()}
     <div class="result-list">${players.map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('')}</div>
+    ${personalNightNoticeHtml()}
     ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">ข้ามเวลาและเริ่มโหวตช่วงเช้า</button>' : '<p class="muted">รอ Host เริ่มโหวต หรือรอหมดเวลา</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
@@ -558,10 +640,27 @@ async function advanceMorningToVoteByHost() {
 }
 
 async function submitVote(targetId) {
+  const normalizedTarget = String(targetId || '').trim();
+  if (!normalizedTarget) {
+    openPopup({ title: 'โหวตไม่สำเร็จ', message: 'กรุณาเลือกผู้เล่นที่ต้องการโหวต' });
+    return;
+  }
+  if (!isAlive()) {
+    openPopup({ title: 'โหวตไม่ได้', message: 'ผู้เล่นที่ตายแล้วไม่สามารถโหวตได้' });
+    return;
+  }
+  if (!state.publicState?.players?.[normalizedTarget]?.alive) {
+    openPopup({ title: 'โหวตไม่สำเร็จ', message: 'ผู้เล่นที่เลือกไม่อยู่ในสถานะโหวตแล้ว' });
+    return;
+  }
+  if (normalizedTarget === state.uid) {
+    openPopup({ title: 'โหวตไม่สำเร็จ', message: 'ไม่สามารถโหวตตัวเองได้' });
+    return;
+  }
   try {
-    state.mePrivate = { ...(state.mePrivate || {}), voteTarget: targetId || null };
+    state.mePrivate = { ...(state.mePrivate || {}), voteTarget: normalizedTarget || null };
     mountByPhase();
-    await tx(paths.privateMine(), (data) => ({ ...data, voteTarget: targetId || null }));
+    await tx(paths.privateMine(), (data) => ({ ...data, voteTarget: normalizedTarget || null }));
   } catch (error) {
     state.mePrivate = { ...(state.mePrivate || {}), voteTarget: null };
     mountByPhase();
@@ -592,7 +691,7 @@ async function finalizeVoteByHost() {
   if (sorted.length) {
     const top = sorted[0][1];
     const tieTop = sorted.filter(([, c]) => c === top).length > 1;
-    if (!tieTop && top > alive.length / 2) outUid = sorted[0][0];
+    if (!tieTop && top > 0) outUid = sorted[0][0];
   }
 
   if (outUid) pub.players[outUid].alive = false;
@@ -632,10 +731,13 @@ async function finalizeVoteByHost() {
 function renderVote() {
   const alive = alivePlayers();
   const myVote = state.mePrivate?.voteTarget || '';
+  const votesSubmitted = alive.filter((p) => state.allPrivate?.[p.uid]?.voteTarget && state.publicState?.players?.[state.allPrivate?.[p.uid]?.voteTarget]?.alive).length;
   els.vote.innerHTML = `
     <h2>Step 3: Day Vote</h2>
     ${phaseMetaHtml()}
     <p class="muted">คะแนนจะรวมแบบไม่บอกว่าใครโหวตใคร</p>
+    <p class="muted">${state.isHost ? `สถานะโหวต ${votesSubmitted}/${alive.length} คน` : `คุณ${myVote ? 'โหวตแล้ว ✅' : 'ยังไม่โหวต ⬜'}`}</p>
+    ${personalNightNoticeHtml()}
     <div class="secret-wrapper">
       ${deadOverlayHtml()}
       <div class="big-grid">${alive.filter((p) => p.uid !== state.uid).map((p) => `<button class="btn big-btn voteBtn" data-id="${p.uid}" ${isAlive() ? '' : 'disabled'}>${p.name}${myVote === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
