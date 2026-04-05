@@ -142,6 +142,14 @@ h2 { margin: 0 0 .8rem; font-size: 1.15rem; }
 .villager-status { color: var(--muted); font-size: .78rem; margin-top: .1rem; }
 .villager-card.dead .villager-icon { filter: grayscale(1); opacity: .45; }
 .villager-card.dead .villager-name { color: #9aa6a1; }
+.villager-card.dead .villager-icon {
+  filter: none;
+  opacity: 1;
+  color: #ff4d4d;
+  border-color: #ff4d4d;
+  background: radial-gradient(circle at 30% 25%, #632020, #2f0909);
+}
+.villager-card.dead .villager-status { color: #ff9a9a; }
 
 .hidden-sheet {
   margin-top: .85rem;

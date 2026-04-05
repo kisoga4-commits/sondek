@@ -5,7 +5,7 @@ function markDead(nextPublic, uid, reason, logs) {
 }
 const ROLE_LABELS = {
   pob: 'ปอบ',
-  shaman: 'หมอผี',
+  shaman: 'หมอดู',
   monk: 'หมอธรรม',
   hunter: 'นายพราน',
   police: 'ตำรวจ',
@@ -183,6 +183,8 @@ export function resolveNight(publicState, privateState) {
   const shamanTarget = isBlockedByPolice(priv, jailedTonight, shamanUid, day) ? null : (shamanAction?.targetId || null);
   if (shamanUid && isBlockedByPolice(priv, jailedTonight, shamanUid, day)) {
     roleResults[shamanUid]?.push('คุณถูกขังก่อน จึงส่องบทบาทไม่สำเร็จ');
+  } else if (shamanUid && shamanTarget && jailedTonight[shamanTarget]) {
+    roleResults[shamanUid]?.push(`${pub.players?.[shamanTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงส่องบทบาทไม่ได้`);
   } else if (shamanUid && shamanTarget) {
     const seenRole = String(priv[shamanTarget]?.role || 'unknown');
     const seenName = pub.players?.[shamanTarget]?.name || 'ผู้เล่น';

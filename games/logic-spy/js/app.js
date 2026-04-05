@@ -156,7 +156,7 @@ function ui() {
   el.lobby.innerHTML = `
     <h3>Lobby</h3>
     <p>โหมดนี้ต้องมี 3-5 คน</p>
-    <p class="muted">Host(Room): <b>${roomHostUid || '-'}</b> • Moderator: <b>${moderatorUid || '-'}</b></p>
+    <p class="muted">Host(Room): <b>${roomHostUid || '-'}</b> • ผู้คุมเกม: <b>${moderatorUid || '-'}</b></p>
     ${state.startFlowMessage ? `<p style="color:#ff7b7b;">${state.startFlowMessage}</p>` : ''}
     <div class="chips">${chips}</div>
     ${isMeModerator

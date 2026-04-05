@@ -35,19 +35,19 @@
         ".write": false,
 
         "public": {
-          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null",
-          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && (!data.exists() || data.child('hostUid').val() === auth.uid || newData.child('hostUid').val() === auth.uid)",
+          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms').child($roomId).child('players').child(auth.uid).exists()",
+          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms').child($roomId).child('players').child(auth.uid).exists() && (!data.exists() || data.child('hostUid').val() === auth.uid || newData.child('hostUid').val() === auth.uid)",
           "hostUid": {
             ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0)"
           }
         },
 
         "private": {
-          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid",
-          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid",
+          ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms').child($roomId).child('players').child(auth.uid).exists()",
+          ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms').child($roomId).child('players').child(auth.uid).exists()",
           "$uid": {
-            ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && (auth.uid === $uid || root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid)",
-            ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && (auth.uid === $uid || root.child($gameRooms).child($roomId).child('public').child('hostUid').val() === auth.uid)"
+            ".read": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms').child($roomId).child('players').child(auth.uid).exists()",
+            ".write": "$gameRooms.matches(/^[a-z0-9_]+_rooms$/) && $gameRooms !== 'rooms' && $gameRooms !== 'duel_rooms' && auth != null && root.child('rooms').child($roomId).child('players').child(auth.uid).exists()"
           }
         }
       }

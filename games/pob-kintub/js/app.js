@@ -15,7 +15,7 @@ const firebaseConfig = {
 
 const ROLES = {
   pob: { label: 'ปอบ', icon: '👹', desc: 'ฆ่า 1 คน/คืน' },
-  shaman: { label: 'หมอผี', icon: '🔮', desc: 'ส่องบท 1 คน/คืน' },
+  shaman: { label: 'หมอดู', icon: '🔮', desc: 'ดูบท 1 คน/คืน' },
   monk: { label: 'หมอธรรม', icon: '🛡️', desc: 'คุ้มครอง 1 คน/คืน' },
   hunter: { label: 'นายพราน', icon: '🏹', desc: 'ยิง 1 คน/คืน' },
   police: { label: 'ตำรวจ', icon: '👮', desc: 'จับ 1 คนเข้าคุก/คืน' },
@@ -23,7 +23,7 @@ const ROLES = {
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
-  shaman: () => 'คุณคือหมอผี เลือกส่องดูอาชีพจริงของเพื่อนได้ 1 คนต่อคืน',
+  shaman: () => 'คุณคือหมอดู เลือกดูอาชีพจริงของเพื่อนได้ 1 คนต่อคืน',
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
   police: () => 'คุณคือตำรวจ เลือกจับคนเข้าคุกได้ 1 คน (ถ้าจับปอบ ปอบจะฆ่าใครไม่ได้)',
@@ -238,9 +238,9 @@ function renderVillageGridHtml(players) {
     <div class="village-grid">
       ${players.map((p) => `
         <div class="villager-card ${p.alive ? '' : 'dead'}">
-          <div class="villager-icon">${p.alive ? '🙂' : '💀'}</div>
+          <div class="villager-icon">${p.alive ? '🙂' : '🩸'}</div>
           <div class="villager-name">${p.name}${p.uid === state.uid ? ' 👤' : ''}</div>
-          <div class="villager-status">${p.alive ? 'ยังอยู่ในเกม' : 'ตายแล้ว'}</div>
+          <div class="villager-status">${p.alive ? 'ยังอยู่ในเกม' : 'ตายแล้ว (โดนจกตับ/ถูกกำจัด)'}</div>
         </div>
       `).join('')}
     </div>
@@ -546,6 +546,30 @@ async function submitNightAction(targetId, acted = true) {
     };
     mountByPhase();
     await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now, day } });
+    if (myRole === 'police') {
+      await tx(paths.public, (data) => {
+        if (String(data?.phase || '') !== 'night') return data;
+        const target = String(normalizedTarget || '').trim();
+        if (!target || !data?.players?.[target]?.alive) {
+          return {
+            ...(data || {}),
+            jailedTonight: {},
+            updatedAtMs: Date.now(),
+          };
+        }
+        return {
+          ...(data || {}),
+          jailedTonight: {
+            [target]: {
+              by: state.uid,
+              at: now,
+              order: now,
+            },
+          },
+          updatedAtMs: Date.now(),
+        };
+      });
+    }
     if (state.isHost) {
       await tx(paths.public, (data) => {
         if (String(data?.phase || '') !== 'night') return data;
@@ -566,11 +590,15 @@ async function submitNightAction(targetId, acted = true) {
       ? 'บันทึกแล้ว: คืนนี้คุณไถนาเรียบร้อย'
       : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
     if (myRole === 'shaman' && normalizedTarget) {
-      const roleLabel = await getShamanInstantReveal(normalizedTarget);
-      if (roleLabel) {
-        message = `คุณส่อง ${targetName} พบว่าเป็น ${roleLabel}`;
+      if (jailedTonight?.[normalizedTarget]) {
+        message = `${targetName} ถูกขังอยู่ จึงดูบทบาทไม่ได้`;
       } else {
-        message = `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName} (ผลส่องจะยืนยันอีกครั้งตอนเช้า)`;
+        const roleLabel = await getShamanInstantReveal(normalizedTarget);
+        if (roleLabel) {
+          message = `คุณส่อง ${targetName} พบว่าเป็น ${roleLabel}`;
+        } else {
+          message = `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName} (ผลส่องจะยืนยันอีกครั้งตอนเช้า)`;
+        }
       }
     }
     openPopup({ title: 'ส่งคำสั่งสำเร็จ', message });
@@ -721,7 +749,7 @@ function renderNight() {
     }
   }
 
-  const actionProgressText = 'ส่งคำสั่งของคุณได้ตามปกติ ระบบจะประมวลผลอัตโนมัติเมื่อจบรอบ';
+  const actionProgressText = 'ลำดับเหตุการณ์ใช้เวลาเป็นตัวตัดสิน: ถ้าตำรวจจับก่อน เป้าหมายจะถูกขังทันที และคนอื่นที่กระทำกับผู้ถูกขังจะไม่สำเร็จ';
   const roleActionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
 
   els.night.innerHTML = `
@@ -759,14 +787,24 @@ function renderNight() {
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
-  document.getElementById('toggleRoleSheet')?.addEventListener('click', () => {
+  const openSheet = () => {
     state.roleSheetRevealed = true;
     renderNight();
-  });
-  document.getElementById('hideRoleSheet')?.addEventListener('click', () => {
+  };
+  const closeSheet = () => {
     state.roleSheetRevealed = false;
     renderNight();
-  });
+  };
+  document.getElementById('toggleRoleSheet')?.addEventListener('click', openSheet);
+  document.getElementById('toggleRoleSheet')?.addEventListener('touchend', (event) => {
+    event.preventDefault();
+    openSheet();
+  }, { passive: false });
+  document.getElementById('hideRoleSheet')?.addEventListener('click', closeSheet);
+  document.getElementById('hideRoleSheet')?.addEventListener('touchend', (event) => {
+    event.preventDefault();
+    closeSheet();
+  }, { passive: false });
 
   document.getElementById('confirmNightActionBtn')?.addEventListener('click', () => {
     const target = myRole === 'villager' ? state.uid : state.selectedNightTargetId;
@@ -1020,14 +1058,6 @@ function mountByPhase() {
 }
 
 function ensurePrivateAllListener() {
-  if (!state.isHost) {
-    if (typeof state.privateAllUnsub === 'function') {
-      state.privateAllUnsub();
-      state.privateAllUnsub = null;
-    }
-    state.allPrivate = {};
-    return;
-  }
   if (typeof state.privateAllUnsub === 'function') return;
 
   state.privateAllUnsub = onValue(paths.privateAll, (snap) => {
