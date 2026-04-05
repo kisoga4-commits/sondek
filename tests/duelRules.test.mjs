@@ -72,6 +72,26 @@ test('worm combo attack targets highest-score opponent outside actor team', () =
   assert.equal(targetUid, 'opp1');
 });
 
+test('worm combo attack in solo with two players always targets the opponent', () => {
+  const players = {
+    self: { uid: 'self', teamId: null, distance: 5 },
+    opp: { uid: 'opp', teamId: null, distance: 8 },
+  };
+  const targetUid = pickWormComboTargetUid(players, 'self', '', 0.5);
+  assert.equal(targetUid, 'opp');
+});
+
+test('worm combo attack in solo with multiple players targets highest score excluding self', () => {
+  const players = {
+    self: { uid: 'self', teamId: null, distance: 5 },
+    p1: { uid: 'p1', teamId: null, distance: 7 },
+    p2: { uid: 'p2', teamId: null, distance: 9 },
+    p3: { uid: 'p3', teamId: null, distance: 8 },
+  };
+  const targetUid = pickWormComboTargetUid(players, 'self', '', 0.5);
+  assert.equal(targetUid, 'p2');
+});
+
 test('worm combo attack randomizes when top opponent scores tie', () => {
   const players = {
     self: { uid: 'self', teamId: 'A', distance: 5 },
