@@ -42,14 +42,20 @@ export function getWormWrongPenalty(wrongStreak = 0) {
 }
 
 export function pickWormComboTargetUid(players = {}, actorUid = '', actorTeamId = '', randomValue = Math.random()) {
-  const normalizedActorTeamId = String(actorTeamId || '');
+  const actor = players?.[actorUid] || {};
+  const normalizedActorTeamId = String(actorTeamId || actor?.teamId || '');
+  const hasKnownTeams = Object.values(players || {}).some((player) => String(player?.teamId || ''));
   const candidates = Object.entries(players)
     .filter(([uid, player]) => {
       if (uid === actorUid) return false;
 
       // Party mode: actor has a teamId, so only target players outside actor team.
       // Solo mode: actor has no teamId, so everyone except self is a valid target.
-      if (!normalizedActorTeamId) return true;
+      if (!normalizedActorTeamId) {
+        // fallback: if team data exists but actorTeamId payload is missing, avoid same-team targets
+        if (hasKnownTeams && String(player?.teamId || '') && String(player?.teamId || '') === String(actor?.teamId || '')) return false;
+        return true;
+      }
 
       return String(player?.teamId || '') !== normalizedActorTeamId;
     });

@@ -92,6 +92,17 @@ test('worm combo attack in solo with multiple players targets highest score excl
   assert.equal(targetUid, 'p2');
 });
 
+test('worm combo attack still targets opponent when actorTeamId payload is missing', () => {
+  const players = {
+    self: { uid: 'self', teamId: 'A', distance: 5 },
+    mate: { uid: 'mate', teamId: 'A', distance: 9 },
+    opp1: { uid: 'opp1', teamId: 'B', distance: 8 },
+    opp2: { uid: 'opp2', teamId: 'B', distance: 6 },
+  };
+  const targetUid = pickWormComboTargetUid(players, 'self', '', 0.5);
+  assert.equal(targetUid, 'opp1');
+});
+
 test('worm combo attack randomizes when top opponent scores tie', () => {
   const players = {
     self: { uid: 'self', teamId: 'A', distance: 5 },
