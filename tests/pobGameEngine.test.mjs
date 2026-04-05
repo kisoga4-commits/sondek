@@ -230,3 +230,27 @@ test('resolveVote ignores self-vote and dead-target vote (and still respects maj
   assert.equal(result.players.vill1.alive, true);
   assert.equal(result.voteSummary['ชาวนา'], 2);
 });
+
+test('resolveVote gives solo win to madman when madman is voted out', () => {
+  const pub = {
+    players: {
+      pob1: { uid: 'pob1', name: 'ปอบ', alive: true },
+      mad1: { uid: 'mad1', name: 'คนบ้า', alive: true },
+      h1: { uid: 'h1', name: 'คนดี 1', alive: true },
+      h2: { uid: 'h2', name: 'คนดี 2', alive: true },
+    },
+  };
+  const priv = {
+    pob1: { role: 'pob', voteTarget: 'mad1' },
+    mad1: { role: 'madman', voteTarget: 'pob1' },
+    h1: { role: 'villager', voteTarget: 'mad1' },
+    h2: { role: 'villager', voteTarget: 'mad1' },
+  };
+
+  const result = resolveVote(pub, priv);
+  assert.equal(result.requiredVotes, 3);
+  assert.equal(result.eliminatedUid, 'mad1');
+  assert.equal(result.players.mad1.alive, false);
+  assert.equal(result.winner, 'madman');
+  assert.equal(result.madmanWinUid, 'mad1');
+});

@@ -21,6 +21,7 @@ const firebaseConfig = {
 
 const ROLES = {
   pob: { label: 'ปอบ', icon: '👹', desc: 'ฆ่า 1 คน/คืน' },
+  madman: { label: 'คนบ้า', icon: '🤪', desc: 'ชนะทันทีเมื่อโดนโหวตออกตอนกลางวัน' },
   shaman: { label: 'หมอดู', icon: '🔮', desc: 'เชื่อมจิต 2 คืนติดเพื่อดูผลแบบย่อ' },
   monk: { label: 'หมอธรรม', icon: '🛡️', desc: 'คุ้มครอง 1 คน/คืน' },
   hunter: { label: 'นายพราน', icon: '🏹', desc: 'ยิง 1 คน/คืน' },
@@ -29,6 +30,7 @@ const ROLES = {
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
+  madman: () => 'คุณคือคนบ้า เป้าหมายคือให้คนอื่นโหวตคุณออกตอนกลางวันเพื่อชนะทันที',
   shaman: () => 'คุณคือหมอดู ต้องเชื่อมจิตคนเดิม 2 คืนติดกัน คืนแรกยังไม่เห็นผล คืนที่สองจึงเห็นผลแบบ "มีพิรุธ/คนดี" เท่านั้น',
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
@@ -37,6 +39,7 @@ const ROLE_UI_TEXT = {
 };
 const ROLE_ACTION_CONFIG = {
   pob: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จกตับ' },
+  madman: { requiresTarget: false, allowSelfTarget: true, actionLabel: 'ปั่นกระแส' },
   shaman: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ส่องบทบาท' },
   monk: { requiresTarget: true, allowSelfTarget: true, actionLabel: 'คุ้มครอง' },
   hunter: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ยิง' },
@@ -109,6 +112,7 @@ function rolePool(count) {
   const guaranteedRoles = Array(pobCount).fill('pob');
 
   if (totalPlayers >= 4) guaranteedRoles.push('police');
+  if (totalPlayers >= 5) guaranteedRoles.push('madman');
   if (totalPlayers >= 5) guaranteedRoles.push('shaman');
   if (totalPlayers >= 6) guaranteedRoles.push('monk');
   if (totalPlayers >= 8) guaranteedRoles.push('hunter');
@@ -656,7 +660,9 @@ async function submitNightAction(targetId, acted = true) {
     const targetName = state.publicState?.players?.[normalizedTarget]?.name || 'เป้าหมาย';
     let message = myRole === 'villager'
       ? 'บันทึกแล้ว: คืนนี้คุณไถนาเรียบร้อย'
-      : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
+      : (myRole === 'madman'
+        ? 'บันทึกแล้ว: คืนนี้คุณปั่นกระแสเรียบร้อย'
+        : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`);
     if (myRole === 'shaman' && normalizedTarget) {
       message = jailedTonight?.[normalizedTarget]
         ? `${targetName} ถูกขังอยู่ คืนนี้จึงเชื่อมจิตไม่ได้`
@@ -819,10 +825,10 @@ function renderNight() {
   if (me?.alive && state.roleSheetRevealed) {
     if (iAmJailed) {
       actionHtml = '<div class="tag out">คืนนี้คุณโดนตำรวจจับ ใช้พลังไม่ได้</div>';
-    } else if (myRole === 'villager') {
+    } else if (myRole === 'villager' || myRole === 'madman') {
       actionHtml = `
-        <div class="tag">กดปุ่มด้านล่างเพื่อยืนยันว่าไถนาแล้ว</div>
-        <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>🌾 ยืนยันทำงาน/ไถนา</button>
+        <div class="tag">${myRole === 'madman' ? 'กดปุ่มด้านล่างเพื่อยืนยันว่าปั่นกระแสแล้ว' : 'กดปุ่มด้านล่างเพื่อยืนยันว่าไถนาแล้ว'}</div>
+        <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${myRole === 'madman' ? '🤪 ยืนยันปั่นกระแส' : '🌾 ยืนยันทำงาน/ไถนา'}</button>
       `;
     } else {
       actionHtml = `
@@ -882,7 +888,7 @@ function renderNight() {
   bindTap(document.getElementById('hideRoleSheet'), closeSheet);
 
   document.getElementById('confirmNightActionBtn')?.addEventListener('click', () => {
-    const target = myRole === 'villager' ? state.uid : state.selectedNightTargetId;
+    const target = (myRole === 'villager' || myRole === 'madman') ? state.uid : state.selectedNightTargetId;
     void submitNightAction(target, true);
   });
   document.querySelectorAll('.targetNight').forEach((btn) => {
@@ -1096,7 +1102,7 @@ function renderEnd() {
   els.end.innerHTML = `
     <h2>Step 6: จบเกม (ประกาศฝ่ายชนะ)</h2>
     ${phaseMetaHtml()}
-    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : (winner === 'cancelled' ? '⛔ เกมยุติ' : '👹 ฝั่งปอบชนะ')}</div>
+    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : (winner === 'madman' ? '🤪 คนบ้าชนะเดี่ยว' : (winner === 'cancelled' ? '⛔ เกมยุติ' : '👹 ฝั่งปอบชนะ'))}</div>
     <div class="result-list" style="margin-top:.7rem;">${Object.values(state.publicState?.players || {}).map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name} • ${ROLES[revealRoles[p.uid]]?.label || '-'}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">
       ${historyRows.map((h) => `<div class=\"tag\">คืน ${h.day}: ${Array.isArray(h.logs) ? h.logs.join(' | ') : '-'}</div>`).join('') || '<div class=\"tag\">ไม่มี history</div>'}
