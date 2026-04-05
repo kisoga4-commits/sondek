@@ -1,6 +1,7 @@
 function markDead(nextPublic, uid, reason, logs) {
   if (!uid || !nextPublic.players?.[uid] || !nextPublic.players[uid].alive) return;
   nextPublic.players[uid].alive = false;
+  nextPublic.players[uid].deathCause = reason || 'unknown';
   logs.push(`${nextPublic.players[uid].name} ตาย (${reason})`);
 }
 const ROLE_LABELS = {
@@ -82,6 +83,8 @@ export function resolveVote(publicState, privateState) {
   const pub = JSON.parse(JSON.stringify(publicState || {}));
   const priv = privateState || {};
   const alive = Object.values(pub.players || {}).filter((p) => p.alive);
+  const aliveCount = alive.length;
+  const requiredVotes = Math.floor(aliveCount / 2) + 1;
   const tally = {};
 
   alive.forEach((p) => {
@@ -95,10 +98,13 @@ export function resolveVote(publicState, privateState) {
   if (sorted.length) {
     const top = sorted[0][1];
     const tieTop = sorted.filter(([, c]) => c === top).length > 1;
-    if (!tieTop && top > 0) outUid = sorted[0][0];
+    if (!tieTop && top >= requiredVotes) outUid = sorted[0][0];
   }
 
-  if (outUid) pub.players[outUid].alive = false;
+  if (outUid) {
+    pub.players[outUid].alive = false;
+    pub.players[outUid].deathCause = 'โดนขับไล่';
+  }
 
   const summary = Object.fromEntries(sorted.map(([uid, score]) => [pub.players?.[uid]?.name || uid, score]));
   const end = checkWinner(pub, priv);
@@ -107,6 +113,7 @@ export function resolveVote(publicState, privateState) {
     players: pub.players,
     voteSummary: summary,
     eliminatedUid: outUid,
+    requiredVotes,
     winner: end || '',
   };
 }
