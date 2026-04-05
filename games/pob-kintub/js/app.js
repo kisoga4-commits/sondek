@@ -59,6 +59,8 @@ const state = {
   privateAllUnsub: null,
   roleSheetRevealed: false,
   isAdvancingPhase: false,
+  isSubmittingNightAction: false,
+  isSubmittingVote: false,
   lastRenderedPhase: '',
   wasAlive: true,
 };
@@ -123,10 +125,15 @@ function gameHardStopAtMs(startedAtMs) {
   return Number(startedAtMs || 0) + (60 * 60 * 1000);
 }
 
-async function tx(pathRef, updater) {
-  const result = await runTransaction(pathRef, updater);
-  if (!result.committed) throw new Error('บันทึกข้อมูลไม่สำเร็จ');
-  return result.snapshot.val();
+async function tx(pathRef, updater, options = {}) {
+  const maxAttempts = Math.max(1, Number(options.maxAttempts || 3));
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = await runTransaction(pathRef, updater);
+    if (result.committed) return result.snapshot.val();
+    if (attempt >= maxAttempts) break;
+    await new Promise((resolve) => setTimeout(resolve, 120 * attempt));
+  }
+  throw new Error('บันทึกข้อมูลไม่สำเร็จ');
 }
 
 async function ensureAuth() {
@@ -401,6 +408,7 @@ async function advanceIdentityToVoteByHost() {
 }
 
 async function submitNightAction(targetId, acted = true) {
+  if (state.isSubmittingNightAction) return;
   const myRole = state.mePrivate?.role;
   const actionConfig = ROLE_ACTION_CONFIG[myRole] || { requiresTarget: false, allowSelfTarget: false };
   const normalizedTarget = String(targetId || '').trim();
@@ -432,6 +440,7 @@ async function submitNightAction(targetId, acted = true) {
   }
 
   try {
+    state.isSubmittingNightAction = true;
     const now = Date.now();
     state.mePrivate = {
       ...(state.mePrivate || {}),
@@ -455,6 +464,8 @@ async function submitNightAction(targetId, acted = true) {
       title: 'ส่งคำสั่งไม่สำเร็จ',
       message: error?.message || 'ไม่สามารถบันทึกคำสั่งได้',
     });
+  } finally {
+    state.isSubmittingNightAction = false;
   }
 }
 
@@ -640,6 +651,7 @@ async function advanceMorningToVoteByHost() {
 }
 
 async function submitVote(targetId) {
+  if (state.isSubmittingVote) return;
   const normalizedTarget = String(targetId || '').trim();
   if (!normalizedTarget) {
     openPopup({ title: 'โหวตไม่สำเร็จ', message: 'กรุณาเลือกผู้เล่นที่ต้องการโหวต' });
@@ -658,6 +670,7 @@ async function submitVote(targetId) {
     return;
   }
   try {
+    state.isSubmittingVote = true;
     state.mePrivate = { ...(state.mePrivate || {}), voteTarget: normalizedTarget || null };
     mountByPhase();
     await tx(paths.privateMine(), (data) => ({ ...data, voteTarget: normalizedTarget || null }));
@@ -668,6 +681,8 @@ async function submitVote(targetId) {
       title: 'โหวตไม่สำเร็จ',
       message: error?.message || 'ไม่สามารถบันทึกคะแนนโหวตได้',
     });
+  } finally {
+    state.isSubmittingVote = false;
   }
 }
 
