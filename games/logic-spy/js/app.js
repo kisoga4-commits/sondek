@@ -26,8 +26,10 @@ const auth = getAuth(app);
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
-const duelRef = ref(db, `rooms/${roomId}`);
-const gameRef = ref(db, `logic_spy_rooms/${roomId}`);
+const duelRoomPath = `rooms/${roomId}`;
+const gameRoomPath = `logic_spy_rooms/${roomId}`;
+const duelRef = ref(db, duelRoomPath);
+const gameRef = ref(db, gameRoomPath);
 
 const el = {
   status: document.getElementById('status'),
@@ -45,6 +47,7 @@ const state = {
   privateMe: null,
   sets: DEFAULT_LOGIC_SPY_WORD_SETS,
   maintenanceBusy: false,
+  startFlowMessage: '',
 };
 
 function getPlayers() {
@@ -57,12 +60,37 @@ function getModeratorUid() {
   const players = getPlayers();
   if (!players.length) return '';
   const hostUid = String(state.duel?.hostUid || '');
+  const roomModeratorUid = String(state.duel?.moderatorUid || '');
+  if (roomModeratorUid && players.some(([uid]) => uid === roomModeratorUid)) return roomModeratorUid;
   if (hostUid && players.some(([uid]) => uid === hostUid)) return hostUid;
-  return String(players[0]?.[0] || '');
+  return '';
 }
 
 function canModerate() {
-  return Boolean(state.uid) && state.uid === getModeratorUid();
+  const moderatorUid = getModeratorUid();
+  return Boolean(state.uid) && Boolean(moderatorUid) && state.uid === moderatorUid;
+}
+
+function setStartFlowMessage(message) {
+  state.startFlowMessage = String(message || '').trim();
+}
+
+function failStartRound(reason, context = {}) {
+  const roomHostUid = String(state.duel?.hostUid || '');
+  const moderatorUid = getModeratorUid();
+  const payload = {
+    reason,
+    currentUid: state.uid,
+    roomHostUid,
+    moderatorUid,
+    roomId,
+    duelRoomPath,
+    gameRoomPath,
+    ...context,
+  };
+  console.error('[logic-spy][start-round] blocked', payload);
+  setStartFlowMessage(`เริ่มรอบไม่ได้: ${reason}`);
+  return false;
 }
 
 async function ensureAuth() {
@@ -111,6 +139,7 @@ function ui() {
   const myWord = String(state.privateMe?.word || '');
   const moderatorUid = getModeratorUid();
   const isMeModerator = canModerate();
+  const roomHostUid = String(state.duel?.hostUid || '');
 
   const chips = players
     .map(([uid, player]) => `<span class="chip">${player?.name || 'ผู้เล่น'}${uid === moderatorUid ? ' 👑' : ''}</span>`)
@@ -126,6 +155,8 @@ function ui() {
   el.lobby.innerHTML = `
     <h3>Lobby</h3>
     <p>โหมดนี้ต้องมี 3-5 คน</p>
+    <p class="muted">Host(Room): <b>${roomHostUid || '-'}</b> • Moderator: <b>${moderatorUid || '-'}</b></p>
+    ${state.startFlowMessage ? `<p style="color:#ff7b7b;">${state.startFlowMessage}</p>` : ''}
     <div class="chips">${chips}</div>
     ${isMeModerator
       ? `<button class="btn" id="startRoundBtn" ${players.length < 3 ? 'disabled' : ''}>เริ่มรอบใหม่</button>`
@@ -219,9 +250,64 @@ async function initGameRoomIfMissing() {
 }
 
 async function startRound(playerIds) {
-  if (!canModerate()) return;
+  setStartFlowMessage('');
+  const currentUid = String(state.uid || '');
+  const roomHostUid = String(state.duel?.hostUid || '');
+  const moderatorUid = getModeratorUid();
   const ids = (Array.isArray(playerIds) ? playerIds : []).map((id) => String(id || '')).filter(Boolean).slice(0, 5);
-  if (ids.length < 3) return;
+  const playersInRoom = getPlayers().map(([uid]) => uid);
+  console.info('[logic-spy][start-round] begin', {
+    currentUid,
+    roomHostUid,
+    moderatorUid,
+    roomId,
+    duelRoomPath,
+    gameRoomPath,
+    playersInRoom,
+    playerIdsForStart: ids,
+  });
+
+  if (!roomId) {
+    failStartRound('roomId missing');
+    ui();
+    return;
+  }
+
+  if (!currentUid) {
+    failStartRound('current uid missing');
+    ui();
+    return;
+  }
+
+  if (!roomHostUid) {
+    failStartRound('host uid missing in room data');
+    ui();
+    return;
+  }
+
+  if (currentUid !== roomHostUid) {
+    failStartRound('not moderator', { expectedHostUid: roomHostUid });
+    ui();
+    return;
+  }
+
+  if (!moderatorUid || currentUid !== moderatorUid) {
+    failStartRound('moderator uid mismatch', { expectedModeratorUid: moderatorUid });
+    ui();
+    return;
+  }
+
+  console.info('[logic-spy][start-round] player-count-check', {
+    roomPlayersCount: playersInRoom.length,
+    startIdsCount: ids.length,
+    roomPlayers: playersInRoom,
+    startIds: ids,
+  });
+  if (ids.length < 3) {
+    failStartRound('players not enough', { minPlayers: 3, actualPlayers: ids.length });
+    ui();
+    return;
+  }
 
   const setWords = pickWordSet(state.sets);
   const assignment = buildRoundAssignments(ids, setWords);
@@ -241,12 +327,28 @@ async function startRound(playerIds) {
     round: Number(state.game?.round || 0) + 1,
   };
 
-  await update(gameRef, updates);
-  await Promise.all(ids.map((uid) => set(ref(db, `logic_spy_rooms/${roomId}/private/${uid}`), {
-    word: assignment.secretWordsByUid[uid],
-    round: updates.round,
-    updatedAtMs: nowMs,
-  })));
+  try {
+    console.info('[logic-spy][start-round] writing game state', { writePath: gameRoomPath, status: updates.status });
+    await update(gameRef, updates);
+    console.info('[logic-spy][start-round] writing private cards', {
+      writePaths: ids.map((uid) => `${gameRoomPath}/private/${uid}`),
+    });
+    await Promise.all(ids.map((uid) => set(ref(db, `${gameRoomPath}/private/${uid}`), {
+      word: assignment.secretWordsByUid[uid],
+      round: updates.round,
+      updatedAtMs: nowMs,
+    })));
+    setStartFlowMessage('');
+  } catch (error) {
+    console.error('[logic-spy][start-round] firebase write failed', {
+      error,
+      roomId,
+      gameRoomPath,
+      playerIdsForStart: ids,
+    });
+    setStartFlowMessage(`เริ่มรอบไม่ได้: firebase write failed (${error?.message || 'unknown error'})`);
+    ui();
+  }
 }
 
 async function toDiscussion(playerIds) {
@@ -392,11 +494,19 @@ async function runPhaseMaintenance() {
 async function init() {
   if (!roomId) {
     el.status.textContent = 'ไม่พบ roomId';
+    console.error('[logic-spy][init] roomId missing', { roomId, duelRoomPath, gameRoomPath });
     return;
   }
 
   await ensureAuth();
   await loadWordSets();
+
+  console.info('[logic-spy][init] subscribe paths', {
+    roomId,
+    duelRoomPath,
+    gameRoomPath,
+    privatePath: `${gameRoomPath}/private/${state.uid}`,
+  });
 
   onValue(duelRef, (snap) => {
     state.duel = snap.val() || null;
@@ -410,7 +520,7 @@ async function init() {
     ui();
   });
 
-  onValue(ref(db, `logic_spy_rooms/${roomId}/private/${state.uid}`), (snap) => {
+  onValue(ref(db, `${gameRoomPath}/private/${state.uid}`), (snap) => {
     state.privateMe = snap.val() || null;
     ui();
   });
