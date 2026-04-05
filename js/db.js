@@ -44,6 +44,7 @@ import {
 } from './profileImagePolicy.js';
 import { normalizePublicImageUrl } from './imageUrl.js';
 import { getEffectiveFinishDistance } from './duelRules.js';
+import { buildPersonalQuestionLoop, LOOP_QUESTION_COUNT } from './duelCore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -935,6 +936,17 @@ export async function createDuelRoom(payload) {
   const matchType = requestedMatchType;
   const gameLabel = String(payload?.gameLabel || '').trim()
     || (gameMode === 'worm' ? 'หนอนกระดื้บ' : gameMode === 'pob' ? 'ปอบกินตับ' : 'ตอบไว');
+  const questionPoolIds = Array.isArray(payload?.questionPoolIds)
+    ? [...new Set(payload.questionPoolIds.map((id) => String(id || '').trim()).filter(Boolean))]
+    : [];
+  const rawAnswerKey = (payload?.questionAnswerKey && typeof payload.questionAnswerKey === 'object')
+    ? payload.questionAnswerKey
+    : {};
+  const questionAnswerKey = questionPoolIds.reduce((acc, qid) => {
+    const value = Number(rawAnswerKey[qid]);
+    if (Number.isInteger(value) && value >= 0) acc[qid] = value;
+    return acc;
+  }, {});
   const modeConfig = { gameMode, gameLabel, matchType, teamSize, finishDistance };
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
 
@@ -971,6 +983,8 @@ export async function createDuelRoom(payload) {
           maxPlayers: 8,
           modeConfig,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
+          questionPoolIds,
+          questionAnswerKey,
           players: {
             [uid]: hostEntry,
           },
@@ -1205,7 +1219,35 @@ export async function submitDuelAnswer(roomId, payload) {
       if (Number(me.answeredRound ?? -1) >= roundIndex) return data;
       if (!isWormMode && String(data?.modeConfig?.matchType || 'solo') === 'party' && !me.isActiveRunner) return data;
 
-      const isCorrect = Boolean(payload?.isCorrect);
+      const submittedAnswerIndex = Number(payload?.answerIndex);
+      const submittedQuestionId = String(payload?.questionId || '');
+      const expectedQuestionId = (() => {
+        if (isWormMode) {
+          const poolIds = Array.isArray(data?.questionPoolIds) ? data.questionPoolIds : [];
+          if (!poolIds.length) return '';
+          const actorKey = `${String(data?.roomId || safeRoomId)}:${uid}`;
+          const personalSequence = buildPersonalQuestionLoop(
+            poolIds.map((id) => ({ id: String(id) })),
+            actorKey,
+            { loopQuestionCount: Math.max(LOOP_QUESTION_COUNT, poolIds.length) },
+          );
+          return String(personalSequence[roundIndex % personalSequence.length] || '');
+        }
+        const sharedSequence = Array.isArray(data?.questionSequence) ? data.questionSequence : [];
+        return String(sharedSequence[roundIndex % sharedSequence.length] || '');
+      })();
+      const answerKey = (data?.questionAnswerKey && typeof data.questionAnswerKey === 'object')
+        ? data.questionAnswerKey
+        : {};
+      const expectedAnswerIndex = Number(answerKey[expectedQuestionId]);
+      const hasStrictValidationInput = Boolean(expectedQuestionId)
+        && Number.isInteger(submittedAnswerIndex)
+        && Number.isInteger(expectedAnswerIndex)
+        && Boolean(submittedQuestionId);
+      const strictQuestionMatch = submittedQuestionId === expectedQuestionId;
+      const isCorrect = (hasStrictValidationInput && strictQuestionMatch)
+        ? submittedAnswerIndex === expectedAnswerIndex
+        : Boolean(payload?.isCorrect);
       me.answeredRound = roundIndex;
       let eventType = '';
       let eventMessage = '';
@@ -1235,8 +1277,13 @@ export async function submitDuelAnswer(roomId, payload) {
             eventTargetUid = targetUid;
           }
           me.correctStreak = 0;
-          eventType = 'combo_attack';
-          eventMessage = 'คอมโบครบ 3 โจมตีคู่แข่งถอย -1';
+          if (targetUid) {
+            eventType = 'combo_attack';
+            eventMessage = 'คอมโบครบ 3 โจมตีคู่แข่งถอย -1';
+          } else {
+            eventType = 'correct';
+            eventMessage = 'ตอบถูก เดิน +1';
+          }
         } else {
           eventType = 'correct';
           eventMessage = 'ตอบถูก เดิน +1';
