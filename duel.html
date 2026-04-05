@@ -14,8 +14,8 @@
         <h1>🐛 สนามแข่งคำถาม</h1>
         <p class="muted">ตอบใครตอบมัน ไม่สลับคิว ตอบแล้วไปข้อใหม่ทันที พร้อมเสียงชม/ด่าให้ลุ้นทุกข้อ</p>
         <div class="quiz-actions duel-entry-actions">
-          <button id="showHostSetupBtn" class="btn duel-big-btn" type="button">Host</button>
-          <button id="showJoinSetupBtn" class="btn btn-secondary duel-big-btn" type="button">Join</button>
+          <button id="showHostSetupBtn" class="btn duel-big-btn" type="button" data-open-modal="hostModal">Host</button>
+          <button id="showJoinSetupBtn" class="btn btn-secondary duel-big-btn" type="button" data-open-modal="joinModal">Join</button>
         </div>
         <p id="duelStatusText" class="muted"></p>
       </section>
@@ -170,6 +170,20 @@
       </article>
     </section>
 
+    <script>
+      // Fallback modal controls: keeps Host/Join usable even when module scripts fail to load.
+      (() => {
+        const openModal = (id) => document.getElementById(String(id || ''))?.classList.remove('hidden');
+        const closeModal = (id) => document.getElementById(String(id || ''))?.classList.add('hidden');
+
+        document.querySelectorAll('[data-open-modal]').forEach((btn) => {
+          btn.addEventListener('click', () => openModal(btn.getAttribute('data-open-modal')));
+        });
+        document.querySelectorAll('[data-close-modal]').forEach((btn) => {
+          btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close-modal')));
+        });
+      })();
+    </script>
     <script type="module" src="js/duel.js"></script>
   </body>
 </html>
