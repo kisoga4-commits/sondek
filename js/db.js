@@ -1231,7 +1231,9 @@ export async function submitDuelAnswer(roomId, payload) {
       const submittedQuestionId = String(payload?.questionId || '');
       const expectedQuestionId = (() => {
         if (isWormMode) {
-          const poolIds = Array.isArray(data?.questionPoolIds) ? data.questionPoolIds : [];
+          const poolIds = Array.isArray(data?.questionPoolIds) && data.questionPoolIds.length
+            ? data.questionPoolIds
+            : [...new Set((Array.isArray(data?.questionSequence) ? data.questionSequence : []).map((id) => String(id || '')).filter(Boolean))];
           if (!poolIds.length) return '';
           const actorKey = `${String(data?.roomId || safeRoomId)}:${uid}`;
           const personalSequence = buildPersonalQuestionLoop(
@@ -1239,6 +1241,7 @@ export async function submitDuelAnswer(roomId, payload) {
             actorKey,
             { loopQuestionCount: Math.max(LOOP_QUESTION_COUNT, poolIds.length) },
           );
+          if (!personalSequence.length) return '';
           return String(personalSequence[roundIndex % personalSequence.length] || '');
         }
         const sharedSequence = Array.isArray(data?.questionSequence) ? data.questionSequence : [];
@@ -1249,7 +1252,8 @@ export async function submitDuelAnswer(roomId, payload) {
         ? data.questionAnswerKey
         : {};
       const expectedAnswerIndex = Number(answerKey[expectedQuestionId]);
-      const isCorrect = Number.isInteger(expectedAnswerIndex) && submittedAnswerIndex === expectedAnswerIndex;
+      if (!Number.isInteger(expectedAnswerIndex)) return data;
+      const isCorrect = submittedAnswerIndex === expectedAnswerIndex;
       me.answeredRound = roundIndex;
       let eventType = '';
       let eventMessage = '';
