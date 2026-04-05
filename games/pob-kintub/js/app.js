@@ -477,20 +477,17 @@ function openPopup({ title = 'แจ้งเตือน', message = '', confir
 
 function bindTap(target, handler) {
   if (!target || typeof handler !== 'function') return;
-  let touchTriggered = false;
-  target.addEventListener('touchend', (event) => {
-    event.preventDefault();
-    touchTriggered = true;
+  let lastTriggeredAt = 0;
+  const trigger = (event) => {
+    if (event) event.preventDefault();
+    const now = Date.now();
+    if (now - lastTriggeredAt < 350) return;
+    lastTriggeredAt = now;
     handler();
-  }, { passive: false });
-  target.addEventListener('click', (event) => {
-    if (touchTriggered) {
-      touchTriggered = false;
-      return;
-    }
-    event.preventDefault();
-    handler();
-  });
+  };
+  target.addEventListener('pointerup', trigger, { passive: false });
+  target.addEventListener('touchend', trigger, { passive: false });
+  target.addEventListener('click', trigger);
 }
 
 function renderSetup() {
@@ -1197,10 +1194,28 @@ function ensurePhaseTicker() {
 async function maybeAutoAdvancePhase() {
   if (state.isAdvancingPhase) return;
   const phase = String(state.publicState?.phase || '');
+  const hardStopAtMs = Number(state.publicState?.hardStopAtMs || 0);
   const endsAt = Number(state.publicState?.phaseEndsAtMs || 0);
   const isTimedOut = endsAt && Date.now() >= endsAt;
   state.isAdvancingPhase = true;
   try {
+    if (hardStopAtMs > 0 && Date.now() >= hardStopAtMs) {
+      await tx(paths.public, (data) => {
+        if (!data || String(data?.phase || '') === 'end') return data;
+        const limitAtMs = Number(data?.hardStopAtMs || 0);
+        if (!limitAtMs || Date.now() < limitAtMs) return data;
+        return {
+          ...data,
+          phase: 'end',
+          winner: 'cancelled',
+          phaseEndsAtMs: 0,
+          lastLogs: ['ครบเวลา 1 ชั่วโมง ระบบปิดห้องอัตโนมัติเพื่อลดภาระระบบ'],
+          forceClosed: { reason: 'hard_stop_timeout', at: Date.now() },
+          updatedAtMs: Date.now(),
+        };
+      });
+      return;
+    }
     if (phase === 'night') {
       await maybeResolveNightByConsensus('ticker');
       return;
