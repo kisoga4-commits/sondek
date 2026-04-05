@@ -49,6 +49,7 @@ const state = {
   sets: DEFAULT_LOGIC_SPY_WORD_SETS,
   maintenanceBusy: false,
   startFlowMessage: '',
+  voteModalOpen: false,
 };
 
 function getPlayers() {
@@ -205,20 +206,58 @@ function ui() {
 
   const votedCount = Object.keys(game?.votes || {}).length;
   const canVote = phase === 'vote';
+  const myVoteUid = String(game?.votes?.[state.uid] || '');
+  const myVoteName = myVoteUid ? String(duelPlayersByUid?.[myVoteUid]?.name || myVoteUid) : '';
+  const roundScoreByUid = game?.roundScore && typeof game.roundScore === 'object' ? game.roundScore : {};
+  const totalScoreByUid = game?.scores && typeof game.scores === 'object' ? game.scores : {};
+  const scoreBoardRows = players
+    .map(([uid, player]) => {
+      const roundPoints = Number(roundScoreByUid?.[uid] || 0);
+      const totalPoints = Number(totalScoreByUid?.[uid] || 0);
+      return `<div class="score-row"><span class="score-name">${player?.name || uid}</span><span class="score-cell">รอบนี้ <b>+${roundPoints}</b></span><span class="score-cell">รวม <b>${totalPoints}</b></span></div>`;
+    })
+    .join('');
+  const voteTargets = players
+    .filter(([uid]) => uid !== state.uid)
+    .map(([uid, player]) => `<button class="btn vote-target-btn ${myVoteUid === uid ? 'secondary' : ''}" data-vote-target="${uid}">${player?.name || uid}${myVoteUid === uid ? ' ✅' : ''}</button>`)
+    .join('');
+
   el.vote.innerHTML = `
     <h3>Voting</h3>
     <p>เวลาที่เหลือ: <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
-    ${players
-      .filter(([uid]) => uid !== state.uid)
-      .map(([uid, player]) => `<label class="vote-item"><input type="radio" name="voteTarget" value="${uid}">${player?.name || uid}</label>`)
-      .join('')}
-    <button class="btn" id="voteBtn" ${canVote ? '' : 'disabled'}>ยืนยันโหวต</button>
+    <button class="btn vote-open-btn" id="openVoteModalBtn" ${canVote ? '' : 'disabled'}>${myVoteUid ? `แก้ไขโหวต: ${myVoteName}` : 'เปิดหน้าต่างโหวต'}</button>
     <p>โหวตแล้ว: ${votedCount}/${players.length}</p>
+    <p class="muted">${myVoteUid ? `คุณโหวตให้ ${myVoteName} แล้ว (กดปุ่มเพื่อเปลี่ยนได้)` : 'คุณยังไม่ได้โหวต'}</p>
+    <h4>ตารางคะแนน</h4>
+    <div class="scoreboard">
+      <div class="score-head"><span>ผู้เล่น</span><span>คะแนนรอบนี้</span><span>คะแนนรวม</span></div>
+      ${scoreBoardRows || '<p class="muted">ยังไม่มีข้อมูลคะแนน</p>'}
+    </div>
+    <div class="modal-backdrop ${state.voteModalOpen && canVote ? '' : 'hidden'}" id="voteModal">
+      <div class="modal-card">
+        <h4>เลือกคนที่คิดว่า “ต่างจากเพื่อน”</h4>
+        <p class="muted">กดเลือก 1 คน แล้วหน้าต่างจะปิดอัตโนมัติ</p>
+        <div class="vote-grid">${voteTargets || '<p class="muted">ไม่มีเป้าหมายให้โหวต</p>'}</div>
+        <button class="btn secondary" id="closeVoteModalBtn">ปิดหน้าต่าง</button>
+      </div>
+    </div>
   `;
 
-  document.getElementById('voteBtn')?.addEventListener('click', () => {
-    const targetUid = document.querySelector('input[name="voteTarget"]:checked')?.value || '';
-    if (targetUid) void vote(targetUid);
+  document.getElementById('openVoteModalBtn')?.addEventListener('click', () => {
+    state.voteModalOpen = true;
+    ui();
+  });
+  document.getElementById('closeVoteModalBtn')?.addEventListener('click', () => {
+    state.voteModalOpen = false;
+    ui();
+  });
+  document.querySelectorAll('[data-vote-target]').forEach((targetButton) => {
+    targetButton.addEventListener('click', () => {
+      const targetUid = String(targetButton?.dataset?.voteTarget || '');
+      if (!targetUid) return;
+      state.voteModalOpen = false;
+      void vote(targetUid);
+    });
   });
 
   const wordsByUid = game?.secretWordsByUid || {};
@@ -230,6 +269,12 @@ function ui() {
     ${players
       .map(([uid, player]) => `<div class="vote-item"><b>${player?.name || uid}</b><span>${wordsByUid[uid] || '-'}</span><span>(+${Number(game?.roundScore?.[uid] || 0)} แต้ม)</span></div>`)
       .join('')}
+    <hr/>
+    <h4>สรุปคะแนนรอบนี้และคะแนนรวม</h4>
+    <div class="scoreboard">
+      <div class="score-head"><span>ผู้เล่น</span><span>คะแนนรอบนี้</span><span>คะแนนรวม</span></div>
+      ${scoreBoardRows || '<p class="muted">ยังไม่มีข้อมูลคะแนน</p>'}
+    </div>
     <hr/>
     ${scoreRows}
     ${isMeModerator ? '<button class="btn" id="nextRoundBtn">เล่นรอบใหม่ทันที</button>' : ''}

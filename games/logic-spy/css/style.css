@@ -71,6 +71,73 @@ body {
   margin: 8px 0;
 }
 
+.muted { color: #94a3b8; }
+
+.vote-open-btn {
+  width: 100%;
+  font-size: 1.1rem;
+  padding: 14px 16px;
+  margin: 10px 0 4px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  padding: 16px;
+}
+
+.modal-card {
+  width: min(560px, 100%);
+  background: #0b1220;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.vote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.vote-target-btn {
+  width: 100%;
+  min-height: 56px;
+}
+
+.scoreboard {
+  display: grid;
+  gap: 8px;
+}
+
+.score-head,
+.score-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.1fr) 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.score-head {
+  font-size: .85rem;
+  color: #93c5fd;
+}
+
+.score-row {
+  background: #1f2937;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.score-name { font-weight: 700; }
+.score-cell { text-align: right; }
+
 .secret-word-display {
   margin: 10px 0 14px;
   font-size: clamp(2rem, 7vw, 3.8rem);
