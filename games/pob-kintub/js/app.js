@@ -377,8 +377,18 @@ async function submitNightAction(targetId, acted = true) {
 
   try {
     const now = Date.now();
+    state.mePrivate = {
+      ...(state.mePrivate || {}),
+      nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order: now },
+    };
+    mountByPhase();
     await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order: now } }));
   } catch (error) {
+    state.mePrivate = {
+      ...(state.mePrivate || {}),
+      nightAction: null,
+    };
+    mountByPhase();
     openPopup({
       title: 'ส่งคำสั่งไม่สำเร็จ',
       message: error?.message || 'ไม่สามารถบันทึกคำสั่งได้',
@@ -455,39 +465,14 @@ function renderNight() {
   });
 
   document.getElementById('workBtn')?.addEventListener('click', () => {
-    openPopup({
-      title: 'ยืนยันคำสั่งกลางคืน',
-      message: 'ยืนยันการทำงาน/ไถนาในคืนนี้?',
-      confirmText: 'ยืนยัน',
-      cancelText: 'ปิด',
-      showCancel: true,
-      onConfirm: () => {
-        state.roleSheetRevealed = false;
-        void submitNightAction(state.uid, true);
-      },
-    });
+    state.roleSheetRevealed = false;
+    void submitNightAction(state.uid, true);
   });
   document.querySelectorAll('.targetNight').forEach((btn) => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.id;
-      const targetName = state.publicState?.players?.[targetId]?.name || 'ผู้เล่น';
-      openPopup({
-        title: 'ยืนยันคำสั่งกลางคืน',
-        message: `ยืนยันเลือก ${targetName} ?`,
-        confirmText: 'ยืนยัน',
-        cancelText: 'ปิด',
-        showCancel: true,
-        onConfirm: () => {
-          state.roleSheetRevealed = false;
-          void submitNightAction(targetId, true);
-          if (myRole === 'shaman') {
-            openPopup({
-              title: 'ส่งคำสั่งแล้ว',
-              message: `ระบบบันทึกคำสั่งส่องของคุณกับ ${targetName} แล้ว`,
-            });
-          }
-        },
-      });
+      state.roleSheetRevealed = false;
+      void submitNightAction(targetId, true);
     });
   });
 
@@ -574,8 +559,12 @@ async function advanceMorningToVoteByHost() {
 
 async function submitVote(targetId) {
   try {
+    state.mePrivate = { ...(state.mePrivate || {}), voteTarget: targetId || null };
+    mountByPhase();
     await tx(paths.privateMine(), (data) => ({ ...data, voteTarget: targetId || null }));
   } catch (error) {
+    state.mePrivate = { ...(state.mePrivate || {}), voteTarget: null };
+    mountByPhase();
     openPopup({
       title: 'โหวตไม่สำเร็จ',
       message: error?.message || 'ไม่สามารถบันทึกคะแนนโหวตได้',
@@ -659,15 +648,7 @@ function renderVote() {
   document.querySelectorAll('.voteBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.id;
-      const targetName = state.publicState?.players?.[targetId]?.name || 'ผู้เล่น';
-      openPopup({
-        title: 'ยืนยันโหวต',
-        message: `ยืนยันโหวต ${targetName} ?`,
-        confirmText: 'ยืนยันโหวต',
-        cancelText: 'ปิด',
-        showCancel: true,
-        onConfirm: () => { void submitVote(targetId); },
-      });
+      void submitVote(targetId);
     });
   });
   document.getElementById('finalVote')?.addEventListener('click', () => { void finalizeVoteByHost(); });
