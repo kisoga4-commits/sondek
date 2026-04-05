@@ -15,19 +15,19 @@ const firebaseConfig = {
 
 const ROLES = {
   pob: { label: 'ปอบ', icon: '👹', desc: 'ฆ่า 1 คน/คืน' },
-  shaman: { label: 'หมอดู', icon: '🔮', desc: 'ดูบท 1 คน/คืน' },
+  shaman: { label: 'หมอดู', icon: '🔮', desc: 'เชื่อมจิต 2 คืนติดเพื่อดูผลแบบย่อ' },
   monk: { label: 'หมอธรรม', icon: '🛡️', desc: 'คุ้มครอง 1 คน/คืน' },
   hunter: { label: 'นายพราน', icon: '🏹', desc: 'ยิง 1 คน/คืน' },
   police: { label: 'ตำรวจ', icon: '👮', desc: 'จับ 1 คนเข้าคุก/คืน' },
-  villager: { label: 'ชาวนา', icon: '🌾', desc: 'ต้องกดทำงาน ไม่งั้นอดตาย' },
+  villager: { label: 'คนบ้าน', icon: '🌾', desc: 'ต้องกดทำงาน ไม่งั้นอดตาย' },
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
-  shaman: () => 'คุณคือหมอดู เลือกดูอาชีพจริงของเพื่อนได้ 1 คนต่อคืน',
+  shaman: () => 'คุณคือหมอดู ต้องเชื่อมจิตคนเดิม 2 คืนติดกัน คืนแรกยังไม่เห็นผล คืนที่สองจึงเห็นผลแบบ "มีพิรุธ/คนดี" เท่านั้น',
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
   police: () => 'คุณคือตำรวจ เลือกจับคนเข้าคุกได้ 1 คน (ถ้าจับปอบ ปอบจะฆ่าใครไม่ได้)',
-  villager: () => "คุณคือชาวนา ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
+  villager: () => "คุณคือคนบ้าน ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
 };
 const ROLE_ACTION_CONFIG = {
   pob: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จกตับ' },
@@ -214,18 +214,6 @@ async function readWithTimeout(pathRef, timeoutMs = 4000) {
       setTimeout(() => reject(new Error('อ่านข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง')), timeoutMs);
     }),
   ]);
-}
-
-async function getShamanInstantReveal(targetUid) {
-  const targetId = String(targetUid || '').trim();
-  if (!targetId) return '';
-  try {
-    const roleSnap = await readWithTimeout(ref(db, `pob_rooms/${roomId}/private/${targetId}/role`), 3500);
-    const role = String(roleSnap.val() || '').trim();
-    return ROLES[role]?.label || '';
-  } catch (_) {
-    return '';
-  }
 }
 
 async function ensureAuth() {
@@ -496,6 +484,7 @@ function renderSetup() {
   els.setup.innerHTML = `
     <h2>Step 1: เริ่มเกม (รอ Host กดเริ่ม)</h2>
     <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-8 คน</p>
+    <p class="muted">สมาชิกในห้องตอนนี้: ${players.length} คน</p>
     ${phaseMetaHtml()}
     <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
     ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบกินตับ</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
@@ -655,16 +644,9 @@ async function submitNightAction(targetId, acted = true) {
       ? 'บันทึกแล้ว: คืนนี้คุณไถนาเรียบร้อย'
       : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
     if (myRole === 'shaman' && normalizedTarget) {
-      if (jailedTonight?.[normalizedTarget]) {
-        message = `${targetName} ถูกขังอยู่ จึงดูบทบาทไม่ได้`;
-      } else {
-        const roleLabel = await getShamanInstantReveal(normalizedTarget);
-        if (roleLabel) {
-          message = `คุณส่อง ${targetName} พบว่าเป็น ${roleLabel}`;
-        } else {
-          message = `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName} (ผลส่องจะยืนยันอีกครั้งตอนเช้า)`;
-        }
-      }
+      message = jailedTonight?.[normalizedTarget]
+        ? `${targetName} ถูกขังอยู่ คืนนี้จึงเชื่อมจิตไม่ได้`
+        : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName} (ระบบจะสรุปผลตอนเช้า)`;
     }
     openPopup({ title: 'ส่งคำสั่งสำเร็จ', message });
     await maybeResolveNightByConsensus('submit');
@@ -753,15 +735,34 @@ async function resolveMorningWithPrivate(privateSnapshot) {
 
   await tx(paths.privateAll, (data) => {
     const next = { ...(data || {}) };
+    const shamanUid = Object.keys(next).find((uid) => next?.[uid]?.role === 'shaman') || '';
+    const aliveMap = resolvedNight?.players || {};
     Object.keys(next).forEach((uid) => {
       const roleMessages = resolvedNight?.roleResults?.[uid] || [];
+      const currentScan = next?.[uid]?.shamanScan || null;
+      const role = String(next?.[uid]?.role || '');
+      const scanFromEngine = resolvedNight?.shamanScanByUid?.[uid];
+      let nextScan = currentScan;
+      if (role === 'shaman') {
+        if (!aliveMap?.[uid]?.alive) {
+          nextScan = null;
+        } else if (typeof scanFromEngine !== 'undefined') {
+          nextScan = scanFromEngine;
+        } else if (currentScan && !aliveMap?.[currentScan.targetId]?.alive) {
+          nextScan = null;
+        }
+      }
       next[uid] = {
         ...next[uid],
         nightAction: null,
         voteTarget: null,
         nightNotice: roleMessages.join(' | '),
+        shamanScan: nextScan,
       };
     });
+    if (shamanUid && !aliveMap?.[shamanUid]?.alive && next[shamanUid]) {
+      next[shamanUid] = { ...next[shamanUid], shamanScan: null };
+    }
     return next;
   });
 }
@@ -891,9 +892,12 @@ async function resolveMorningByHost() {
 function renderMorning() {
   const players = Object.values(state.publicState?.players || {});
   const logs = state.publicState?.lastLogs || [];
+  const deadCount = players.filter((p) => !p.alive).length;
+  const aliveCount = players.length - deadCount;
   els.morning.innerHTML = `
     <h2>Step 4: เช้าตรู่ (ดูผู้รอดชีวิตและเหตุการณ์เมื่อคืน)</h2>
     ${phaseMetaHtml()}
+    <div class="tag">สรุปเช้านี้: ตาย ${deadCount} คน • รอด ${aliveCount} คน</div>
     <div class="result-list">${players.map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('')}</div>
     ${personalNightNoticeHtml()}
