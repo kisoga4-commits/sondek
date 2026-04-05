@@ -68,8 +68,8 @@ function getModeratorUid() {
 }
 
 function canModerate() {
-  const moderatorUid = getModeratorUid();
-  return Boolean(state.uid) && Boolean(moderatorUid) && state.uid === moderatorUid;
+  const hostUid = String(state.duel?.hostUid || '');
+  return Boolean(state.uid) && Boolean(hostUid) && state.uid === hostUid;
 }
 
 function setStartFlowMessage(message) {
@@ -161,7 +161,7 @@ function ui() {
     <div class="chips">${chips}</div>
     ${isMeModerator
       ? `<button class="btn" id="startRoundBtn" ${players.length < 3 ? 'disabled' : ''}>เริ่มรอบใหม่</button>`
-      : '<p>รอ Host / Moderator เริ่มรอบ</p>'}
+      : '<p>รอ Host เริ่มรอบ</p>'}
     <hr/>
     ${scoreRows}
   `;
@@ -192,7 +192,7 @@ function ui() {
     <h3>Discussion</h3>
     <p>คนที่กำลังพูด: <b>${activeName}</b> • เหลือ <b>${turnRemain}s</b></p>
     <div class="chips">${order.map((uid) => `<span class="chip">${duelPlayersByUid[uid]?.name || uid}${uid === activeUid ? ' 🎤' : ''}</span>`).join('')}</div>
-    ${(isMeModerator || state.uid === activeUid) ? '<button class="btn" id="nextTurnBtn">จบตานี้</button>' : '<p>รอคนที่กำลังพูดหรือ Moderator กดต่อ</p>'}
+    ${isMeModerator ? '<button class="btn" id="nextTurnBtn">ข้ามไปคนถัดไป</button>' : '<p>รอ Host กดข้ามตา</p>'}
   `;
 
   document.getElementById('nextTurnBtn')?.addEventListener('click', () => {
@@ -360,8 +360,7 @@ async function toDiscussion(playerIds) {
 }
 
 async function nextTurn(activeUid) {
-  const isMyTurn = String(activeUid || '') === state.uid;
-  if (!isMyTurn && !canModerate()) return;
+  if (!canModerate()) return;
 
   await runTransaction(gamePublicRef, (game) => {
     if (!game || String(game.status || '') !== 'discussion') return game;
