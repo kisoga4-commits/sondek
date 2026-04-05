@@ -12,6 +12,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -88,6 +89,7 @@ const DUEL_QUESTION_SECONDS = 10;
 const DUEL_REVEAL_SECONDS = 0.8;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAINTENANCE_STORAGE_KEY = 'duel_weekly_maintenance_at';
+const DUEL_GAME_PLAY_COUNT_DOC_ID = 'duel_game_play_counts';
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
@@ -1225,6 +1227,22 @@ export async function startDuelRoom(roomId) {
     throw toDuelPermissionDeniedError(error);
   }
   if (!tx.committed) throw new Error('เริ่มดวลไม่สำเร็จ กรุณาลองอีกครั้ง');
+
+  try {
+    const statsDocRef = doc(db, 'settings', DUEL_GAME_PLAY_COUNT_DOC_ID);
+    const startedAtMs = Date.now();
+    const startedMode = String(tx.snapshot?.val()?.modeConfig?.gameMode || 'quick');
+    await setDoc(statsDocRef, {
+      totalPlayCount: increment(1),
+      [`playCountByMode.${startedMode}`]: increment(1),
+      updatedAt: serverTimestamp(),
+      lastStartedAtMs: startedAtMs,
+      lastStartedMode: startedMode,
+      [`lastStartedAtMsByMode.${startedMode}`]: startedAtMs,
+    }, { merge: true });
+  } catch (_error) {
+    // non-blocking: game should proceed even if analytics counter update fails
+  }
 
   return { roomId: safeRoomId, uid };
 }
