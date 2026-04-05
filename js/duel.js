@@ -43,6 +43,7 @@ const el = {
   teamSizeInput: document.getElementById('duelTeamSize'),
   teamSizeLabel: document.getElementById('duelTeamSizeLabel'),
   quickTeamSizeInput: document.getElementById('duelQuickTeamSize'),
+  quickTeamSizeLabel: document.getElementById('duelQuickTeamSizeLabel'),
   finishDistanceInput: document.getElementById('duelFinishDistance'),
   roomIdInput: document.getElementById('duelRoomId'),
   createRoomBtn: document.getElementById('createRoomBtn'),
@@ -119,6 +120,11 @@ function syncHostModeOptions() {
 function syncWormMatchOptions() {
   const isParty = String(el.matchTypeInput?.value || 'solo') === 'party';
   el.teamSizeLabel?.classList.toggle('hidden', !isParty);
+}
+
+function syncQuickMatchOptions() {
+  const isParty = String(el.quickMatchTypeInput?.value || 'solo') === 'party';
+  el.quickTeamSizeLabel?.classList.toggle('hidden', !isParty);
 }
 
 const state = {
@@ -601,11 +607,13 @@ async function init() {
   el.joinRoomBtn.addEventListener('click', () => void handleJoinRoom());
   el.gameModeInput?.addEventListener('change', syncHostModeOptions);
   el.matchTypeInput?.addEventListener('change', syncWormMatchOptions);
+  el.quickMatchTypeInput?.addEventListener('change', syncQuickMatchOptions);
   el.startGameBtn.addEventListener('click', () => void startDuelRoom(state.roomId));
   el.roomIdInput.addEventListener('input', () => { el.roomIdInput.value = normalizeRoomIdInput(el.roomIdInput.value); });
   document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', () => closeModal(document.getElementById(btn.dataset.closeModal))));
   syncHostModeOptions();
   syncWormMatchOptions();
+  syncQuickMatchOptions();
 }
 
 void init();
