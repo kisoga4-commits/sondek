@@ -19,6 +19,9 @@ function isBlockedByPolice(privateState, jailedTonight, uid) {
 
 export function checkWinner(publicState, privateState) {
   const alive = Object.values(publicState?.players || {}).filter((p) => p.alive);
+  if (!alive.length) return '';
+  const aliveRoles = alive.map((p) => privateState?.[p.uid]?.role || '');
+  if (aliveRoles.some((role) => !role)) return '';
   const pobAlive = alive.filter((p) => privateState?.[p.uid]?.role === 'pob').length;
   const humanAlive = alive.length - pobAlive;
   if (pobAlive === 0) return 'villager';
