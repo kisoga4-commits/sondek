@@ -105,6 +105,17 @@ test('police jailing is exposed as role feedback for jailed target', () => {
   assert.match((result.roleResults?.pob1 || []).join(' | '), /ถูกตำรวจจับเข้าคุก/);
 });
 
+test('stale night action from previous day is ignored', () => {
+  const pub = baseState();
+  pub.day = 3;
+  const priv = basePrivate();
+  priv.pob1.nightAction = { targetId: 'vill1', acted: true, at: 100, order: 2, day: 2 };
+  priv.vill1.nightAction = { targetId: 'vill1', acted: true, at: 120, order: 4, day: 2 };
+  const result = resolveNight(pub, priv);
+  assert.equal(result.players.vill1.alive, false);
+  assert.match(result.logs.join(' | '), /อดตาย/);
+});
+
 test('checkWinner follows new rule: ends only when one faction is fully dead', () => {
   const pub = {
     players: {

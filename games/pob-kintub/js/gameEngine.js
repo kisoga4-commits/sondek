@@ -13,26 +13,37 @@ const ROLE_LABELS = {
   unknown: 'ไม่ทราบอาชีพ',
 };
 
-function isBlockedByPolice(privateState, jailedTonight, uid) {
+function isBlockedByPolice(privateState, jailedTonight, uid, day) {
   if (!uid) return false;
   const jailed = jailedTonight?.[uid] || null;
   if (!jailed) return false;
   const jailedOrder = Number(jailed?.order || 0);
-  const actedAt = Number(privateState?.[uid]?.nightAction?.at || 0);
-  const actedOrder = Number(privateState?.[uid]?.nightAction?.order || 0);
+  const action = getNightActionForDay(privateState, uid, day);
+  const actedAt = Number(action?.at || 0);
+  const actedOrder = Number(action?.order || 0);
   if (!actedAt) return true;
   if (jailedOrder && actedOrder) return jailedOrder < actedOrder;
   const jailedAt = Number(jailed?.at || 0);
   return jailedAt < actedAt;
 }
 
+function getNightActionForDay(privateStateByUid, uid, day) {
+  const action = privateStateByUid?.[uid]?.nightAction || null;
+  if (!action?.acted) return null;
+  const actionDay = Number(action?.day || 0);
+  if (!Number.isFinite(actionDay) || actionDay <= 0) return action;
+  if (actionDay !== day) return null;
+  return action;
+}
+
 function deriveJailedTonight(publicState, privateState, alivePlayers) {
+  const day = Math.max(1, Number(publicState?.day || 1));
   const fromPublic = publicState?.jailedTonight;
   if (fromPublic && Object.keys(fromPublic).length) return fromPublic;
 
   const policeActions = alivePlayers
     .filter((p) => privateState?.[p.uid]?.role === 'police')
-    .map((p) => ({ uid: p.uid, action: privateState?.[p.uid]?.nightAction || null }))
+    .map((p) => ({ uid: p.uid, action: getNightActionForDay(privateState, p.uid, day) }))
     .filter(({ action }) => action?.acted && action?.targetId);
 
   if (!policeActions.length) return {};
@@ -69,6 +80,7 @@ export function checkWinner(publicState, privateState) {
 export function resolveNight(publicState, privateState) {
   const pub = JSON.parse(JSON.stringify(publicState || {}));
   const priv = privateState || {};
+  const day = Math.max(1, Number(pub?.day || 1));
   const alive = Object.values(pub.players || {}).filter((p) => p.alive);
   const uidByRole = (role) => alive.filter((p) => priv[p.uid]?.role === role).map((p) => p.uid);
   const pobUids = uidByRole('pob');
@@ -89,18 +101,20 @@ export function resolveNight(publicState, privateState) {
     });
   }
 
-  const protectedUid = isBlockedByPolice(priv, jailedTonight, monkUid) ? null : (priv[monkUid]?.nightAction?.targetId || null);
+  const monkAction = getNightActionForDay(priv, monkUid, day);
+  const protectedUid = isBlockedByPolice(priv, jailedTonight, monkUid, day) ? null : (monkAction?.targetId || null);
   if (monkUid) {
-    if (isBlockedByPolice(priv, jailedTonight, monkUid)) {
+    if (isBlockedByPolice(priv, jailedTonight, monkUid, day)) {
       roleResults[monkUid]?.push('คุณถูกขังก่อน จึงคุ้มครองใครไม่ได้');
     } else if (protectedUid) {
       roleResults[monkUid]?.push(`คุณคุ้มครอง ${pub.players?.[protectedUid]?.name || 'ผู้เล่น'} สำเร็จ`);
     }
   }
   pobUids.forEach((pobUid) => {
-    const pobTarget = priv[pobUid]?.nightAction?.targetId || null;
+    const pobAction = getNightActionForDay(priv, pobUid, day);
+    const pobTarget = pobAction?.targetId || null;
     if (!pobTarget) return;
-    if (isBlockedByPolice(priv, jailedTonight, pobUid)) {
+    if (isBlockedByPolice(priv, jailedTonight, pobUid, day)) {
       logs.push(`${pub.players?.[pobUid]?.name || 'ปอบ'} ถูกขังก่อนใช้พลัง`);
       roleResults[pobUid]?.push('คุณถูกขังก่อน จึงจกตับไม่สำเร็จ');
     } else if (pobTarget === protectedUid) {
@@ -115,8 +129,9 @@ export function resolveNight(publicState, privateState) {
     }
   });
 
-  const hunterTarget = isBlockedByPolice(priv, jailedTonight, hunterUid) ? null : (priv[hunterUid]?.nightAction?.targetId || null);
-  if (hunterUid && isBlockedByPolice(priv, jailedTonight, hunterUid)) {
+  const hunterAction = getNightActionForDay(priv, hunterUid, day);
+  const hunterTarget = isBlockedByPolice(priv, jailedTonight, hunterUid, day) ? null : (hunterAction?.targetId || null);
+  if (hunterUid && isBlockedByPolice(priv, jailedTonight, hunterUid, day)) {
     roleResults[hunterUid]?.push('คุณถูกขังก่อน จึงยิงไม่สำเร็จ');
   }
   if (hunterTarget) {
@@ -130,8 +145,9 @@ export function resolveNight(publicState, privateState) {
   }
 
   const shamanUid = uidByRole('shaman')[0] || null;
-  const shamanTarget = isBlockedByPolice(priv, jailedTonight, shamanUid) ? null : (priv[shamanUid]?.nightAction?.targetId || null);
-  if (shamanUid && isBlockedByPolice(priv, jailedTonight, shamanUid)) {
+  const shamanAction = getNightActionForDay(priv, shamanUid, day);
+  const shamanTarget = isBlockedByPolice(priv, jailedTonight, shamanUid, day) ? null : (shamanAction?.targetId || null);
+  if (shamanUid && isBlockedByPolice(priv, jailedTonight, shamanUid, day)) {
     roleResults[shamanUid]?.push('คุณถูกขังก่อน จึงส่องบทบาทไม่สำเร็จ');
   } else if (shamanUid && shamanTarget) {
     const seenRole = String(priv[shamanTarget]?.role || 'unknown');
@@ -140,7 +156,7 @@ export function resolveNight(publicState, privateState) {
   }
 
   alive.filter((p) => priv[p.uid]?.role === 'villager').forEach((villager) => {
-    const acted = Boolean(priv[villager.uid]?.nightAction?.acted);
+    const acted = Boolean(getNightActionForDay(priv, villager.uid, day)?.acted);
     if (!acted) {
       markDead(pub, villager.uid, 'อดตาย', logs);
       roleResults[villager.uid]?.push('คืนนี้คุณไม่ได้ไถนา จึงอดตาย');
@@ -157,7 +173,7 @@ export function resolveNight(publicState, privateState) {
       day: Number(pub?.day || 1),
       policeTarget: Object.keys(jailedTonight).map((uid) => pub.players?.[uid]?.name || '').filter(Boolean).join(', '),
       monkTarget: protectedUid ? (pub.players?.[protectedUid]?.name || '') : '',
-      pobTarget: pobUids.map((uid) => pub.players?.[priv[uid]?.nightAction?.targetId || '']?.name || '').filter(Boolean).join(', '),
+      pobTarget: pobUids.map((uid) => pub.players?.[getNightActionForDay(priv, uid, day)?.targetId || '']?.name || '').filter(Boolean).join(', '),
       hunterTarget: hunterTarget ? (pub.players?.[hunterTarget]?.name || '') : '',
       logs: logs.length ? logs : ['คืนนี้ไม่มีคนตาย'],
     },

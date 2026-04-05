@@ -17,13 +17,17 @@ const gameRef = ref(db, `logic_spy_rooms/${roomId}`);
 const el = { status: document.getElementById('status'), lobby: document.getElementById('lobby'), secret: document.getElementById('secret'), discussion: document.getElementById('discussion'), vote: document.getElementById('vote'), result: document.getElementById('result') };
 const state = { uid: '', duel: null, game: null, privateMe: null, sets: DEFAULT_LOGIC_SPY_WORD_SETS };
 
+function isHost() {
+  return String(state.duel?.hostUid || '') === state.uid;
+}
+
 async function ensureAuth() { await new Promise((resolve, reject) => { const unsub = onAuthStateChanged(auth, async (u) => { if (u) { state.uid = u.uid; unsub(); resolve(); return; } try { await signInAnonymously(auth); } catch (e) { reject(e); } }); }); }
 async function loadWordSets() { try { const snap = await getDoc(doc(fs, 'settings', 'logic_spy_word_sets')); const sets = snap.exists() ? snap.data()?.sets : null; if (Array.isArray(sets) && sets.length) state.sets = sets; } catch (_) {} }
 
 function ui() {
   const duelPlayers = state.duel?.players || {};
   const players = Object.entries(duelPlayers).slice(0, 5);
-  const isHost = String(state.duel?.hostUid || '') === state.uid;
+  const host = isHost();
   const g = state.game || { status: 'lobby', scores: {} };
   const phase = String(g.status || 'lobby');
   el.status.innerHTML = `<div>ห้อง: <b>${roomId}</b> • ผู้เล่น: ${players.length}/5 • สถานะ: ${phase}</div>`;
@@ -36,11 +40,11 @@ function ui() {
   const chips = players.map(([uid, p]) => `<span class="chip">${p.name || 'ผู้เล่น'}${uid === g.oddUid ? ' 🕵️' : ''}</span>`).join('');
   const scoreRows = players.map(([uid, p]) => `<div class="vote-item"><b>${p.name || uid}</b><span>${Number(g.scores?.[uid] || 0)} แต้ม</span></div>`).join('');
 
-  el.lobby.innerHTML = `<h3>Lobby</h3><p>ต้องมี 3-5 คน</p><div class="chips">${chips}</div>${isHost ? `<button class="btn" id="startRoundBtn" ${players.length < 3 ? 'disabled' : ''}>เริ่มสุ่มคำ</button>` : '<p>รอ Host เริ่มเกม</p>'}<hr/>${scoreRows}`;
+  el.lobby.innerHTML = `<h3>Lobby</h3><p>ต้องมี 3-5 คน</p><div class="chips">${chips}</div>${host ? `<button class="btn" id="startRoundBtn" ${players.length < 3 ? 'disabled' : ''}>เริ่มสุ่มคำ</button>` : '<p>รอ Host เริ่มเกม</p>'}<hr/>${scoreRows}`;
   document.getElementById('startRoundBtn')?.addEventListener('click', () => void startRound(players.map(([uid]) => uid)));
 
   const myWord = String(state.privateMe?.word || '');
-  el.secret.innerHTML = `<h3>Secret Card</h3><p>แตะเพื่อดูคำลับ — ตอนนี้ระบบแสดงคำให้ทันทีบนหน้าจอแล้ว</p><div class="secret-word-display">${myWord || 'กำลังสุ่มคำ...'}</div>${isHost ? '<button class="btn secondary" id="toTalkBtn">เริ่มช่วงพูด</button>' : '<p>รอ Host เริ่มช่วงพูด</p>'}`;
+  el.secret.innerHTML = `<h3>Secret Card</h3><p>แตะเพื่อดูคำลับ — ตอนนี้ระบบแสดงคำให้ทันทีบนหน้าจอแล้ว</p><div class="secret-word-display">${myWord || 'กำลังสุ่มคำ...'}</div>${host ? '<button class="btn secondary" id="toTalkBtn">เริ่มช่วงพูด</button>' : '<p>รอ Host เริ่มช่วงพูด</p>'}`;
   document.getElementById('toTalkBtn')?.addEventListener('click', () => void toDiscussion(players.map(([uid]) => uid)));
 
 
@@ -55,7 +59,7 @@ function ui() {
   document.getElementById('voteBtn')?.addEventListener('click', () => { const target = document.querySelector('input[name="voteTarget"]:checked')?.value || ''; if (target) void vote(target); });
 
   const words = g.secretWordsByUid || {};
-  el.result.innerHTML = `<h3>Result</h3><p>${g.reason || '-'}</p>${players.map(([uid, p]) => `<div class="vote-item"><b>${p.name || uid}</b><span>${words[uid] || '-'}</span><span>(${Number(g.roundScore?.[uid] || 0)} แต้มรอบนี้)</span></div>`).join('')}<hr/>${scoreRows}${isHost ? '<button class="btn" id="nextRoundBtn">เริ่มรอบใหม่</button>' : ''}`;
+  el.result.innerHTML = `<h3>Result</h3><p>${g.reason || '-'}</p>${players.map(([uid, p]) => `<div class="vote-item"><b>${p.name || uid}</b><span>${words[uid] || '-'}</span><span>(${Number(g.roundScore?.[uid] || 0)} แต้มรอบนี้)</span></div>`).join('')}<hr/>${scoreRows}${host ? '<button class="btn" id="nextRoundBtn">เริ่มรอบใหม่</button>' : ''}`;
   document.getElementById('nextRoundBtn')?.addEventListener('click', () => void set(gameRef, { ...g, status: 'lobby' }));
 }
 
@@ -67,6 +71,7 @@ async function initGameRoomIfMissing() {
 }
 
 async function startRound(playerIds) {
+  if (!isHost()) return;
   const setWords = pickWordSet(state.sets);
   const assignment = buildRoundAssignments(playerIds, setWords);
   const updates = { status: 'secret', oddUid: assignment.oddUid, words: assignment.words, commonWord: assignment.commonWord, oddWord: assignment.oddWord, reason: assignment.reason, votes: {}, secretWordsByUid: assignment.secretWordsByUid, roundScore: {} };
@@ -74,11 +79,14 @@ async function startRound(playerIds) {
   await Promise.all(playerIds.map((uid) => set(ref(db, `logic_spy_rooms/${roomId}/private/${uid}`), { word: assignment.secretWordsByUid[uid] })));
 }
 
-async function toDiscussion(playerIds) { await update(gameRef, { status: 'discussion', discussion: { order: playerIds, activeIndex: 0, turnEndsAtMs: Date.now() + 15000 } }); }
+async function toDiscussion(playerIds) {
+  if (!isHost()) return;
+  await update(gameRef, { status: 'discussion', discussion: { order: playerIds, activeIndex: 0, turnEndsAtMs: Date.now() + 15000 } });
+}
 async function nextTurn(activeUid) {
   const isActive = activeUid === state.uid;
-  const isHost = String(state.duel?.hostUid || '') === state.uid;
-  if (!isActive && !isHost) return;
+  const host = isHost();
+  if (!isActive && !host) return;
   await runTransaction(gameRef, (g) => {
     if (!g || g.status !== 'discussion') return g;
     const order = Array.isArray(g.discussion?.order) ? g.discussion.order : [];
