@@ -80,6 +80,7 @@ const els = {
 
 const paths = {
   duelRoom: ref(db, `rooms/${roomId}`),
+  roomRoot: ref(db, `pob_rooms/${roomId}`),
   public: ref(db, `pob_rooms/${roomId}/public`),
   privateMine: () => ref(db, `pob_rooms/${roomId}/private/${state.uid}`),
   privateAll: ref(db, `pob_rooms/${roomId}/private`),
@@ -261,6 +262,15 @@ function renderHome(message = '') {
     <div class="grid" style="margin-top:.7rem;">
       <a class="btn" href="../../duel.html">🏠 กลับหน้า Duel</a>
     </div>
+  `;
+}
+
+function renderLoading(message = 'กำลังโหลดห้องเกม...') {
+  Object.values(els).forEach((x) => x.classList.add('hidden'));
+  els.setup.classList.remove('hidden');
+  els.setup.innerHTML = `
+    <h2>กำลังเตรียมเกม</h2>
+    <p class="muted">${message}</p>
   `;
 }
 
@@ -451,9 +461,7 @@ function renderSetup() {
     btn.onclick = async () => {
       try {
         const entries = Object.values(state.duelPlayers || {});
-        const seeded = buildRandomizedGameState(entries, state.uid);
-        await tx(paths.public, () => seeded.publicState);
-        await tx(paths.privateAll, () => seeded.privateState);
+        await seedGameFromEntries(entries, state.uid);
       } catch (error) {
         window.alert(error.message || 'เริ่มเกมไม่สำเร็จ');
       }
@@ -522,6 +530,14 @@ async function advanceIdentityToVoteByHost() {
       lastLogs: ['เช้าแรก: เริ่มโหวตผู้ต้องสงสัย'],
       updatedAtMs: Date.now(),
     };
+  });
+}
+
+async function seedGameFromEntries(entries, hostUid) {
+  const seeded = buildRandomizedGameState(entries, hostUid);
+  await updateWithTimeout(paths.roomRoot, {
+    public: seeded.publicState,
+    private: seeded.privateState,
   });
 }
 
@@ -1061,9 +1077,7 @@ function renderEnd() {
       if (entries.length < 4 || entries.length > 8) {
         await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, voteResolveLock: null, lastLogs: ['รีเซ็ตเกม: จำนวนผู้เล่นไม่พอ กรุณารอ Host เริ่มใหม่'], updatedAtMs: Date.now() }));
       } else {
-        const seeded = buildRandomizedGameState(entries, state.uid);
-        await tx(paths.public, () => seeded.publicState);
-        await tx(paths.privateAll, () => seeded.privateState);
+        await seedGameFromEntries(entries, state.uid);
       }
     } finally {
       state.isRestartingGame = false;
@@ -1202,11 +1216,20 @@ async function initCloud() {
 
   const topbar = document.querySelector('.topbar p');
   if (topbar) topbar.textContent = `Cloud Mode • PIN ${pin} • UID ${state.uid.slice(0, 8)}`;
+  renderLoading();
 
   onValue(paths.duelRoom, (snap) => {
     const room = snap.val() || {};
     state.duelPlayers = room.players || {};
     state.isHost = String(room.hostUid || '') === state.uid;
+    const mode = String(room?.modeConfig?.gameMode || '');
+    const status = String(room?.status || room?.state?.status || 'lobby');
+    if (mode === 'pob' && status === 'playing' && state.isHost && !state.publicState) {
+      const entries = Object.values(state.duelPlayers || {});
+      if (entries.length >= 4 && entries.length <= 8) {
+        void seedGameFromEntries(entries, state.uid).catch(() => {});
+      }
+    }
     const publicHost = String(state.publicState?.hostUid || '');
     const roomHost = String(room.hostUid || '');
     if (state.publicState && publicHost && roomHost && publicHost !== roomHost && String(state.publicState.phase || '') !== 'end') {
