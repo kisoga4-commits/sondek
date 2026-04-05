@@ -30,7 +30,7 @@ const ROLES = {
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
-  madman: () => 'คุณคือคนบ้า เป้าหมายคือให้คนอื่นโหวตคุณออกตอนกลางวันเพื่อชนะทันที',
+  madman: () => 'คุณคือคนบ้า เป้าหมายคือให้คนอื่นโหวตคุณออกตอนกลางวันเพื่อชนะทันที (ถ้าตายจากการฆ่าหรือสกิลอื่น จะไม่ชนะ)',
   shaman: () => 'คุณคือหมอดู ต้องเชื่อมจิตคนเดิม 2 คืนติดกัน คืนแรกยังไม่เห็นผล คืนที่สองจึงเห็นผลแบบ "มีพิรุธ/คนดี" เท่านั้น',
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
@@ -376,6 +376,7 @@ function getNightSubmittedMap() {
 }
 
 function hasSubmittedNightAction(uid) {
+  if (!isNightActionRequired(uid)) return true;
   const submittedByPublic = Boolean(getNightSubmittedMap()?.[uid]);
   if (submittedByPublic) return true;
   const privateAction = state.allPrivate?.[uid]?.nightAction;
@@ -385,7 +386,8 @@ function hasSubmittedNightAction(uid) {
 function isNightActionRequired(uid) {
   if (!uid || !state.publicState?.players?.[uid]?.alive) return false;
   const role = String(state.allPrivate?.[uid]?.role || '');
-  return Boolean(role);
+  if (!role) return false;
+  return role !== 'madman';
 }
 
 function nightPendingPlayers() {
@@ -424,6 +426,16 @@ function nightPhaseProgressHtml() {
   }
   const waitingNames = pending.map((p) => p.name || 'ผู้เล่น').join(', ');
   return `<div class="tag" style="margin-top:.55rem;">⌛ รอคำสั่งจาก: ${waitingNames}</div>`;
+}
+
+function nightRequiredPlayers() {
+  const alive = alivePlayers();
+  return alive.filter((player) => isNightActionRequired(player.uid));
+}
+
+function nightSubmittedRequiredCount() {
+  const required = nightRequiredPlayers();
+  return required.filter((player) => hasSubmittedNightAction(player.uid)).length;
 }
 
 function ensurePopupRoot() {
@@ -689,6 +701,8 @@ function allAliveSubmittedNight(publicState) {
   const alive = alivePlayers(publicState);
   const submitted = publicState?.nightSubmittedBy || {};
   return alive.every((player) => {
+    const role = String(state.allPrivate?.[player.uid]?.role || '');
+    if (!role || role === 'madman') return true;
     if (submitted[player.uid]) return true;
     const privateAction = state.allPrivate?.[player.uid]?.nightAction;
     return hasNightActionForCurrentDay(privateAction);
@@ -825,11 +839,13 @@ function renderNight() {
   if (me?.alive && state.roleSheetRevealed) {
     if (iAmJailed) {
       actionHtml = '<div class="tag out">คืนนี้คุณโดนตำรวจจับ ใช้พลังไม่ได้</div>';
-    } else if (myRole === 'villager' || myRole === 'madman') {
+    } else if (myRole === 'villager') {
       actionHtml = `
-        <div class="tag">${myRole === 'madman' ? 'กดปุ่มด้านล่างเพื่อยืนยันว่าปั่นกระแสแล้ว' : 'กดปุ่มด้านล่างเพื่อยืนยันว่าไถนาแล้ว'}</div>
-        <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${myRole === 'madman' ? '🤪 ยืนยันปั่นกระแส' : '🌾 ยืนยันทำงาน/ไถนา'}</button>
+        <div class="tag">กดปุ่มด้านล่างเพื่อยืนยันว่าไถนาแล้ว</div>
+        <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>🌾 ยืนยันทำงาน/ไถนา</button>
       `;
+    } else if (myRole === 'madman') {
+      actionHtml = '<div class="tag">คืนนี้คุณไม่มีสกิลกลางคืน หน้าที่ของคุณคือโน้มน้าวให้คนอื่นโหวตคุณตอนกลางวัน</div>';
     } else {
       actionHtml = `
         <div class="big-grid">${others.map((p) => `<button class="btn big-btn targetNight ${selectedTarget === p.uid ? 'ready' : ''}" data-id="${p.uid}" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${p.name}${selectedTarget === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
@@ -846,7 +862,7 @@ function renderNight() {
     <h2>Step 3: กลางคืน (แต่ละอาชีพทำหน้าที่)</h2>
     ${phaseMetaHtml()}
     <p class="muted">${actionProgressText}</p>
-    <p class="muted">สถานะรอบ: ส่งคำสั่งแล้ว ${Object.keys(getNightSubmittedMap()).length}/${alive.length} คน</p>
+    <p class="muted">สถานะรอบ: ส่งคำสั่งแล้ว ${nightSubmittedRequiredCount()}/${nightRequiredPlayers().length} คน (ไม่นับบทที่ไม่มีสกิลกลางคืน)</p>
     <h3>วงหมู่บ้าน</h3>
     ${renderVillageGridHtml(allPlayers)}
     <div class="hidden-sheet ${isAlive() ? '' : 'is-dead'}">
@@ -888,7 +904,7 @@ function renderNight() {
   bindTap(document.getElementById('hideRoleSheet'), closeSheet);
 
   document.getElementById('confirmNightActionBtn')?.addEventListener('click', () => {
-    const target = (myRole === 'villager' || myRole === 'madman') ? state.uid : state.selectedNightTargetId;
+    const target = myRole === 'villager' ? state.uid : state.selectedNightTargetId;
     void submitNightAction(target, true);
   });
   document.querySelectorAll('.targetNight').forEach((btn) => {

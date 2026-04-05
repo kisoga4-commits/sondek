@@ -254,3 +254,21 @@ test('resolveVote gives solo win to madman when madman is voted out', () => {
   assert.equal(result.winner, 'madman');
   assert.equal(result.madmanWinUid, 'mad1');
 });
+
+test('madman does not win when dying from non-vote causes', () => {
+  const pub = {
+    players: {
+      pob1: { uid: 'pob1', alive: true },
+      mad1: { uid: 'mad1', alive: false },
+      h1: { uid: 'h1', alive: true },
+    },
+  };
+  const priv = {
+    pob1: { role: 'pob' },
+    mad1: { role: 'madman' },
+    h1: { role: 'villager' },
+  };
+  assert.equal(checkWinner(pub, priv), '');
+  pub.players.h1.alive = false;
+  assert.equal(checkWinner(pub, priv), 'pob');
+});
