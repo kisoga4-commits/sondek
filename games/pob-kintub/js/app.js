@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import { getDatabase, onValue, ref, runTransaction, update } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
-import { checkWinner, resolveNight } from './gameEngine.js';
+import { checkWinner, resolveNight, resolveVote } from './gameEngine.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -688,7 +688,7 @@ async function submitVote(targetId) {
     state.isSubmittingVote = true;
     state.mePrivate = { ...(state.mePrivate || {}), voteTarget: normalizedTarget || null };
     mountByPhase();
-    await tx(paths.privateMine(), (data) => ({ ...data, voteTarget: normalizedTarget || null }));
+    await updateWithTimeout(paths.privateMine(), { voteTarget: normalizedTarget || null }, 5000);
   } catch (error) {
     state.mePrivate = { ...(state.mePrivate || {}), voteTarget: null };
     mountByPhase();
@@ -707,42 +707,23 @@ async function finalizeVoteByHost() {
   try {
   const pub = JSON.parse(JSON.stringify(state.publicState || {}));
   const priv = state.allPrivate || {};
-  const alive = Object.values(pub.players || {}).filter((p) => p.alive);
-  const tally = {};
-
-  alive.forEach((p) => {
-    const target = priv[p.uid]?.voteTarget;
-    if (!target || !pub.players?.[target]?.alive) return;
-    tally[target] = (tally[target] || 0) + 1;
-  });
-
-  const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-  let outUid = null;
-  if (sorted.length) {
-    const top = sorted[0][1];
-    const tieTop = sorted.filter(([, c]) => c === top).length > 1;
-    if (!tieTop && top > 0) outUid = sorted[0][0];
-  }
-
-  if (outUid) pub.players[outUid].alive = false;
-
-  const summary = Object.fromEntries(sorted.map(([uid, score]) => [pub.players?.[uid]?.name || uid, score]));
-  const end = checkWinner(pub, priv);
+  const voteResult = resolveVote(pub, priv);
+  const outUid = voteResult.eliminatedUid;
 
   await tx(paths.public, (data) => ({
     ...data,
-    players: pub.players,
-    voteSummary: summary,
-    phase: end ? 'end' : 'night',
-    phaseEndsAtMs: end ? 0 : (Date.now() + phaseDurationMs('night')),
-    actionSeq: end ? Number(data?.actionSeq || 0) : 0,
-    winner: end || '',
-    revealRoles: end
-      ? Object.fromEntries(Object.keys(pub.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
+    players: voteResult.players,
+    voteSummary: voteResult.voteSummary,
+    phase: voteResult.winner ? 'end' : 'night',
+    phaseEndsAtMs: voteResult.winner ? 0 : (Date.now() + phaseDurationMs('night')),
+    actionSeq: voteResult.winner ? Number(data?.actionSeq || 0) : 0,
+    winner: voteResult.winner || '',
+    revealRoles: voteResult.winner
+      ? Object.fromEntries(Object.keys(voteResult.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
       : (data?.revealRoles || {}),
-    day: end ? data.day : Number(data.day || 1) + (data?.isFirstDayVote ? 0 : 1),
+    day: voteResult.winner ? data.day : Number(data.day || 1) + (data?.isFirstDayVote ? 0 : 1),
     isFirstDayVote: false,
-    lastLogs: outUid ? [`${pub.players?.[outUid]?.name || 'ผู้เล่น'} ถูกโหวตออก`] : ['ไม่มีใครถูกโหวตออก'],
+    lastLogs: outUid ? [`${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} ถูกโหวตออก`] : ['ไม่มีใครถูกโหวตออก'],
     updatedAtMs: Date.now(),
   }));
 
