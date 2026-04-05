@@ -454,8 +454,9 @@ function handleRoomUpdate(room) {
   const mode = String(room?.modeConfig?.gameMode || 'quick');
   const minPlayers = mode === 'pob'
     ? 4
-    : (mode === 'logic_spy' ? 3
-    : (String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2);
+    : (mode === 'logic_spy'
+      ? 3
+      : (String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2));
   const canStart = isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers;
   el.startGameBtn.classList.toggle('hidden', !isHost || roomStatus(room) !== 'lobby');
   el.startGameBtn.disabled = !canStart;
