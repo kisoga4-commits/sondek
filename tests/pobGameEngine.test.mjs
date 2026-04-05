@@ -200,8 +200,6 @@ test('resolveVote eliminates when unique top vote is greater than half of alive 
   assert.equal(result.eliminatedUid, 'b');
   assert.equal(result.players.b.alive, false);
 
-  assert.equal(result.players.b.deathCause, 'โดนขับไล่');
-
   assert.equal(result.players.b.deathCause, 'vote_eliminated');
 
 });
