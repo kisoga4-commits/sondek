@@ -58,6 +58,11 @@ function getPlayers() {
     .slice(0, 5);
 }
 
+function displayPlayerName(uid, fallbackName = 'ผู้เล่น') {
+  const baseName = String(fallbackName || uid || 'ผู้เล่น');
+  return uid === state.uid ? `${baseName} 🫵` : baseName;
+}
+
 function getModeratorUid() {
   const players = getPlayers();
   if (!players.length) return '';
@@ -147,11 +152,11 @@ function ui() {
   const roomHostUid = String(state.duel?.hostUid || '');
 
   const chips = players
-    .map(([uid, player]) => `<span class="chip">${player?.name || 'ผู้เล่น'}${uid === moderatorUid ? ' 👑' : ''}</span>`)
+    .map(([uid, player]) => `<span class="chip">${displayPlayerName(uid, player?.name || 'ผู้เล่น')}${uid === moderatorUid ? ' 👑' : ''}</span>`)
     .join('');
 
   const scoreRows = players
-    .map(([uid, player]) => `<div class="vote-item"><b>${player?.name || uid}</b><span>${Number(game?.scores?.[uid] || 0)} แต้ม</span></div>`)
+    .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, player?.name || uid)}</b><span>${Number(game?.scores?.[uid] || 0)} แต้ม</span></div>`)
     .join('');
 
   el.status.innerHTML = `<div>ห้อง: <b>${roomId || '-'}</b> • ผู้เล่น: ${players.length}/5 • สถานะ: <b>${phase}</b></div>`;
@@ -195,8 +200,8 @@ function ui() {
 
   el.discussion.innerHTML = `
     <h3>Discussion</h3>
-    <p>คนที่กำลังพูด: <b>${activeName}</b> • เหลือ <b>${turnRemain}s</b></p>
-    <div class="chips">${order.map((uid) => `<span class="chip">${duelPlayersByUid[uid]?.name || uid}${uid === activeUid ? ' 🎤' : ''}</span>`).join('')}</div>
+    <p>คนที่กำลังพูด: <b>${displayPlayerName(activeUid, activeName)}</b> • เหลือ <b>${turnRemain}s</b></p>
+    <div class="chips">${order.map((uid) => `<span class="chip">${displayPlayerName(uid, duelPlayersByUid[uid]?.name || uid)}${uid === activeUid ? ' 🎤' : ''}</span>`).join('')}</div>
     ${canAdvanceDiscussion ? '<button class="btn" id="nextTurnBtn">ข้ามไปคนถัดไป</button>' : '<p>รอผู้พูดปัจจุบันหรือ Moderator กดข้ามตา</p>'}
   `;
 
@@ -214,20 +219,20 @@ function ui() {
     .map(([uid, player]) => {
       const roundPoints = Number(roundScoreByUid?.[uid] || 0);
       const totalPoints = Number(totalScoreByUid?.[uid] || 0);
-      return `<div class="score-row"><span class="score-name">${player?.name || uid}</span><span class="score-cell">รอบนี้ <b>+${roundPoints}</b></span><span class="score-cell">รวม <b>${totalPoints}</b></span></div>`;
+      return `<div class="score-row"><span class="score-name">${displayPlayerName(uid, player?.name || uid)}</span><span class="score-cell">รอบนี้ <b>+${roundPoints}</b></span><span class="score-cell">รวม <b>${totalPoints}</b></span></div>`;
     })
     .join('');
   const voteTargets = players
     .filter(([uid]) => uid !== state.uid)
-    .map(([uid, player]) => `<button class="btn vote-target-btn ${myVoteUid === uid ? 'secondary' : ''}" data-vote-target="${uid}">${player?.name || uid}${myVoteUid === uid ? ' ✅' : ''}</button>`)
+    .map(([uid, player]) => `<button class="btn vote-target-btn ${myVoteUid === uid ? 'secondary' : ''}" data-vote-target="${uid}">${displayPlayerName(uid, player?.name || uid)}${myVoteUid === uid ? ' ✅' : ''}</button>`)
     .join('');
 
   el.vote.innerHTML = `
     <h3>Voting</h3>
     <p>เวลาที่เหลือ: <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
-    <button class="btn vote-open-btn" id="openVoteModalBtn" ${canVote ? '' : 'disabled'}>${myVoteUid ? `แก้ไขโหวต: ${myVoteName}` : 'เปิดหน้าต่างโหวต'}</button>
+    <button class="btn vote-open-btn" id="openVoteModalBtn" ${canVote ? '' : 'disabled'}>${myVoteUid ? `แก้ไขโหวต: ${displayPlayerName(myVoteUid, myVoteName)}` : 'เปิดหน้าต่างโหวต'}</button>
     <p>โหวตแล้ว: ${votedCount}/${players.length}</p>
-    <p class="muted">${myVoteUid ? `คุณโหวตให้ ${myVoteName} แล้ว (กดปุ่มเพื่อเปลี่ยนได้)` : 'คุณยังไม่ได้โหวต'}</p>
+    <p class="muted">${myVoteUid ? `คุณโหวตให้ ${displayPlayerName(myVoteUid, myVoteName)} แล้ว (กดปุ่มเพื่อเปลี่ยนได้)` : 'คุณยังไม่ได้โหวต'}</p>
     <h4>ตารางคะแนน</h4>
     <div class="scoreboard">
       <div class="score-head"><span>ผู้เล่น</span><span>คะแนนรอบนี้</span><span>คะแนนรวม</span></div>
@@ -267,7 +272,7 @@ function ui() {
     <p>${reason}</p>
     <p>กลับ Lobby อัตโนมัติใน <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
     ${players
-      .map(([uid, player]) => `<div class="vote-item"><b>${player?.name || uid}</b><span>${wordsByUid[uid] || '-'}</span><span>(+${Number(game?.roundScore?.[uid] || 0)} แต้ม)</span></div>`)
+      .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, player?.name || uid)}</b><span>${wordsByUid[uid] || '-'}</span><span>(+${Number(game?.roundScore?.[uid] || 0)} แต้ม)</span></div>`)
       .join('')}
     <hr/>
     <h4>สรุปคะแนนรอบนี้และคะแนนรวม</h4>
