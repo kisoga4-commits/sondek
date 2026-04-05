@@ -118,3 +118,20 @@ export function calculateRoundScore({ oddUid = '', votesByUid = {}, playerIds = 
 
   return scores;
 }
+
+export function buildVoteRevealByVoter({ oddUid = '', votesByUid = {}, playerIds = [] } = {}) {
+  const ids = sanitizeUniqueStrings(playerIds);
+  const voteMap = votesByUid && typeof votesByUid === 'object' ? votesByUid : {};
+
+  return ids.map((voterUid) => {
+    const votedUid = String(voteMap?.[voterUid] || '').trim();
+    const hasValidVote = votedUid && ids.includes(votedUid) && votedUid !== voterUid;
+    const isCorrect = Boolean(hasValidVote && votedUid === oddUid);
+    return {
+      voterUid,
+      votedUid: hasValidVote ? votedUid : '',
+      isCorrect,
+      noVote: !hasValidVote,
+    };
+  });
+}
