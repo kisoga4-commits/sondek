@@ -28,8 +28,9 @@ const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
 const duelRoomPath = `rooms/${roomId}`;
 const gameRoomPath = `logic_spy_rooms/${roomId}`;
+const gamePublicPath = `${gameRoomPath}/public`;
 const duelRef = ref(db, duelRoomPath);
-const gameRef = ref(db, gameRoomPath);
+const gamePublicRef = ref(db, gamePublicPath);
 
 const el = {
   status: document.getElementById('status'),
@@ -236,9 +237,10 @@ function ui() {
 }
 
 async function initGameRoomIfMissing() {
-  await runTransaction(gameRef, (data) => {
+  await runTransaction(gamePublicRef, (data) => {
     if (data) return data;
     return {
+      hostUid: String(getModeratorUid() || state.uid || ''),
       status: 'lobby',
       createdAtMs: Date.now(),
       updatedAtMs: Date.now(),
@@ -279,20 +281,8 @@ async function startRound(playerIds) {
     return;
   }
 
-  if (!roomHostUid) {
-    failStartRound('host uid missing in room data');
-    ui();
-    return;
-  }
-
-  if (currentUid !== roomHostUid) {
-    failStartRound('not moderator', { expectedHostUid: roomHostUid });
-    ui();
-    return;
-  }
-
-  if (!moderatorUid || currentUid !== moderatorUid) {
-    failStartRound('moderator uid mismatch', { expectedModeratorUid: moderatorUid });
+  if (!canModerate()) {
+    failStartRound('not moderator', { expectedModeratorUid: moderatorUid, expectedHostUid: roomHostUid });
     ui();
     return;
   }
@@ -314,6 +304,7 @@ async function startRound(playerIds) {
   const nowMs = Date.now();
 
   const updates = {
+    hostUid: currentUid,
     status: 'secret',
     playerIds: ids,
     oddUid: assignment.oddUid,
@@ -328,8 +319,8 @@ async function startRound(playerIds) {
   };
 
   try {
-    console.info('[logic-spy][start-round] writing game state', { writePath: gameRoomPath, status: updates.status });
-    await update(gameRef, updates);
+    console.info('[logic-spy][start-round] writing game state', { writePath: gamePublicPath, status: updates.status });
+    await update(gamePublicRef, updates);
     console.info('[logic-spy][start-round] writing private cards', {
       writePaths: ids.map((uid) => `${gameRoomPath}/private/${uid}`),
     });
@@ -356,7 +347,7 @@ async function toDiscussion(playerIds) {
   const ids = (Array.isArray(playerIds) ? playerIds : []).map((id) => String(id || '')).filter(Boolean).slice(0, 5);
   if (!ids.length) return;
   const nowMs = Date.now();
-  await update(gameRef, {
+  await update(gamePublicRef, {
     status: 'discussion',
     discussion: {
       order: ids,
@@ -372,7 +363,7 @@ async function nextTurn(activeUid) {
   const isMyTurn = String(activeUid || '') === state.uid;
   if (!isMyTurn && !canModerate()) return;
 
-  await runTransaction(gameRef, (game) => {
+  await runTransaction(gamePublicRef, (game) => {
     if (!game || String(game.status || '') !== 'discussion') return game;
     const nowMs = Date.now();
     const order = Array.isArray(game?.discussion?.order) ? game.discussion.order : [];
@@ -401,7 +392,7 @@ async function nextTurn(activeUid) {
 }
 
 async function finalizeVoteIfReady(force = false) {
-  await runTransaction(gameRef, (game) => {
+  await runTransaction(gamePublicRef, (game) => {
     if (!game || String(game.status || '') !== 'vote') return game;
     const nowMs = Date.now();
     const ids = Array.isArray(game?.playerIds) ? game.playerIds : getPlayers().map(([uid]) => uid);
@@ -436,7 +427,7 @@ async function vote(targetUid) {
   const uid = String(state.uid || '');
   if (!uid || !targetUid) return;
 
-  await runTransaction(gameRef, (game) => {
+  await runTransaction(gamePublicRef, (game) => {
     if (!game || String(game.status || '') !== 'vote') return game;
     const votes = { ...(game?.votes || {}), [uid]: String(targetUid || '') };
     return {
@@ -451,7 +442,8 @@ async function vote(targetUid) {
 
 async function resetToLobby() {
   if (!canModerate()) return;
-  await update(gameRef, {
+  await update(gamePublicRef, {
+    hostUid: String(state.uid || ''),
     status: 'lobby',
     votes: {},
     roundScore: {},
@@ -504,7 +496,7 @@ async function init() {
   console.info('[logic-spy][init] subscribe paths', {
     roomId,
     duelRoomPath,
-    gameRoomPath,
+    gamePublicPath,
     privatePath: `${gameRoomPath}/private/${state.uid}`,
   });
 
@@ -515,7 +507,7 @@ async function init() {
 
   await initGameRoomIfMissing();
 
-  onValue(gameRef, (snap) => {
+  onValue(gamePublicRef, (snap) => {
     state.game = snap.val() || null;
     ui();
   });
