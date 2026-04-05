@@ -289,7 +289,7 @@ function deadOverlayHtml() {
 
 function renderVillageGridHtml(players) {
   const statusMeta = (player) => {
-    if (player.alive) return { icon: '🛟', text: 'ยังรอดชีวิต', className: '' };
+    if (player.alive) return { icon: '🟢', text: 'ยังรอดชีวิต', className: '' };
     if (player.deathCause === 'โดนจกตับ') return { icon: '🩸', text: 'ตายจากโดนจกตับ', className: 'out' };
 
     if (player.deathCause === 'โดนยิง') return { icon: '🏹', text: 'ตายจากโดนนายพรานยิง', className: 'out' };
@@ -297,7 +297,7 @@ function renderVillageGridHtml(players) {
     return { icon: '💀', text: 'ตายแล้ว (ไม่ทราบสาเหตุ)', className: 'out' };
   };
   return `
-    <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🩸 โดนจกตับ • 🏹 โดนนายพรานยิง • 🚫 โดนขับไล่</div>
+    <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🟢 ผู้รอดชีวิต • 🩸 โดนจกตับ • 🏹 โดนนายพรานยิง • 🚫 โดนขับไล่</div>
     <div class="village-grid">
       ${players.map((p) => `
         <div class="villager-card ${p.alive ? '' : 'dead'}">
@@ -475,6 +475,24 @@ function openPopup({ title = 'แจ้งเตือน', message = '', confir
   root.classList.remove('hidden');
 }
 
+function bindTap(target, handler) {
+  if (!target || typeof handler !== 'function') return;
+  let touchTriggered = false;
+  target.addEventListener('touchend', (event) => {
+    event.preventDefault();
+    touchTriggered = true;
+    handler();
+  }, { passive: false });
+  target.addEventListener('click', (event) => {
+    if (touchTriggered) {
+      touchTriggered = false;
+      return;
+    }
+    event.preventDefault();
+    handler();
+  });
+}
+
 function renderSetup() {
   const players = Object.values(state.duelPlayers || {});
   const canStart = state.isHost && players.length >= 4 && players.length <= 8;
@@ -536,11 +554,11 @@ function renderIdentity() {
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
-  document.getElementById('toggleRoleSheet')?.addEventListener('click', () => {
+  bindTap(document.getElementById('toggleRoleSheet'), () => {
     state.roleSheetRevealed = true;
     renderIdentity();
   });
-  document.getElementById('hideRoleSheet')?.addEventListener('click', () => {
+  bindTap(document.getElementById('hideRoleSheet'), () => {
     state.roleSheetRevealed = false;
     renderIdentity();
   });
@@ -601,6 +619,11 @@ async function submitNightAction(targetId, acted = true) {
   const iAmJailed = Boolean(jailedTonight?.[state.uid]);
   if (iAmJailed) {
     openPopup({ title: 'ติดคุก', message: 'คุณโดนขัง' });
+    return;
+  }
+  const targetIsJailed = normalizedTarget && Boolean(jailedTonight?.[normalizedTarget]);
+  if (targetIsJailed && myRole !== 'police') {
+    openPopup({ title: 'ใช้สกิลไม่ได้', message: 'ผู้เล่นนี้โดนขัง action คุณใช้ไม่ได้' });
     return;
   }
 
@@ -843,16 +866,8 @@ function renderNight() {
     state.roleSheetRevealed = false;
     renderNight();
   };
-  document.getElementById('toggleRoleSheet')?.addEventListener('click', openSheet);
-  document.getElementById('toggleRoleSheet')?.addEventListener('touchend', (event) => {
-    event.preventDefault();
-    openSheet();
-  }, { passive: false });
-  document.getElementById('hideRoleSheet')?.addEventListener('click', closeSheet);
-  document.getElementById('hideRoleSheet')?.addEventListener('touchend', (event) => {
-    event.preventDefault();
-    closeSheet();
-  }, { passive: false });
+  bindTap(document.getElementById('toggleRoleSheet'), openSheet);
+  bindTap(document.getElementById('hideRoleSheet'), closeSheet);
 
   document.getElementById('confirmNightActionBtn')?.addEventListener('click', () => {
     const target = myRole === 'villager' ? state.uid : state.selectedNightTargetId;
