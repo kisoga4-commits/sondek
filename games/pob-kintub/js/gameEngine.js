@@ -101,13 +101,15 @@ export function resolveVote(publicState, privateState) {
   }
 
   const summary = Object.fromEntries(sorted.map(([uid, score]) => [pub.players?.[uid]?.name || uid, score]));
-  const end = checkWinner(pub, priv);
+  const isMadmanWin = outUid && String(priv?.[outUid]?.role || '') === 'madman';
+  const end = isMadmanWin ? 'madman' : checkWinner(pub, priv);
 
   return {
     players: pub.players,
     voteSummary: summary,
     eliminatedUid: outUid,
     requiredVotes,
+    madmanWinUid: isMadmanWin ? outUid : '',
     winner: end || '',
   };
 }

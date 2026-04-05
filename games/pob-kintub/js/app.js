@@ -21,6 +21,7 @@ const firebaseConfig = {
 
 const ROLES = {
   pob: { label: 'ปอบ', icon: '👹', desc: 'ฆ่า 1 คน/คืน' },
+  madman: { label: 'คนบ้า', icon: '🤪', desc: 'ชนะทันทีเมื่อโดนโหวตออกตอนกลางวัน' },
   shaman: { label: 'หมอดู', icon: '🔮', desc: 'เชื่อมจิต 2 คืนติดเพื่อดูผลแบบย่อ' },
   monk: { label: 'หมอธรรม', icon: '🛡️', desc: 'คุ้มครอง 1 คน/คืน' },
   hunter: { label: 'นายพราน', icon: '🏹', desc: 'ยิง 1 คน/คืน' },
@@ -29,6 +30,7 @@ const ROLES = {
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
+  madman: () => 'คุณคือคนบ้า เป้าหมายคือให้คนอื่นโหวตคุณออกตอนกลางวันเพื่อชนะทันที (ถ้าตายจากการฆ่าหรือสกิลอื่น จะไม่ชนะ)',
   shaman: () => 'คุณคือหมอดู ต้องเชื่อมจิตคนเดิม 2 คืนติดกัน คืนแรกยังไม่เห็นผล คืนที่สองจึงเห็นผลแบบ "มีพิรุธ/คนดี" เท่านั้น',
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
@@ -37,6 +39,7 @@ const ROLE_UI_TEXT = {
 };
 const ROLE_ACTION_CONFIG = {
   pob: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จกตับ' },
+  madman: { requiresTarget: false, allowSelfTarget: true, actionLabel: 'ปั่นกระแส' },
   shaman: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ส่องบทบาท' },
   monk: { requiresTarget: true, allowSelfTarget: true, actionLabel: 'คุ้มครอง' },
   hunter: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ยิง' },
@@ -104,14 +107,19 @@ function shuffle(list) {
 }
 
 function rolePool(count) {
-  const pools = {
-    4: ['pob', 'police', 'shaman', 'hunter'],
-    5: ['pob', 'police', 'shaman', 'monk', 'hunter'],
-    6: ['pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
-    7: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
-    8: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager', 'villager'],
-  };
-  return pools[count] || pools[8];
+  const totalPlayers = Math.max(4, Math.min(12, Number(count || 4)));
+  const pobCount = Math.max(1, Math.floor(totalPlayers / 4));
+  const guaranteedRoles = Array(pobCount).fill('pob');
+
+  if (totalPlayers >= 4) guaranteedRoles.push('police');
+  if (totalPlayers >= 5) guaranteedRoles.push('madman');
+  if (totalPlayers >= 5) guaranteedRoles.push('shaman');
+  if (totalPlayers >= 6) guaranteedRoles.push('monk');
+  if (totalPlayers >= 8) guaranteedRoles.push('hunter');
+
+  const roles = [...guaranteedRoles];
+  while (roles.length < totalPlayers) roles.push('villager');
+  return roles;
 }
 
 function buildRandomizedGameState(entries, hostUid) {
@@ -368,6 +376,7 @@ function getNightSubmittedMap() {
 }
 
 function hasSubmittedNightAction(uid) {
+  if (!isNightActionRequired(uid)) return true;
   const submittedByPublic = Boolean(getNightSubmittedMap()?.[uid]);
   if (submittedByPublic) return true;
   const privateAction = state.allPrivate?.[uid]?.nightAction;
@@ -377,7 +386,8 @@ function hasSubmittedNightAction(uid) {
 function isNightActionRequired(uid) {
   if (!uid || !state.publicState?.players?.[uid]?.alive) return false;
   const role = String(state.allPrivate?.[uid]?.role || '');
-  return Boolean(role);
+  if (!role) return false;
+  return role !== 'madman';
 }
 
 function nightPendingPlayers() {
@@ -416,6 +426,16 @@ function nightPhaseProgressHtml() {
   }
   const waitingNames = pending.map((p) => p.name || 'ผู้เล่น').join(', ');
   return `<div class="tag" style="margin-top:.55rem;">⌛ รอคำสั่งจาก: ${waitingNames}</div>`;
+}
+
+function nightRequiredPlayers() {
+  const alive = alivePlayers();
+  return alive.filter((player) => isNightActionRequired(player.uid));
+}
+
+function nightSubmittedRequiredCount() {
+  const required = nightRequiredPlayers();
+  return required.filter((player) => hasSubmittedNightAction(player.uid)).length;
 }
 
 function ensurePopupRoot() {
@@ -490,10 +510,10 @@ function bindTap(target, handler) {
 
 function renderSetup() {
   const players = Object.values(state.duelPlayers || {});
-  const canStart = state.isHost && players.length >= 4 && players.length <= 8;
+  const canStart = state.isHost && players.length >= 4 && players.length <= 12;
   els.setup.innerHTML = `
     <h2>Step 1: เริ่มเกม (รอ Host กดเริ่ม)</h2>
-    <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-8 คน</p>
+    <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-12 คน</p>
     <p class="muted">สมาชิกในห้องตอนนี้: ${players.length} คน</p>
     ${phaseMetaHtml()}
     <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
@@ -652,7 +672,9 @@ async function submitNightAction(targetId, acted = true) {
     const targetName = state.publicState?.players?.[normalizedTarget]?.name || 'เป้าหมาย';
     let message = myRole === 'villager'
       ? 'บันทึกแล้ว: คืนนี้คุณไถนาเรียบร้อย'
-      : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
+      : (myRole === 'madman'
+        ? 'บันทึกแล้ว: คืนนี้คุณปั่นกระแสเรียบร้อย'
+        : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`);
     if (myRole === 'shaman' && normalizedTarget) {
       message = jailedTonight?.[normalizedTarget]
         ? `${targetName} ถูกขังอยู่ คืนนี้จึงเชื่อมจิตไม่ได้`
@@ -679,6 +701,8 @@ function allAliveSubmittedNight(publicState) {
   const alive = alivePlayers(publicState);
   const submitted = publicState?.nightSubmittedBy || {};
   return alive.every((player) => {
+    const role = String(state.allPrivate?.[player.uid]?.role || '');
+    if (!role || role === 'madman') return true;
     if (submitted[player.uid]) return true;
     const privateAction = state.allPrivate?.[player.uid]?.nightAction;
     return hasNightActionForCurrentDay(privateAction);
@@ -820,6 +844,8 @@ function renderNight() {
         <div class="tag">กดปุ่มด้านล่างเพื่อยืนยันว่าไถนาแล้ว</div>
         <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>🌾 ยืนยันทำงาน/ไถนา</button>
       `;
+    } else if (myRole === 'madman') {
+      actionHtml = '<div class="tag">คืนนี้คุณไม่มีสกิลกลางคืน หน้าที่ของคุณคือโน้มน้าวให้คนอื่นโหวตคุณตอนกลางวัน</div>';
     } else {
       actionHtml = `
         <div class="big-grid">${others.map((p) => `<button class="btn big-btn targetNight ${selectedTarget === p.uid ? 'ready' : ''}" data-id="${p.uid}" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${p.name}${selectedTarget === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
@@ -836,7 +862,7 @@ function renderNight() {
     <h2>Step 3: กลางคืน (แต่ละอาชีพทำหน้าที่)</h2>
     ${phaseMetaHtml()}
     <p class="muted">${actionProgressText}</p>
-    <p class="muted">สถานะรอบ: ส่งคำสั่งแล้ว ${Object.keys(getNightSubmittedMap()).length}/${alive.length} คน</p>
+    <p class="muted">สถานะรอบ: ส่งคำสั่งแล้ว ${nightSubmittedRequiredCount()}/${nightRequiredPlayers().length} คน (ไม่นับบทที่ไม่มีสกิลกลางคืน)</p>
     <h3>วงหมู่บ้าน</h3>
     ${renderVillageGridHtml(allPlayers)}
     <div class="hidden-sheet ${isAlive() ? '' : 'is-dead'}">
@@ -1092,7 +1118,7 @@ function renderEnd() {
   els.end.innerHTML = `
     <h2>Step 6: จบเกม (ประกาศฝ่ายชนะ)</h2>
     ${phaseMetaHtml()}
-    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : (winner === 'cancelled' ? '⛔ เกมยุติ' : '👹 ฝั่งปอบชนะ')}</div>
+    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : (winner === 'madman' ? '🤪 คนบ้าชนะเดี่ยว' : (winner === 'cancelled' ? '⛔ เกมยุติ' : '👹 ฝั่งปอบชนะ'))}</div>
     <div class="result-list" style="margin-top:.7rem;">${Object.values(state.publicState?.players || {}).map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name} • ${ROLES[revealRoles[p.uid]]?.label || '-'}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">
       ${historyRows.map((h) => `<div class=\"tag\">คืน ${h.day}: ${Array.isArray(h.logs) ? h.logs.join(' | ') : '-'}</div>`).join('') || '<div class=\"tag\">ไม่มี history</div>'}
@@ -1106,7 +1132,7 @@ function renderEnd() {
     mountByPhase();
     try {
       const entries = Object.values(state.duelPlayers || {});
-      if (entries.length < 4 || entries.length > 8) {
+      if (entries.length < 4 || entries.length > 12) {
         await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, voteResolveLock: null, lastLogs: ['รีเซ็ตเกม: จำนวนผู้เล่นไม่พอ กรุณารอ Host เริ่มใหม่'], updatedAtMs: Date.now() }));
       } else {
         await seedGameFromEntries(entries, state.uid);
@@ -1279,7 +1305,7 @@ async function initCloud() {
     const status = String(room?.status || room?.state?.status || 'lobby');
     if (mode === 'pob' && status === 'playing' && state.isHost && !state.publicState) {
       const entries = Object.values(state.duelPlayers || {});
-      if (entries.length >= 4 && entries.length <= 8) {
+      if (entries.length >= 4 && entries.length <= 12) {
         void seedGameFromEntries(entries, state.uid).catch(() => {});
       }
     }
