@@ -52,6 +52,7 @@ const state = {
   roleSheetRevealed: false,
   isAdvancingPhase: false,
   lastRenderedPhase: '',
+  wasAlive: true,
 };
 
 const els = {
@@ -319,31 +320,8 @@ async function submitNightAction(targetId, acted = true) {
     return;
   }
 
-  const stamped = await tx(paths.public, (data) => {
-    if (String(data?.phase || '') !== 'night') return data;
-    return {
-      ...data,
-      actionSeq: Number(data?.actionSeq || 0) + 1,
-      updatedAtMs: Date.now(),
-    };
-  });
-  const order = Number(stamped?.actionSeq || 0);
   const now = Date.now();
-
-  if (myRole === 'police' && targetId) {
-    await tx(paths.public, (data) => {
-      if (String(data?.phase || '') !== 'night') return data;
-      const players = data?.players || {};
-      if (!players?.[targetId]?.alive) return data;
-      return {
-        ...data,
-        jailedTonight: { [targetId]: { by: state.uid, at: now, order } },
-        updatedAtMs: now,
-      };
-    });
-  }
-
-  await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order } }));
+  await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order: now } }));
 }
 
 function renderNight() {
@@ -636,6 +614,9 @@ function mountByPhase() {
   Object.values(els).forEach((x) => x.classList.add('hidden'));
   const phase = String(state.publicState?.phase || 'setup');
   const phaseChanged = state.lastRenderedPhase !== phase;
+  const currentlyAlive = isAlive();
+  if (state.wasAlive && !currentlyAlive) state.roleSheetRevealed = false;
+  state.wasAlive = currentlyAlive;
   state.lastRenderedPhase = phase;
   document.body.classList.toggle('is-day-phase', phase === 'vote' || phase === 'morning');
   document.body.classList.toggle('is-night-phase', phase === 'night');

@@ -17,6 +17,34 @@ function isBlockedByPolice(privateState, jailedTonight, uid) {
   return jailedAt < actedAt;
 }
 
+function deriveJailedTonight(publicState, privateState, alivePlayers) {
+  const fromPublic = publicState?.jailedTonight;
+  if (fromPublic && Object.keys(fromPublic).length) return fromPublic;
+
+  const policeActions = alivePlayers
+    .filter((p) => privateState?.[p.uid]?.role === 'police')
+    .map((p) => ({ uid: p.uid, action: privateState?.[p.uid]?.nightAction || null }))
+    .filter(({ action }) => action?.acted && action?.targetId);
+
+  if (!policeActions.length) return {};
+
+  const earliest = policeActions.sort((a, b) => {
+    const atDiff = Number(a.action?.at || 0) - Number(b.action?.at || 0);
+    if (atDiff !== 0) return atDiff;
+    return Number(a.action?.order || 0) - Number(b.action?.order || 0);
+  })[0];
+
+  const targetId = String(earliest?.action?.targetId || '');
+  if (!targetId || !publicState?.players?.[targetId]?.alive) return {};
+  return {
+    [targetId]: {
+      by: earliest.uid,
+      at: Number(earliest?.action?.at || Date.now()),
+      order: Number(earliest?.action?.order || 0),
+    },
+  };
+}
+
 export function checkWinner(publicState, privateState) {
   const alive = Object.values(publicState?.players || {}).filter((p) => p.alive);
   if (!alive.length) return '';
@@ -37,7 +65,7 @@ export function resolveNight(publicState, privateState) {
   const pobUids = uidByRole('pob');
   const monkUid = uidByRole('monk')[0] || null;
   const hunterUid = uidByRole('hunter')[0] || null;
-  const jailedTonight = pub?.jailedTonight || {};
+  const jailedTonight = deriveJailedTonight(pub, priv, alive);
 
   const logs = [];
   const jailedList = Object.keys(jailedTonight);
