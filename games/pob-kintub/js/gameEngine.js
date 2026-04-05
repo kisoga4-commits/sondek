@@ -103,7 +103,11 @@ export function resolveVote(publicState, privateState) {
 
   if (outUid) {
     pub.players[outUid].alive = false;
+
+    pub.players[outUid].deathCause = 'โดนขับไล่';
+
     pub.players[outUid].deathCause = 'vote_eliminated';
+
   }
 
   const summary = Object.fromEntries(sorted.map(([uid, score]) => [pub.players?.[uid]?.name || uid, score]));
