@@ -1,6 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import { getDatabase, onValue, ref, runTransaction } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
+import { checkWinner, resolveNight } from './gameEngine.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -430,24 +431,6 @@ function renderNight() {
   document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
-function markDead(nextPublic, uid, reason, logs) {
-  if (!uid || !nextPublic.players?.[uid] || !nextPublic.players[uid].alive) return;
-  nextPublic.players[uid].alive = false;
-  logs.push(`${nextPublic.players[uid].name} ตาย (${reason})`);
-}
-
-function isBlockedByPolice(priv, jailedTonight, uid) {
-  if (!uid) return false;
-  const jailed = jailedTonight?.[uid] || null;
-  if (!jailed) return false;
-  const jailedOrder = Number(jailed?.order || 0);
-  const actedAt = Number(priv?.[uid]?.nightAction?.at || 0);
-  const actedOrder = Number(priv?.[uid]?.nightAction?.order || 0);
-  if (!actedAt) return true;
-  if (jailedOrder && actedOrder) return jailedOrder < actedOrder;
-  const jailedAt = Number(jailed?.at || 0);
-  return jailedAt < actedAt;
-}
 
 async function resolveMorningByHost() {
   if (!state.isHost || state.isResolvingMorning) return;
@@ -455,62 +438,24 @@ async function resolveMorningByHost() {
   try {
   const pub = JSON.parse(JSON.stringify(state.publicState || {}));
   const priv = state.allPrivate || {};
-  const alive = Object.values(pub.players || {}).filter((p) => p.alive);
-  const uidByRole = (role) => alive.filter((p) => priv[p.uid]?.role === role).map((p) => p.uid);
-  const pobUids = uidByRole('pob');
-  const monkUid = uidByRole('monk')[0] || null;
-  const hunterUid = uidByRole('hunter')[0] || null;
-  const jailedTonight = pub?.jailedTonight || {};
-
-  const logs = [];
-  const jailedList = Object.keys(jailedTonight);
-  if (jailedList.length) {
-    logs.push(`คนที่โดนขัง: ${jailedList.map((uid) => pub.players?.[uid]?.name || 'ผู้เล่น').join(', ')}`);
-  }
-
-  const protectedUid = isBlockedByPolice(priv, jailedTonight, monkUid) ? null : (priv[monkUid]?.nightAction?.targetId || null);
-  pobUids.forEach((pobUid) => {
-    const pobTarget = priv[pobUid]?.nightAction?.targetId || null;
-    if (!pobTarget) return;
-    if (isBlockedByPolice(priv, jailedTonight, pobUid)) {
-      logs.push(`${pub.players?.[pobUid]?.name || 'ปอบ'} ถูกขังก่อนใช้พลัง`);
-    } else if (pobTarget === protectedUid) {
-      logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกคุ้มครองโดยหมอธรรม`);
-    } else if (jailedTonight[pobTarget]) {
-      logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงไม่ตาย`);
-    } else {
-      markDead(pub, pobTarget, 'โดนจกตับ', logs);
-    }
-  });
-
-  const hunterTarget = isBlockedByPolice(priv, jailedTonight, hunterUid) ? null : (priv[hunterUid]?.nightAction?.targetId || null);
-  if (hunterTarget) {
-    if (jailedTonight[hunterTarget]) logs.push(`${pub.players?.[hunterTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงรอดจากกระสุน`);
-    else markDead(pub, hunterTarget, 'โดนยิง', logs);
-  }
-
-  alive.filter((p) => priv[p.uid]?.role === 'villager').forEach((villager) => {
-    const acted = Boolean(priv[villager.uid]?.nightAction?.acted);
-    if (!acted) markDead(pub, villager.uid, 'อดตาย', logs);
-  });
+  const resolvedNight = resolveNight(pub, priv);
+  const nextPublicForWinner = { ...pub, players: resolvedNight.players };
+  const end = checkWinner(nextPublicForWinner, priv);
 
   await tx(paths.public, (data) => ({
     ...data,
-    players: pub.players,
-    jailedTonight: {},
-    phase: 'morning',
-    phaseEndsAtMs: Date.now() + phaseDurationMs('morning'),
-    lastLogs: logs.length ? logs : ['คืนนี้ไม่มีคนตาย'],
+    players: resolvedNight.players,
+    jailedTonight: resolvedNight.jailedTonight,
+    phase: end ? 'end' : 'morning',
+    phaseEndsAtMs: end ? 0 : (Date.now() + phaseDurationMs('morning')),
+    winner: end || '',
+    revealRoles: end
+      ? Object.fromEntries(Object.keys(resolvedNight.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
+      : (data?.revealRoles || {}),
+    lastLogs: resolvedNight.logs,
     nightHistory: [
       ...(Array.isArray(data?.nightHistory) ? data.nightHistory : []),
-      {
-        day: Number(data?.day || 1),
-        policeTarget: Object.keys(jailedTonight).map((uid) => pub.players?.[uid]?.name || '').filter(Boolean).join(', '),
-        monkTarget: protectedUid ? (pub.players?.[protectedUid]?.name || '') : '',
-        pobTarget: pobUids.map((uid) => pub.players?.[priv[uid]?.nightAction?.targetId || '']?.name || '').filter(Boolean).join(', '),
-        hunterTarget: hunterTarget ? (pub.players?.[hunterTarget]?.name || '') : '',
-        logs: logs.length ? logs : ['คืนนี้ไม่มีคนตาย'],
-      },
+      { ...resolvedNight.nightHistoryEntry, day: Number(data?.day || 1) },
     ],
     updatedAtMs: Date.now(),
   }));
@@ -622,14 +567,6 @@ async function finalizeVoteByHost() {
   } finally {
     state.isResolvingVote = false;
   }
-}
-
-function checkWinner(publicState, privateState) {
-  const alive = Object.values(publicState.players || {}).filter((p) => p.alive);
-  const pobAlive = alive.filter((p) => privateState[p.uid]?.role === 'pob').length;
-  if (pobAlive === 0) return 'villager';
-  if (alive.length === pobAlive) return 'pob';
-  return '';
 }
 
 function renderVote() {
