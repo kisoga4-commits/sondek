@@ -893,15 +893,11 @@ if (openProfilePageBtn) {
 }
 
 if (openMyProfileBtn) {
-  openMyProfileBtn.addEventListener('click', () => {
-    window.open(buildProfileLink(), '_blank', 'noopener,noreferrer');
-  });
+  openMyProfileBtn.href = buildProfileLink();
 }
 
 if (openCourseDestinationBtn) {
-  openCourseDestinationBtn.addEventListener('click', () => {
-    window.open(buildCourseDestinationLink(), '_blank', 'noopener,noreferrer');
-  });
+  openCourseDestinationBtn.href = buildCourseDestinationLink();
 }
 
 if (courseOfferForm) {
