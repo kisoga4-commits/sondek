@@ -1681,6 +1681,22 @@ select:focus {
   }
 }
 
+
+.duel-home-icon {
+  align-self: flex-start;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid #93c5fd;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-size: 1.25rem;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.14);
+}
+
 /* Duel/Race lightweight game UI refresh */
 .duel-page {
   max-width: 980px;
