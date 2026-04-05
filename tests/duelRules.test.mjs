@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getEffectiveFinishDistance } from '../js/duelRules.js';
+import { getEffectiveFinishDistance, getWormWrongPenalty, pickWormComboTargetUid } from '../js/duelRules.js';
 
 test('returns base distance for non-worm modes', () => {
   const result = getEffectiveFinishDistance({
@@ -41,4 +41,43 @@ test('scales distance for worm party mode (team size 3)', () => {
     finishDistance: 10,
   });
   assert.equal(result, 30);
+});
+
+test('worm wrong streak applies 2/3/5 second stun and self penalty on third wrong', () => {
+  assert.deepEqual(getWormWrongPenalty(1), {
+    stunMs: 2000,
+    distancePenalty: 0,
+    message: 'ผิดสะสม: STUN 2 วินาที',
+  });
+  assert.deepEqual(getWormWrongPenalty(2), {
+    stunMs: 3000,
+    distancePenalty: 0,
+    message: 'ผิดสะสม: STUN 3 วินาที',
+  });
+  assert.deepEqual(getWormWrongPenalty(3), {
+    stunMs: 5000,
+    distancePenalty: 1,
+    message: 'ผิดสะสม: STUN 5 วินาที + ถอย -1',
+  });
+});
+
+test('worm combo attack targets highest-score opponent outside actor team', () => {
+  const players = {
+    self: { uid: 'self', teamId: 'A', distance: 5 },
+    mate: { uid: 'mate', teamId: 'A', distance: 9 },
+    opp1: { uid: 'opp1', teamId: 'B', distance: 8 },
+    opp2: { uid: 'opp2', teamId: 'B', distance: 6 },
+  };
+  const targetUid = pickWormComboTargetUid(players, 'self', 'A', 0.5);
+  assert.equal(targetUid, 'opp1');
+});
+
+test('worm combo attack randomizes when top opponent scores tie', () => {
+  const players = {
+    self: { uid: 'self', teamId: 'A', distance: 5 },
+    opp1: { uid: 'opp1', teamId: 'B', distance: 8 },
+    opp2: { uid: 'opp2', teamId: 'B', distance: 8 },
+  };
+  assert.equal(pickWormComboTargetUid(players, 'self', 'A', 0.1), 'opp1');
+  assert.equal(pickWormComboTargetUid(players, 'self', 'A', 0.9), 'opp2');
 });

@@ -43,7 +43,7 @@ import {
   validateProfileImageConstraints,
 } from './profileImagePolicy.js';
 import { normalizePublicImageUrl } from './imageUrl.js';
-import { getEffectiveFinishDistance } from './duelRules.js';
+import { getEffectiveFinishDistance, getWormWrongPenalty, pickWormComboTargetUid } from './duelRules.js';
 import { buildPersonalQuestionLoop, LOOP_QUESTION_COUNT } from './duelCore.js';
 
 const firebaseConfig = {
@@ -83,7 +83,6 @@ const DUEL_PERMISSION_HINT = 'ยังไม่มีสิทธิ์ใช�
 const DUEL_AUTH_HINT = 'ล็อกอินแบบ Anonymous ไม่สำเร็จ — เปิด Firebase Authentication > Sign-in method > Anonymous และเพิ่มโดเมนปัจจุบันใน Authorized domains';
 const DUEL_START_HP = 10;
 const DUEL_MAX_HP = 10;
-const DUEL_STUN_MS = 3000;
 const DUEL_ROOM_ID_LENGTH = 6;
 const DUEL_QUESTION_SECONDS = 10;
 const DUEL_REVEAL_SECONDS = 0.8;
@@ -1317,15 +1316,15 @@ export async function submitDuelAnswer(roomId, payload) {
         if (me.correctStreak >= 3) {
           const isPartyMatch = String(data?.modeConfig?.matchType || 'solo') === 'party';
           const myTeamId = String(me.teamId || '');
-          const candidates = Object.entries(players)
-            .filter(([pid, candidate]) => {
-              if (pid === uid) return false;
-              if (!isPartyMatch) return true;
-              if (isWormMode) return String(candidate?.teamId || '') !== myTeamId;
-              return Boolean(candidate?.isActiveRunner);
-            })
-            .sort((a, b) => Number(b[1]?.distance || 0) - Number(a[1]?.distance || 0));
-          const targetUid = candidates[0]?.[0] || '';
+          let targetUid = '';
+          if (isWormMode) {
+            targetUid = pickWormComboTargetUid(players, uid, myTeamId, Math.random());
+          } else {
+            const candidates = Object.entries(players)
+              .filter(([pid, candidate]) => pid !== uid && (!isPartyMatch || Boolean(candidate?.isActiveRunner)))
+              .sort((a, b) => Number(b[1]?.distance || 0) - Number(a[1]?.distance || 0));
+            targetUid = candidates[0]?.[0] || '';
+          }
           if (targetUid) {
             const target = { ...(players[targetUid] || {}) };
             target.distance = Math.max(0, Number(target.distance || 0) - 1);
@@ -1348,14 +1347,25 @@ export async function submitDuelAnswer(roomId, payload) {
         me.wrongCount = Number(me.wrongCount || 0) + 1;
         me.wrongStreak = Number(me.wrongStreak || 0) + 1;
         me.correctStreak = 0;
-        if (me.wrongStreak >= 2) {
-          me.stunUntilMs = nowMs + DUEL_STUN_MS;
-        }
-        if (me.wrongStreak >= 3) {
-          me.distance = Math.max(0, Number(me.distance || 0) - 1);
+        if (isWormMode) {
+          const penalty = getWormWrongPenalty(me.wrongStreak);
+          if (penalty.stunMs > 0) {
+            me.stunUntilMs = nowMs + penalty.stunMs;
+          }
+          if (penalty.distancePenalty > 0) {
+            me.distance = Math.max(0, Number(me.distance || 0) - penalty.distancePenalty);
+          }
+          eventMessage = penalty.message;
+        } else {
+          if (me.wrongStreak >= 2) {
+            me.stunUntilMs = nowMs + 3000;
+          }
+          if (me.wrongStreak >= 3) {
+            me.distance = Math.max(0, Number(me.distance || 0) - 1);
+          }
+          eventMessage = me.wrongStreak >= 3 ? 'ผิดสะสม: STUN + ถอย -1' : me.wrongStreak === 2 ? 'ผิดสะสม: STUN 3 วินาที' : 'ตอบผิด';
         }
         eventType = 'wrong';
-        eventMessage = me.wrongStreak >= 3 ? 'ผิดสะสม: STUN + ถอย -1' : me.wrongStreak === 2 ? 'ผิดสะสม: STUN 3 วินาที' : 'ตอบผิด';
       }
 
       players[uid] = { ...me, updatedAt: nowMs };
