@@ -177,12 +177,67 @@ function renderVillageGridHtml(players) {
       ${players.map((p) => `
         <div class="villager-card ${p.alive ? '' : 'dead'}">
           <div class="villager-icon">${p.alive ? '🙂' : '💀'}</div>
-          <div class="villager-name">${p.name}</div>
+          <div class="villager-name">${p.name}${p.uid === state.uid ? ' 👤' : ''}</div>
           <div class="villager-status">${p.alive ? 'ยังอยู่ในเกม' : 'ตายแล้ว'}</div>
         </div>
       `).join('')}
     </div>
   `;
+}
+
+function ensurePopupRoot() {
+  let root = document.getElementById('gamePopupRoot');
+  if (root) return root;
+  root = document.createElement('div');
+  root.id = 'gamePopupRoot';
+  root.className = 'game-popup-backdrop hidden';
+  root.innerHTML = `
+    <article class="game-popup-card">
+      <h3 id="gamePopupTitle">แจ้งเตือน</h3>
+      <p id="gamePopupMessage" class="muted"></p>
+      <div class="game-popup-actions" id="gamePopupActions"></div>
+    </article>
+  `;
+  document.body.appendChild(root);
+  return root;
+}
+
+function closePopup() {
+  const root = ensurePopupRoot();
+  root.classList.add('hidden');
+}
+
+function openPopup({ title = 'แจ้งเตือน', message = '', confirmText = 'ตกลง', cancelText = 'ยกเลิก', showCancel = false, onConfirm = null }) {
+  const root = ensurePopupRoot();
+  const titleEl = document.getElementById('gamePopupTitle');
+  const messageEl = document.getElementById('gamePopupMessage');
+  const actionsEl = document.getElementById('gamePopupActions');
+  if (!titleEl || !messageEl || !actionsEl) return;
+
+  titleEl.textContent = title;
+  messageEl.textContent = message;
+  actionsEl.innerHTML = '';
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'btn';
+  confirmBtn.type = 'button';
+  confirmBtn.textContent = confirmText;
+  confirmBtn.addEventListener('click', () => {
+    closePopup();
+    if (typeof onConfirm === 'function') onConfirm();
+  });
+  actionsEl.appendChild(confirmBtn);
+
+  if (showCancel) {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn secondary';
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = cancelText;
+    cancelBtn.addEventListener('click', closePopup);
+    actionsEl.appendChild(cancelBtn);
+  }
+
+  root.classList.remove('hidden');
 }
 
 function renderSetup() {
@@ -192,7 +247,7 @@ function renderSetup() {
     <h2>Step 1: Setup (Cloud)</h2>
     <p class="muted">PIN ${pin} • ยืนยันตัวตนด้วย Firebase Authentication แล้ว</p>
     ${phaseMetaHtml()}
-    <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '(คุณ)' : ''}</div>`).join('')}</div>
+    <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
     ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบกินตับ</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
@@ -310,18 +365,25 @@ async function advanceIdentityToVoteByHost() {
 async function submitNightAction(targetId, acted = true) {
   const myRole = state.mePrivate?.role;
   if (state.mePrivate?.nightAction?.acted) {
-    window.alert('คืนนี้คุณใช้สิทธิ์ไปแล้ว');
+    openPopup({ title: 'แจ้งเตือน', message: 'คืนนี้คุณใช้สิทธิ์ไปแล้ว' });
     return;
   }
   const jailedTonight = state.publicState?.jailedTonight || {};
   const iAmJailed = Boolean(jailedTonight?.[state.uid]);
   if (iAmJailed) {
-    window.alert('คุณโดนจับเข้าคุกแล้ว ใช้พลังคืนนี้ไม่ได้');
+    openPopup({ title: 'ติดคุก', message: 'คุณโดนจับเข้าคุกแล้ว ใช้พลังคืนนี้ไม่ได้' });
     return;
   }
 
-  const now = Date.now();
-  await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order: now } }));
+  try {
+    const now = Date.now();
+    await tx(paths.privateMine(), (data) => ({ ...data, nightAction: { role: myRole, targetId: targetId || null, acted, at: now, order: now } }));
+  } catch (error) {
+    openPopup({
+      title: 'ส่งคำสั่งไม่สำเร็จ',
+      message: error?.message || 'ไม่สามารถบันทึกคำสั่งได้',
+    });
+  }
 }
 
 function renderNight() {
@@ -349,11 +411,14 @@ function renderNight() {
   }
 
   const actionsCount = alive.filter((p) => state.allPrivate?.[p.uid]?.nightAction?.acted).length;
+  const actionProgressText = state.isHost
+    ? `ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}`
+    : 'ส่งคำสั่งของคุณได้ตามปกติ ระบบจะรวมผลให้ Host อัตโนมัติ';
 
   els.night.innerHTML = `
     <h2>Step 4: Night Action</h2>
     ${phaseMetaHtml()}
-    <p class="muted">ผู้เล่นที่ส่งคำสั่งแล้ว ${actionsCount}/${alive.length}</p>
+    <p class="muted">${actionProgressText}</p>
     <p class="muted">คนที่โดนจับคืนนี้: ${Object.keys(jailedTonight).length ? Object.keys(jailedTonight).map((uid) => state.publicState?.players?.[uid]?.name || 'ผู้เล่น').join(', ') : 'ยังไม่มี'}</p>
     <h3>วงหมู่บ้าน</h3>
     ${renderVillageGridHtml(allPlayers)}
@@ -390,18 +455,39 @@ function renderNight() {
   });
 
   document.getElementById('workBtn')?.addEventListener('click', () => {
-    state.roleSheetRevealed = false;
-    void submitNightAction(state.uid, true);
+    openPopup({
+      title: 'ยืนยันคำสั่งกลางคืน',
+      message: 'ยืนยันการทำงาน/ไถนาในคืนนี้?',
+      confirmText: 'ยืนยัน',
+      cancelText: 'ปิด',
+      showCancel: true,
+      onConfirm: () => {
+        state.roleSheetRevealed = false;
+        void submitNightAction(state.uid, true);
+      },
+    });
   });
   document.querySelectorAll('.targetNight').forEach((btn) => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.id;
-      state.roleSheetRevealed = false;
-      void submitNightAction(targetId, true);
-      if (myRole === 'shaman') {
-        const targetRole = ROLES[state.allPrivate?.[targetId]?.role]?.label || 'ไม่ทราบ';
-        window.alert(`ส่องบท: ${state.publicState?.players?.[targetId]?.name || 'ผู้เล่น'} = ${targetRole}`);
-      }
+      const targetName = state.publicState?.players?.[targetId]?.name || 'ผู้เล่น';
+      openPopup({
+        title: 'ยืนยันคำสั่งกลางคืน',
+        message: `ยืนยันเลือก ${targetName} ?`,
+        confirmText: 'ยืนยัน',
+        cancelText: 'ปิด',
+        showCancel: true,
+        onConfirm: () => {
+          state.roleSheetRevealed = false;
+          void submitNightAction(targetId, true);
+          if (myRole === 'shaman') {
+            openPopup({
+              title: 'ส่งคำสั่งแล้ว',
+              message: `ระบบบันทึกคำสั่งส่องของคุณกับ ${targetName} แล้ว`,
+            });
+          }
+        },
+      });
     });
   });
 
@@ -487,7 +573,14 @@ async function advanceMorningToVoteByHost() {
 }
 
 async function submitVote(targetId) {
-  await tx(paths.privateMine(), (data) => ({ ...data, voteTarget: targetId || null }));
+  try {
+    await tx(paths.privateMine(), (data) => ({ ...data, voteTarget: targetId || null }));
+  } catch (error) {
+    openPopup({
+      title: 'โหวตไม่สำเร็จ',
+      message: error?.message || 'ไม่สามารถบันทึกคะแนนโหวตได้',
+    });
+  }
 }
 
 async function finalizeVoteByHost() {
@@ -564,7 +657,18 @@ function renderVote() {
   `;
 
   document.querySelectorAll('.voteBtn').forEach((btn) => {
-    btn.addEventListener('click', () => { void submitVote(btn.dataset.id); });
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.id;
+      const targetName = state.publicState?.players?.[targetId]?.name || 'ผู้เล่น';
+      openPopup({
+        title: 'ยืนยันโหวต',
+        message: `ยืนยันโหวต ${targetName} ?`,
+        confirmText: 'ยืนยันโหวต',
+        cancelText: 'ปิด',
+        showCancel: true,
+        onConfirm: () => { void submitVote(targetId); },
+      });
+    });
   });
   document.getElementById('finalVote')?.addEventListener('click', () => { void finalizeVoteByHost(); });
   document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
@@ -652,6 +756,14 @@ function mountByPhase() {
 }
 
 function ensurePrivateAllListener() {
+  if (!state.isHost) {
+    if (typeof state.privateAllUnsub === 'function') {
+      state.privateAllUnsub();
+      state.privateAllUnsub = null;
+    }
+    state.allPrivate = {};
+    return;
+  }
   if (typeof state.privateAllUnsub === 'function') return;
 
   state.privateAllUnsub = onValue(paths.privateAll, (snap) => {
