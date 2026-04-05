@@ -437,6 +437,7 @@ function renderSetup() {
           jailedTonight: {},
           nightSubmittedBy: {},
           nightResolveLock: null,
+          voteResolveLock: null,
           forceClosed: null,
           updatedAtMs: Date.now(),
         }));
@@ -917,31 +918,43 @@ async function submitVote(targetId) {
 
 async function finalizeVoteByHost() {
   if (!state.isHost || state.isResolvingVote) return;
+  if (String(state.publicState?.phase || '') !== 'vote') return;
   state.isResolvingVote = true;
   try {
-  const pub = JSON.parse(JSON.stringify(state.publicState || {}));
-  const priv = state.allPrivate || {};
+  const lockClaimed = await claimVoteResolveLock('manual-host');
+  if (!lockClaimed) return;
+
+  const latestPublicSnap = await readWithTimeout(paths.public, 7000);
+  const latestPrivateSnap = await readWithTimeout(paths.privateAll, 7000);
+  const pub = JSON.parse(JSON.stringify(latestPublicSnap.val() || {}));
+  const priv = latestPrivateSnap.val() || {};
+  if (String(pub?.phase || '') !== 'vote') return;
   const voteResult = resolveVote(pub, priv);
   const outUid = voteResult.eliminatedUid;
 
-  await tx(paths.public, (data) => ({
-    ...data,
-    players: voteResult.players,
-    voteSummary: voteResult.voteSummary,
-    phase: voteResult.winner ? 'end' : 'night',
-    phaseEndsAtMs: voteResult.winner ? 0 : (Date.now() + phaseDurationMs('night')),
-    actionSeq: voteResult.winner ? Number(data?.actionSeq || 0) : 0,
-    winner: voteResult.winner || '',
-    revealRoles: voteResult.winner
-      ? Object.fromEntries(Object.keys(voteResult.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
-      : (data?.revealRoles || {}),
-    day: voteResult.winner ? data.day : Number(data.day || 1) + (data?.isFirstDayVote ? 0 : 1),
-    isFirstDayVote: false,
-    nightSubmittedBy: {},
-    nightResolveLock: null,
-    lastLogs: outUid ? [`${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} ถูกโหวตออก`] : ['ไม่มีใครถูกโหวตออก'],
-    updatedAtMs: Date.now(),
-  }));
+  await tx(paths.public, (data) => {
+    if (String(data?.phase || '') !== 'vote') return data;
+    if (String(data?.voteResolveLock?.by || '') && String(data?.voteResolveLock?.by || '') !== state.uid) return data;
+    return {
+      ...data,
+      players: voteResult.players,
+      voteSummary: voteResult.voteSummary,
+      phase: voteResult.winner ? 'end' : 'night',
+      phaseEndsAtMs: voteResult.winner ? 0 : (Date.now() + phaseDurationMs('night')),
+      actionSeq: voteResult.winner ? Number(data?.actionSeq || 0) : 0,
+      winner: voteResult.winner || '',
+      revealRoles: voteResult.winner
+        ? Object.fromEntries(Object.keys(voteResult.players || {}).map((uid) => [uid, priv[uid]?.role || 'unknown']))
+        : (data?.revealRoles || {}),
+      day: voteResult.winner ? data.day : Number(data.day || 1) + (data?.isFirstDayVote ? 0 : 1),
+      isFirstDayVote: false,
+      nightSubmittedBy: {},
+      nightResolveLock: null,
+      voteResolveLock: null,
+      lastLogs: outUid ? [`${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} ถูกโหวตออก`] : ['ไม่มีใครถูกโหวตออก'],
+      updatedAtMs: Date.now(),
+    };
+  });
 
   await tx(paths.privateAll, (data) => {
     const next = { ...(data || {}) };
@@ -953,6 +966,27 @@ async function finalizeVoteByHost() {
   } finally {
     state.isResolvingVote = false;
   }
+}
+
+async function claimVoteResolveLock(reason = 'auto') {
+  const lockTtlMs = 15000;
+  const now = Date.now();
+  const result = await tx(paths.public, (data) => {
+    if (String(data?.phase || '') !== 'vote') return data;
+    const currentLock = data?.voteResolveLock || null;
+    const lockFresh = currentLock?.at && (now - Number(currentLock.at) < lockTtlMs);
+    if (lockFresh && currentLock?.by && currentLock.by !== state.uid) return data;
+    return {
+      ...(data || {}),
+      voteResolveLock: {
+        by: state.uid,
+        at: now,
+        reason,
+      },
+      updatedAtMs: now,
+    };
+  }, { timeoutMs: 8000, maxAttempts: 4 });
+  return String(result?.voteResolveLock?.by || '') === state.uid;
 }
 
 function renderVote() {
@@ -1001,7 +1035,7 @@ function renderEnd() {
   `;
 
   document.getElementById('restartGame')?.addEventListener('click', async () => {
-    await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, lastLogs: ['รีเซ็ตเกม'], updatedAtMs: Date.now() }));
+    await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, voteResolveLock: null, lastLogs: ['รีเซ็ตเกม'], updatedAtMs: Date.now() }));
   });
   document.getElementById('goHome')?.addEventListener('click', async () => {
     await tx(paths.public, () => null);
