@@ -1,5 +1,11 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
-import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
+import {
+  browserLocalPersistence,
+  getAuth,
+  onAuthStateChanged,
+  setPersistence,
+  signInAnonymously,
+} from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import { get, getDatabase, onValue, ref, runTransaction, update } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
 import { checkWinner, resolveNight, resolveVote } from './gameEngine.js';
 
@@ -19,7 +25,7 @@ const ROLES = {
   monk: { label: 'หมอธรรม', icon: '🛡️', desc: 'คุ้มครอง 1 คน/คืน' },
   hunter: { label: 'นายพราน', icon: '🏹', desc: 'ยิง 1 คน/คืน' },
   police: { label: 'ตำรวจ', icon: '👮', desc: 'จับ 1 คนเข้าคุก/คืน' },
-  villager: { label: 'คนบ้าน', icon: '🌾', desc: 'ต้องกดทำงาน ไม่งั้นอดตาย' },
+  villager: { label: 'ชาวนา', icon: '🌾', desc: 'ต้องกดทำงาน ไม่งั้นอดตาย' },
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
@@ -27,7 +33,7 @@ const ROLE_UI_TEXT = {
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
   police: () => 'คุณคือตำรวจ เลือกจับคนเข้าคุกได้ 1 คน (ถ้าจับปอบ ปอบจะฆ่าใครไม่ได้)',
-  villager: () => "คุณคือคนบ้าน ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
+  villager: () => "คุณคือชาวนา ต้องกดปุ่ม 'ไถนา' ทุกคืน เพื่อหาข้าวกิน ไม่งั้นจะอดตาย!",
 };
 const ROLE_ACTION_CONFIG = {
   pob: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จกตับ' },
@@ -41,12 +47,14 @@ const ROLE_ACTION_CONFIG = {
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
 const pin = String(params.get('pin') || roomId).trim();
+const preferredPlayerUid = String(params.get('uid') || '').trim();
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
 const state = {
+  authUid: '',
   uid: '',
   publicState: null,
   mePrivate: null,
@@ -217,10 +225,12 @@ async function readWithTimeout(pathRef, timeoutMs = 4000) {
 }
 
 async function ensureAuth() {
+  await setPersistence(auth, browserLocalPersistence);
   await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        state.uid = user.uid;
+        state.authUid = user.uid;
+        state.uid = preferredPlayerUid || user.uid;
         unsub();
         resolve();
         return;
@@ -1255,7 +1265,10 @@ async function initCloud() {
   }
 
   const topbar = document.querySelector('.topbar p');
-  if (topbar) topbar.textContent = `Cloud Mode • PIN ${pin} • UID ${state.uid.slice(0, 8)}`;
+  if (topbar) {
+    const authTag = state.authUid ? ` • AUTH ${state.authUid.slice(0, 6)}` : '';
+    topbar.textContent = `Cloud Mode • PIN ${pin} • PLAYER ${state.uid.slice(0, 8)}${authTag}`;
+  }
   renderLoading();
 
   onValue(paths.duelRoom, (snap) => {

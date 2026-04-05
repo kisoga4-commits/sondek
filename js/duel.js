@@ -492,6 +492,7 @@ function handleRoomUpdate(room) {
         pin: String(room.pin || room.roomId || ''),
         role: isHost ? 'host' : 'join',
         player: String(room?.players?.[state.uid]?.name || ''),
+        uid: String(state.uid || ''),
       });
       const target = 'games/pob-kintub/index.html';
       window.location.href = `${target}?${params.toString()}`;
