@@ -91,3 +91,14 @@ test('checkWinner follows new rule: ends only when one faction is fully dead', (
   pub.players.pob1.alive = false;
   assert.equal(checkWinner(pub, priv), 'villager');
 });
+
+test('checkWinner does not end game when private roles are incomplete (legacy/stale state)', () => {
+  const pub = {
+    players: {
+      pob1: { uid: 'pob1', alive: true },
+      h1: { uid: 'h1', alive: true },
+    },
+  };
+  const priv = { pob1: { role: 'pob' } };
+  assert.equal(checkWinner(pub, priv), '');
+});
