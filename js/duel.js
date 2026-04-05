@@ -97,6 +97,15 @@ const GAME_DEFINITIONS = {
       durationSeconds: Number(el.durationInput?.value || 300),
     }),
   },
+  pob_v2: {
+    label: 'ปอบจกตับ V2',
+    getConfig: () => ({
+      matchType: 'solo',
+      teamSize: 2,
+      finishDistance: 10,
+      durationSeconds: Number(el.durationInput?.value || 300),
+    }),
+  },
   logic_spy: {
     label: 'ใครต่างจากเพื่อน',
     getConfig: () => ({
@@ -120,9 +129,9 @@ function syncHostModeOptions() {
   const mode = getSelectedGameMode();
   el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
-  el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob');
+  el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob' && mode !== 'pob_v2');
   const courseLabel = el.courseIdInput?.closest('label');
-  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'logic_spy');
+  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2' || mode === 'logic_spy');
   syncWormMatchOptions();
 }
 
@@ -440,7 +449,7 @@ function handleRoomUpdate(room) {
   const gameMode = String(room?.modeConfig?.gameMode || 'quick');
   const serverAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? -1);
   state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), serverAnsweredRound);
-  if (gameMode !== 'pob' && gameMode !== 'logic_spy') {
+  if (gameMode !== 'pob' && gameMode !== 'pob_v2' && gameMode !== 'logic_spy') {
     void ensureRoomQuestionBank(room);
   }
   const players = Object.values(room.players || {});
@@ -455,9 +464,11 @@ function handleRoomUpdate(room) {
   const mode = String(room?.modeConfig?.gameMode || 'quick');
   const minPlayers = mode === 'pob'
     ? 4
+    : (mode === 'pob_v2'
+      ? 4
     : (mode === 'logic_spy'
       ? 3
-      : (String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2));
+      : (String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2)));
   const canStart = isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers;
   el.startGameBtn.classList.toggle('hidden', !isHost || roomStatus(room) !== 'lobby');
   el.startGameBtn.disabled = !canStart;
@@ -495,6 +506,22 @@ function handleRoomUpdate(room) {
         uid: String(state.uid || ''),
       });
       const target = 'games/pob-kintub/index.html';
+      window.location.href = `${target}?${params.toString()}`;
+    }
+    return;
+  }
+  if (gameMode === 'pob_v2' && roomStatus(room) === 'playing') {
+    const marker = `${room.roomId}_${room.startedAtMs || 0}_${state.uid}`;
+    if (state.pobRedirectMarker !== marker) {
+      state.pobRedirectMarker = marker;
+      const params = new URLSearchParams({
+        roomId: String(room.roomId || ''),
+        pin: String(room.pin || room.roomId || ''),
+        role: isHost ? 'host' : 'join',
+        player: String(room?.players?.[state.uid]?.name || ''),
+        uid: String(state.uid || ''),
+      });
+      const target = 'games/pob-joktab-v2/index.html';
       window.location.href = `${target}?${params.toString()}`;
     }
     return;
@@ -564,7 +591,7 @@ async function handleCreateRoom() {
     const gameMode = getSelectedGameMode();
     const gameDef = GAME_DEFINITIONS[gameMode] || GAME_DEFINITIONS.quick;
     const modeConfig = gameDef.getConfig();
-    const isSpecialMode = gameMode === 'pob' || gameMode === 'logic_spy';
+    const isSpecialMode = gameMode === 'pob' || gameMode === 'pob_v2' || gameMode === 'logic_spy';
     const courseId = String(el.courseIdInput.value || '').trim();
     let questionSequence = [];
 

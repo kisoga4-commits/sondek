@@ -104,7 +104,7 @@ test('shaman can inspect role and receive role result text', () => {
   priv.pob1.nightAction = { targetId: null, acted: false, at: 100, order: 2 };
   priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
   const result = resolveNight(pub, priv);
-  assert.match((result.roleResults?.sham1 || []).join(' | '), /พบว่าเป็น ปอบ/);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /เริ่มเชื่อมจิต/);
 });
 
 test('shaman cannot inspect a jailed target', () => {
@@ -114,7 +114,7 @@ test('shaman cannot inspect a jailed target', () => {
   priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
   priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
   const result = resolveNight(pub, priv);
-  assert.match((result.roleResults?.sham1 || []).join(' | '), /โดนขัง จึงส่องบทบาทไม่ได้/);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /โดนขัง จึงเชื่อมจิตไม่ได้/);
 });
 
 test('police jailing is exposed as role feedback for jailed target', () => {

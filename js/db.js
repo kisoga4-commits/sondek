@@ -984,13 +984,15 @@ export async function createDuelRoom(payload) {
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
   const requestedGameMode = String(payload?.gameMode || '').toLowerCase();
-  const gameMode = ['quick', 'worm', 'pob', 'logic_spy'].includes(requestedGameMode) ? requestedGameMode : 'quick';
+  const gameMode = ['quick', 'worm', 'pob', 'pob_v2', 'logic_spy'].includes(requestedGameMode) ? requestedGameMode : 'quick';
   const matchType = requestedMatchType;
   const gameLabel = String(payload?.gameLabel || '').trim()
     || (gameMode === 'worm'
       ? 'หนอนกระดื้บ'
       : gameMode === 'pob'
         ? 'ปอบกินตับ'
+        : gameMode === 'pob_v2'
+          ? 'ปอบจกตับ V2'
         : gameMode === 'logic_spy'
           ? 'ใครต่างจากเพื่อน'
           : 'ตอบไว');
@@ -1038,7 +1040,7 @@ export async function createDuelRoom(payload) {
           hostUid: uid,
           hostName: hostPlayer.name,
           durationSeconds,
-          maxPlayers: 8,
+          maxPlayers: gameMode === 'pob_v2' ? 24 : 8,
           modeConfig,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
           questionPoolIds,
@@ -1160,7 +1162,10 @@ export async function startDuelRoom(roomId) {
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
       const requiredPlayers = gameMode === 'pob'
         ? 4
+        : (gameMode === 'pob_v2'
+          ? 4
         : (gameMode === 'logic_spy' ? 3 : (matchType === 'party' ? teamSize * 2 : 2));
+        )
       if (Object.keys(players).length < requiredPlayers) {
         throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${requiredPlayers} คนก่อนเริ่มดวล`);
       }
@@ -1170,7 +1175,10 @@ export async function startDuelRoom(roomId) {
         0,
         gameMode === 'pob'
           ? 8
+          : (gameMode === 'pob_v2'
+            ? 24
           : (gameMode === 'logic_spy' ? 5 : (matchType === 'party' ? teamSize * 2 : 4)),
+          )
       );
       const normalizedPlayers = {};
       let teams = null;
