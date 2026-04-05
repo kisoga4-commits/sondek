@@ -288,9 +288,7 @@ function deadOverlayHtml() {
 }
 
 function renderVillageGridHtml(players) {
-  const jailedTonight = state.publicState?.jailedTonight || {};
   const statusMeta = (player) => {
-    if (player.alive && jailedTonight[player.uid]) return { icon: '🧱', text: 'โดนตำรวจขังคืนนี้', className: 'out' };
     if (player.alive) return { icon: '🛟', text: 'ยังรอดชีวิต', className: '' };
     if (player.deathCause === 'โดนจกตับ') return { icon: '🩸', text: 'ตายจากโดนจกตับ', className: 'out' };
 
@@ -299,7 +297,7 @@ function renderVillageGridHtml(players) {
     return { icon: '💀', text: 'ตายแล้ว (ไม่ทราบสาเหตุ)', className: 'out' };
   };
   return `
-    <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🧱 โดนตำรวจขัง • 🩸 โดนจกตับ • 🏹 โดนนายพรานยิง • 🚫 โดนขับไล่</div>
+    <div class="tag" style="margin-bottom:.5rem;">สัญลักษณ์: 🛟 ผู้รอดชีวิต • 🩸 โดนจกตับ • 🏹 โดนนายพรานยิง • 🚫 โดนขับไล่</div>
     <div class="village-grid">
       ${players.map((p) => `
         <div class="villager-card ${p.alive ? '' : 'dead'}">
@@ -332,6 +330,39 @@ function hasNightActionForCurrentDay(action) {
   const actionDay = Number(action?.day || 0);
   if (!Number.isFinite(actionDay) || actionDay <= 0) return true;
   return actionDay === getCurrentDay();
+}
+
+function getNightActionForDay(privateStateByUid, uid, day) {
+  const action = privateStateByUid?.[uid]?.nightAction || null;
+  if (!action?.acted) return null;
+  const actionDay = Number(action?.day || 0);
+  if (!Number.isFinite(actionDay) || actionDay <= 0) return action;
+  if (actionDay !== day) return null;
+  return action;
+}
+
+function deriveJailedTonightFromPrivate() {
+  const day = getCurrentDay();
+  const alive = alivePlayers();
+  const policeActions = alive
+    .filter((p) => state.allPrivate?.[p.uid]?.role === 'police')
+    .map((p) => ({ uid: p.uid, action: getNightActionForDay(state.allPrivate, p.uid, day) }))
+    .filter(({ action }) => action?.acted && action?.targetId);
+  if (!policeActions.length) return {};
+  const earliest = policeActions.sort((a, b) => {
+    const atDiff = Number(a.action?.at || 0) - Number(b.action?.at || 0);
+    if (atDiff !== 0) return atDiff;
+    return Number(a.action?.order || 0) - Number(b.action?.order || 0);
+  })[0];
+  const targetId = String(earliest?.action?.targetId || '');
+  if (!targetId || !state.publicState?.players?.[targetId]?.alive) return {};
+  return {
+    [targetId]: {
+      by: earliest.uid,
+      at: Number(earliest?.action?.at || Date.now()),
+      order: Number(earliest?.action?.order || 0),
+    },
+  };
 }
 
 function getNightSubmittedMap() {
@@ -566,10 +597,10 @@ async function submitNightAction(targetId, acted = true) {
     openPopup({ title: 'แจ้งเตือน', message: 'คืนนี้คุณใช้สิทธิ์ไปแล้ว' });
     return;
   }
-  const jailedTonight = state.publicState?.jailedTonight || {};
+  const jailedTonight = deriveJailedTonightFromPrivate();
   const iAmJailed = Boolean(jailedTonight?.[state.uid]);
   if (iAmJailed) {
-    openPopup({ title: 'ติดคุก', message: 'คุณโดนจับเข้าคุกแล้ว ใช้พลังคืนนี้ไม่ได้' });
+    openPopup({ title: 'ติดคุก', message: 'คุณโดนขัง' });
     return;
   }
 
@@ -584,30 +615,6 @@ async function submitNightAction(targetId, acted = true) {
     };
     mountByPhase();
     await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now, day } });
-    if (myRole === 'police') {
-      await tx(paths.public, (data) => {
-        if (String(data?.phase || '') !== 'night') return data;
-        const target = String(normalizedTarget || '').trim();
-        if (!target || !data?.players?.[target]?.alive) {
-          return {
-            ...(data || {}),
-            jailedTonight: {},
-            updatedAtMs: Date.now(),
-          };
-        }
-        return {
-          ...(data || {}),
-          jailedTonight: {
-            [target]: {
-              by: state.uid,
-              at: now,
-              order: now,
-            },
-          },
-          updatedAtMs: Date.now(),
-        };
-      });
-    }
     if (state.isHost) {
       await tx(paths.public, (data) => {
         if (String(data?.phase || '') !== 'night') return data;
@@ -769,7 +776,7 @@ function renderNight() {
   const allPlayers = Object.values(state.publicState?.players || {});
   const partners = myRole === 'pob' ? (state.mePrivate?.partners || []) : [];
   const roleText = ROLE_UI_TEXT[myRole]?.(partners) || 'ไม่พบบทบาทของคุณ';
-  const jailedTonight = state.publicState?.jailedTonight || {};
+  const jailedTonight = deriveJailedTonightFromPrivate();
   const iAmJailed = Boolean(jailedTonight[state.uid]);
   const selectedTarget = String(state.selectedNightTargetId || '').trim();
 
@@ -798,7 +805,6 @@ function renderNight() {
     <h2>Step 3: กลางคืน (แต่ละอาชีพทำหน้าที่)</h2>
     ${phaseMetaHtml()}
     <p class="muted">${actionProgressText}</p>
-    <p class="muted">คนที่โดนจับคืนนี้: ${Object.keys(jailedTonight).length ? Object.keys(jailedTonight).map((uid) => state.publicState?.players?.[uid]?.name || 'ผู้เล่น').join(', ') : 'ยังไม่มี'}</p>
     <p class="muted">สถานะรอบ: ส่งคำสั่งแล้ว ${Object.keys(getNightSubmittedMap()).length}/${alive.length} คน</p>
     <h3>วงหมู่บ้าน</h3>
     ${renderVillageGridHtml(allPlayers)}

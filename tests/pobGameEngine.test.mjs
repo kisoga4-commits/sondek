@@ -53,7 +53,7 @@ test('police can block pob action when jailed before pob acts', () => {
   priv.pob1.nightAction = { targetId: 'vill1', acted: true, at: 100, order: 3 };
   const result = resolveNight(pub, priv);
   assert.equal(result.players.vill1.alive, true);
-  assert.match(result.logs.join(' | '), /ถูกขังก่อนใช้พลัง/);
+  assert.match((result.roleResults?.pob1 || []).join(' | '), /คุณโดนขัง/);
 });
 
 test('police action from private state can block pob without public jailedTonight write', () => {
@@ -63,7 +63,7 @@ test('police action from private state can block pob without public jailedTonigh
   priv.pob1.nightAction = { targetId: 'vill1', acted: true, at: 100, order: 2 };
   const result = resolveNight(pub, priv);
   assert.equal(result.players.vill1.alive, true);
-  assert.match(result.logs.join(' | '), /ถูกขังก่อนใช้พลัง/);
+  assert.match((result.roleResults?.pob1 || []).join(' | '), /คุณโดนขัง/);
 });
 
 test('pob can still act if action happens before being jailed later', () => {
@@ -114,7 +114,7 @@ test('shaman cannot inspect a jailed target', () => {
   priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
   priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
   const result = resolveNight(pub, priv);
-  assert.match((result.roleResults?.sham1 || []).join(' | '), /ถูกขังอยู่ จึงส่องบทบาทไม่ได้/);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /โดนขัง จึงส่องบทบาทไม่ได้/);
 });
 
 test('police jailing is exposed as role feedback for jailed target', () => {
@@ -122,7 +122,17 @@ test('police jailing is exposed as role feedback for jailed target', () => {
   const priv = basePrivate();
   priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
   const result = resolveNight(pub, priv);
-  assert.match((result.roleResults?.pob1 || []).join(' | '), /ถูกตำรวจจับเข้าคุก/);
+  assert.match((result.roleResults?.pob1 || []).join(' | '), /คุณโดนขัง/);
+});
+
+test('morning board log does not reveal who was jailed', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
+  priv.pob1.nightAction = { targetId: 'vill1', acted: true, at: 100, order: 2 };
+  const result = resolveNight(pub, priv);
+  assert.match(result.logs.join(' | '), /คืนนี้มีผู้เล่นโดนขัง/);
+  assert.doesNotMatch(result.logs.join(' | '), /ปอบ/);
 });
 
 test('stale night action from previous day is ignored', () => {

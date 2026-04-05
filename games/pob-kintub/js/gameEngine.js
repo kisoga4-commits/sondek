@@ -136,9 +136,9 @@ export function resolveNight(publicState, privateState) {
   });
   const jailedList = Object.keys(jailedTonight);
   if (jailedList.length) {
-    logs.push(`คนที่โดนขัง: ${jailedList.map((uid) => pub.players?.[uid]?.name || 'ผู้เล่น').join(', ')}`);
+    logs.push('คืนนี้มีผู้เล่นโดนขัง');
     jailedList.forEach((uid) => {
-      if (roleResults[uid]) roleResults[uid].push('คืนนี้คุณถูกตำรวจจับเข้าคุก ใช้พลังไม่สำเร็จ');
+      if (roleResults[uid]) roleResults[uid].push('คุณโดนขัง');
     });
   }
 
@@ -156,14 +156,12 @@ export function resolveNight(publicState, privateState) {
     const pobTarget = pobAction?.targetId || null;
     if (!pobTarget) return;
     if (isBlockedByPolice(priv, jailedTonight, pobUid, day)) {
-      logs.push(`${pub.players?.[pobUid]?.name || 'ปอบ'} ถูกขังก่อนใช้พลัง`);
-      roleResults[pobUid]?.push('คุณถูกขังก่อน จึงจกตับไม่สำเร็จ');
+      roleResults[pobUid]?.push('คุณโดนขัง');
     } else if (pobTarget === protectedUid) {
       logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกคุ้มครองโดยหมอธรรม`);
       roleResults[pobUid]?.push(`เป้าหมาย ${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกคุ้มครอง`);
     } else if (jailedTonight[pobTarget]) {
-      logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงไม่ตาย`);
-      roleResults[pobUid]?.push(`เป้าหมาย ${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่`);
+      roleResults[pobUid]?.push(`เป้าหมาย ${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} โดนขัง`);
     } else {
       markDead(pub, pobTarget, 'โดนจกตับ', logs);
       roleResults[pobUid]?.push(`คุณจกตับ ${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} สำเร็จ`);
@@ -173,12 +171,11 @@ export function resolveNight(publicState, privateState) {
   const hunterAction = getNightActionForDay(priv, hunterUid, day);
   const hunterTarget = isBlockedByPolice(priv, jailedTonight, hunterUid, day) ? null : (hunterAction?.targetId || null);
   if (hunterUid && isBlockedByPolice(priv, jailedTonight, hunterUid, day)) {
-    roleResults[hunterUid]?.push('คุณถูกขังก่อน จึงยิงไม่สำเร็จ');
+    roleResults[hunterUid]?.push('คุณโดนขัง');
   }
   if (hunterTarget) {
     if (jailedTonight[hunterTarget]) {
-      logs.push(`${pub.players?.[hunterTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงรอดจากกระสุน`);
-      roleResults[hunterUid]?.push(`คุณยิง ${pub.players?.[hunterTarget]?.name || 'ผู้เล่น'} แต่เป้าหมายถูกขังอยู่`);
+      roleResults[hunterUid]?.push(`คุณยิง ${pub.players?.[hunterTarget]?.name || 'ผู้เล่น'} แต่เป้าหมายโดนขัง`);
     } else {
       markDead(pub, hunterTarget, 'โดนยิง', logs);
       roleResults[hunterUid]?.push(`คุณยิง ${pub.players?.[hunterTarget]?.name || 'ผู้เล่น'} สำเร็จ`);
@@ -189,9 +186,9 @@ export function resolveNight(publicState, privateState) {
   const shamanAction = getNightActionForDay(priv, shamanUid, day);
   const shamanTarget = isBlockedByPolice(priv, jailedTonight, shamanUid, day) ? null : (shamanAction?.targetId || null);
   if (shamanUid && isBlockedByPolice(priv, jailedTonight, shamanUid, day)) {
-    roleResults[shamanUid]?.push('คุณถูกขังก่อน จึงส่องบทบาทไม่สำเร็จ');
+    roleResults[shamanUid]?.push('คุณโดนขัง');
   } else if (shamanUid && shamanTarget && jailedTonight[shamanTarget]) {
-    roleResults[shamanUid]?.push(`${pub.players?.[shamanTarget]?.name || 'ผู้เล่น'} ถูกขังอยู่ จึงส่องบทบาทไม่ได้`);
+    roleResults[shamanUid]?.push(`${pub.players?.[shamanTarget]?.name || 'ผู้เล่น'} โดนขัง จึงส่องบทบาทไม่ได้`);
   } else if (shamanUid && shamanTarget) {
     const seenRole = String(priv[shamanTarget]?.role || 'unknown');
     const seenName = pub.players?.[shamanTarget]?.name || 'ผู้เล่น';
