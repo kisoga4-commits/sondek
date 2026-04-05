@@ -232,8 +232,6 @@ async function startRound(playerIds) {
     playerIds: ids,
     oddUid: assignment.oddUid,
     words: assignment.words,
-    commonWord: assignment.commonWord,
-    oddWord: assignment.oddWord,
     reason: assignment.reason,
     votes: {},
     roundScore: {},

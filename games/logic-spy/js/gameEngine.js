@@ -34,21 +34,87 @@ export const DEFAULT_LOGIC_SPY_WORD_SETS = [
   ['ฟุตบอล', 'บาสเกตบอล', 'วอลเลย์บอล', 'โทรทัศน์'], ['สีเทียน', 'สีไม้', 'สีน้ำ', 'น้ำยาล้างจาน'], ['ตู้เย็น', 'ไมโครเวฟ', 'เครื่องซักผ้า', 'เตียงนอน'], ['เครื่องบิน', 'เฮลิคอปเตอร์', 'บอลลูน', 'รถไฟ'],
 ];
 
-export function normalizeWordSets(rawSets = []) { return (Array.isArray(rawSets) ? rawSets : []).map((x) => (Array.isArray(x) ? x.map((w) => String(w || '').trim()) : [])).filter((x) => x.length === 4 && x.every(Boolean)); }
-export function pickWordSet(wordSets = DEFAULT_LOGIC_SPY_WORD_SETS, randomFn = Math.random) { const n = normalizeWordSets(wordSets); const src = n.length ? n : DEFAULT_LOGIC_SPY_WORD_SETS; return [...src[Math.floor(randomFn() * src.length)]]; }
-export function buildRoundAssignments(playerIds = [], wordSet = [], randomFn = Math.random) {
-  const ids = (Array.isArray(playerIds) ? playerIds : []).map((id) => String(id || '').trim()).filter(Boolean);
-  if (ids.length < 3 || ids.length > 5) throw new Error('โหมดนี้รองรับผู้เล่น 3-5 คน');
-  const words = normalizeWordSets([wordSet])[0]; if (!words) throw new Error('ชุดคำต้องมี 4 คำ');
-  const oddUid = ids[Math.floor(randomFn() * ids.length)];
-  const commonWord = words[0]; const oddWord = words[3];
-  const secretWordsByUid = ids.reduce((a, uid) => ({ ...a, [uid]: uid === oddUid ? oddWord : commonWord }), {});
-  return { words, oddUid, commonWord, oddWord, secretWordsByUid, reason: `${words[0]}, ${words[1]}, ${words[2]} อยู่กลุ่มเดียวกัน แต่ ${words[3]} ต่างจากเพื่อน` };
+function sanitizeUniqueStrings(input = []) {
+  const unique = [];
+  (Array.isArray(input) ? input : []).forEach((value) => {
+    const normalized = String(value || '').trim();
+    if (normalized && !unique.includes(normalized)) unique.push(normalized);
+  });
+  return unique;
 }
+
+function pickRandomIndex(length, randomFn = Math.random) {
+  return Math.min(length - 1, Math.floor(randomFn() * length));
+}
+
+export function normalizeWordSets(rawSets = []) {
+  return (Array.isArray(rawSets) ? rawSets : [])
+    .map((set) => sanitizeUniqueStrings(set))
+    .filter((set) => set.length === 4);
+}
+
+export function pickWordSet(wordSets = DEFAULT_LOGIC_SPY_WORD_SETS, randomFn = Math.random) {
+  const normalized = normalizeWordSets(wordSets);
+  const source = normalized.length ? normalized : DEFAULT_LOGIC_SPY_WORD_SETS;
+  return [...source[pickRandomIndex(source.length, randomFn)]];
+}
+
+export function buildRoundAssignments(playerIds = [], wordSet = [], randomFn = Math.random) {
+  const ids = sanitizeUniqueStrings(playerIds);
+  if (ids.length < 3 || ids.length > 5) throw new Error('โหมดนี้รองรับผู้เล่น 3-5 คน');
+
+  const words = normalizeWordSets([wordSet])[0];
+  if (!words) throw new Error('ชุดคำต้องมี 4 คำและห้ามซ้ำกัน');
+
+  const oddUid = ids[pickRandomIndex(ids.length, randomFn)];
+  const commonWords = words.slice(0, 3);
+  const oddWord = words[3];
+
+  const shuffledCommonWords = [...commonWords];
+  for (let i = shuffledCommonWords.length - 1; i > 0; i -= 1) {
+    const j = pickRandomIndex(i + 1, randomFn);
+    [shuffledCommonWords[i], shuffledCommonWords[j]] = [shuffledCommonWords[j], shuffledCommonWords[i]];
+  }
+
+  let nonOddIndex = 0;
+  const secretWordsByUid = ids.reduce((acc, uid) => {
+    if (uid === oddUid) {
+      acc[uid] = oddWord;
+    } else {
+      acc[uid] = shuffledCommonWords[nonOddIndex % shuffledCommonWords.length];
+      nonOddIndex += 1;
+    }
+    return acc;
+  }, {});
+
+  return {
+    words,
+    oddUid,
+    secretWordsByUid,
+    reason: `${commonWords[0]}, ${commonWords[1]}, ${commonWords[2]} อยู่กลุ่มเดียวกัน แต่ ${oddWord} ต่างจากเพื่อน`,
+  };
+}
+
 export function calculateRoundScore({ oddUid = '', votesByUid = {}, playerIds = [] } = {}) {
-  const ids = (Array.isArray(playerIds) ? playerIds : []).map((id) => String(id || '').trim()).filter(Boolean);
+  const ids = sanitizeUniqueStrings(playerIds);
+  const voteMap = votesByUid && typeof votesByUid === 'object' ? votesByUid : {};
   const scores = Object.fromEntries(ids.map((id) => [id, 0]));
-  ids.forEach((uid) => { if (uid !== oddUid && String(votesByUid?.[uid] || '') === oddUid) scores[uid] = 1; });
-  if (oddUid && Object.prototype.hasOwnProperty.call(scores, oddUid)) scores[oddUid] = ids.filter((uid) => uid !== oddUid && String(votesByUid?.[uid] || '') !== oddUid).length;
+
+  ids.forEach((uid) => {
+    const votedUid = String(voteMap?.[uid] || '').trim();
+    if (!votedUid || votedUid === uid) return;
+    if (!ids.includes(votedUid)) return;
+    if (uid !== oddUid && votedUid === oddUid) scores[uid] = 1;
+  });
+
+  if (oddUid && Object.prototype.hasOwnProperty.call(scores, oddUid)) {
+    scores[oddUid] = ids
+      .filter((uid) => uid !== oddUid)
+      .reduce((count, uid) => {
+        const votedUid = String(voteMap?.[uid] || '').trim();
+        return count + (votedUid !== oddUid ? 1 : 0);
+      }, 0);
+  }
+
   return scores;
 }
