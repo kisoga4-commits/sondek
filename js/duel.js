@@ -604,6 +604,7 @@ async function handleCreateRoom() {
 
 async function handleJoinRoom() {
   try {
+    if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
     if (roomId.length !== ROOM_ID_LENGTH) throw new Error('PIN ไม่ถูกต้อง');
     const joined = await joinDuelRoom(roomId, String(el.joinNameInput.value || '').trim() || 'ผู้เล่น');
@@ -638,22 +639,6 @@ async function handleStartGame() {
 
 async function init() {
   setStatus('กำลังเชื่อมต่อระบบ...');
-  subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
-  await ensureDuelAuthReady();
-  state.authReady = true;
-  setStatus('พร้อมเข้าเล่น');
-  subscribeCourses((courses) => {
-    const current = String(el.courseIdInput.value || '');
-    el.courseIdInput.innerHTML = '<option value="">-- เลือกบททดสอบ --</option>';
-    (courses || []).forEach((course) => {
-      const option = document.createElement('option');
-      option.value = String(course.courseId || '');
-      option.textContent = course?.title ? `${course.title} (${course.courseId})` : String(course.courseId || '');
-      el.courseIdInput.appendChild(option);
-    });
-    el.courseIdInput.value = current;
-  }, () => {});
-
   el.showHostSetupBtn.addEventListener('click', () => { syncHostModeOptions(); openModal(el.hostModal); });
   el.showJoinSetupBtn.addEventListener('click', () => openModal(el.joinModal));
   document.addEventListener('pointerdown', unlockAudio, { once: true });
@@ -669,6 +654,28 @@ async function init() {
   syncHostModeOptions();
   syncWormMatchOptions();
   syncQuickMatchOptions();
+
+  subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
+  try {
+    await ensureDuelAuthReady();
+    state.authReady = true;
+    setStatus('พร้อมเข้าเล่น');
+  } catch (error) {
+    state.authReady = false;
+    setStatus(error?.message || 'เชื่อมต่อระบบไม่สำเร็จ ลองรีเฟรชอีกครั้ง');
+  }
+
+  subscribeCourses((courses) => {
+    const current = String(el.courseIdInput.value || '');
+    el.courseIdInput.innerHTML = '<option value="">-- เลือกบททดสอบ --</option>';
+    (courses || []).forEach((course) => {
+      const option = document.createElement('option');
+      option.value = String(course.courseId || '');
+      option.textContent = course?.title ? `${course.title} (${course.courseId})` : String(course.courseId || '');
+      el.courseIdInput.appendChild(option);
+    });
+    el.courseIdInput.value = current;
+  }, () => {});
 }
 
 void init();
