@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
-import { getDatabase, onValue, ref, runTransaction, update } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
+import { get, getDatabase, onValue, ref, runTransaction, update } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
 import { checkWinner, resolveNight, resolveVote } from './gameEngine.js';
 
 const firebaseConfig = {
@@ -143,12 +143,42 @@ async function tx(pathRef, updater, options = {}) {
 }
 
 async function updateWithTimeout(pathRef, payload, timeoutMs = 8000) {
-  await Promise.race([
-    update(pathRef, payload),
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await Promise.race([
+        update(pathRef, payload),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('การเชื่อมต่อช้าเกินไป กรุณาลองอีกครั้ง')), timeoutMs);
+        }),
+      ]);
+      return;
+    } catch (error) {
+      if (attempt >= maxAttempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
+    }
+  }
+}
+
+async function readWithTimeout(pathRef, timeoutMs = 4000) {
+  return Promise.race([
+    get(pathRef),
     new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('การเชื่อมต่อช้าเกินไป กรุณาลองอีกครั้ง')), timeoutMs);
+      setTimeout(() => reject(new Error('อ่านข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง')), timeoutMs);
     }),
   ]);
+}
+
+async function getShamanInstantReveal(targetUid) {
+  const targetId = String(targetUid || '').trim();
+  if (!targetId) return '';
+  try {
+    const roleSnap = await readWithTimeout(ref(db, `pob_rooms/${roomId}/private/${targetId}/role`), 3500);
+    const role = String(roleSnap.val() || '').trim();
+    return ROLES[role]?.label || '';
+  } catch (_) {
+    return '';
+  }
 }
 
 async function ensureAuth() {
@@ -244,6 +274,9 @@ function personalNightNoticeHtml() {
 }
 
 function currentNightActionStatusHtml() {
+  if (state.isSubmittingNightAction) {
+    return '<div class="tag" style="margin-top:.55rem;">⏳ กำลังบันทึกคำสั่งของคุณ...</div>';
+  }
   const action = state.mePrivate?.nightAction;
   if (!hasNightActionForCurrentDay(action)) return '';
   const role = String(state.mePrivate?.role || '');
@@ -465,6 +498,7 @@ async function submitNightAction(targetId, acted = true) {
     return;
   }
 
+  const previousAction = state.mePrivate?.nightAction || null;
   try {
     state.isSubmittingNightAction = true;
     const now = Date.now();
@@ -475,16 +509,26 @@ async function submitNightAction(targetId, acted = true) {
     };
     mountByPhase();
     await updateWithTimeout(paths.privateMine(), { nightAction: { role: myRole, targetId: normalizedTarget || null, acted, at: now, order: now, day } });
+    state.roleSheetRevealed = false;
+    mountByPhase();
     const actionLabel = ROLE_ACTION_CONFIG[myRole]?.actionLabel || 'ใช้สกิล';
     const targetName = state.publicState?.players?.[normalizedTarget]?.name || 'เป้าหมาย';
-    const message = myRole === 'villager'
+    let message = myRole === 'villager'
       ? 'บันทึกแล้ว: คืนนี้คุณไถนาเรียบร้อย'
       : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
+    if (myRole === 'shaman' && normalizedTarget) {
+      const roleLabel = await getShamanInstantReveal(normalizedTarget);
+      if (roleLabel) {
+        message = `คุณส่อง ${targetName} พบว่าเป็น ${roleLabel}`;
+      } else {
+        message = `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName} (ผลส่องจะยืนยันอีกครั้งตอนเช้า)`;
+      }
+    }
     openPopup({ title: 'ส่งคำสั่งสำเร็จ', message });
   } catch (error) {
     state.mePrivate = {
       ...(state.mePrivate || {}),
-      nightAction: null,
+      nightAction: previousAction,
     };
     mountByPhase();
     openPopup({
@@ -514,9 +558,9 @@ function renderNight() {
       actionHtml = '<div class="tag out">คืนนี้คุณโดนตำรวจจับ ใช้พลังไม่ได้</div>';
     } else
     if (myRole === 'villager') {
-      actionHtml = `<button id="workBtn" class="btn big-btn" ${acted ? 'disabled' : ''}>🌾 ทำงาน/ไถนา</button>`;
+      actionHtml = `<button id="workBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>🌾 ทำงาน/ไถนา</button>`;
     } else {
-      actionHtml = `<div class="big-grid">${others.map((p) => `<button class="btn big-btn targetNight" data-id="${p.uid}" ${acted ? 'disabled' : ''}>${p.name}</button>`).join('')}</div>`;
+      actionHtml = `<div class="big-grid">${others.map((p) => `<button class="btn big-btn targetNight" data-id="${p.uid}" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${p.name}</button>`).join('')}</div>`;
     }
   }
 
@@ -566,13 +610,11 @@ function renderNight() {
   });
 
   document.getElementById('workBtn')?.addEventListener('click', () => {
-    state.roleSheetRevealed = false;
     void submitNightAction(state.uid, true);
   });
   document.querySelectorAll('.targetNight').forEach((btn) => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.id;
-      state.roleSheetRevealed = false;
       void submitNightAction(targetId, true);
     });
   });
