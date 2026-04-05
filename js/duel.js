@@ -401,12 +401,13 @@ function unlockAudio() {
   } catch (_) {}
 }
 
-function renderLobbyMeta(room) {
+function renderLobbyMeta(room, playersCount = 0) {
   const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
   const matchType = String(room?.modeConfig?.matchType || 'solo');
   const teamSize = Number(room?.modeConfig?.teamSize || 2);
   const items = [
     `เกม: ${gameLabel}`,
+    `สมาชิก: ${Math.max(0, Number(playersCount || 0))} คน`,
     `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
     `เส้นชัย: ${getEffectiveFinishDistance(room?.modeConfig || {})} ช่อง`,
     `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
@@ -448,7 +449,7 @@ function handleRoomUpdate(room) {
   el.lobbyRoomIdText.textContent = room.pin || room.roomId || state.roomId;
   el.battleRoomId.textContent = room.pin || room.roomId || state.roomId;
   el.lobbyPlayers.innerHTML = players.map((p) => `<div class="duel-lobby-chip${p?.isHost ? ' is-host' : ''}">${p?.name || 'ผู้เล่น'}${p?.isHost ? ' • HOST' : ''}</div>`).join('');
-  renderLobbyMeta(room);
+  renderLobbyMeta(room, players.length);
 
   const partyRequiredPlayers = Math.max(4, Number(room?.modeConfig?.teamSize || 2) * 2);
   const mode = String(room?.modeConfig?.gameMode || 'quick');
@@ -491,6 +492,7 @@ function handleRoomUpdate(room) {
         pin: String(room.pin || room.roomId || ''),
         role: isHost ? 'host' : 'join',
         player: String(room?.players?.[state.uid]?.name || ''),
+        uid: String(state.uid || ''),
       });
       const target = 'games/pob-kintub/index.html';
       window.location.href = `${target}?${params.toString()}`;

@@ -4,15 +4,9 @@ function markDead(nextPublic, uid, reason, logs) {
   nextPublic.players[uid].deathCause = reason || 'unknown';
   logs.push(`${nextPublic.players[uid].name} ตาย (${reason})`);
 }
-const ROLE_LABELS = {
-  pob: 'ปอบ',
-  shaman: 'หมอดู',
-  monk: 'หมอธรรม',
-  hunter: 'นายพราน',
-  police: 'ตำรวจ',
-  villager: 'ชาวนา',
-  unknown: 'ไม่ทราบอาชีพ',
-};
+function isSuspiciousRole(role) {
+  return role === 'pob' || role === 'villager' || role === 'hunter';
+}
 
 function isBlockedByPolice(privateState, jailedTonight, uid, day) {
   if (!uid) return false;
@@ -185,14 +179,37 @@ export function resolveNight(publicState, privateState) {
   const shamanUid = uidByRole('shaman')[0] || null;
   const shamanAction = getNightActionForDay(priv, shamanUid, day);
   const shamanTarget = isBlockedByPolice(priv, jailedTonight, shamanUid, day) ? null : (shamanAction?.targetId || null);
+  const shamanProgress = shamanUid ? (priv?.[shamanUid]?.shamanScan || null) : null;
+  const shamanScanByUid = {};
   if (shamanUid && isBlockedByPolice(priv, jailedTonight, shamanUid, day)) {
     roleResults[shamanUid]?.push('คุณโดนขัง');
+    shamanScanByUid[shamanUid] = null;
   } else if (shamanUid && shamanTarget && jailedTonight[shamanTarget]) {
-    roleResults[shamanUid]?.push(`${pub.players?.[shamanTarget]?.name || 'ผู้เล่น'} โดนขัง จึงส่องบทบาทไม่ได้`);
+    roleResults[shamanUid]?.push(`${pub.players?.[shamanTarget]?.name || 'ผู้เล่น'} โดนขัง จึงเชื่อมจิตไม่ได้`);
   } else if (shamanUid && shamanTarget) {
-    const seenRole = String(priv[shamanTarget]?.role || 'unknown');
     const seenName = pub.players?.[shamanTarget]?.name || 'ผู้เล่น';
-    roleResults[shamanUid]?.push(`คุณส่อง ${seenName} พบว่าเป็น ${ROLE_LABELS[seenRole] || seenRole}`);
+    const validPrevProgress = shamanProgress
+      && pub.players?.[shamanProgress.targetId]?.alive
+      ? shamanProgress
+      : null;
+    const isSecondScanSameTarget = Boolean(validPrevProgress && validPrevProgress.targetId === shamanTarget);
+    if (isSecondScanSameTarget) {
+      const seenRole = String(priv?.[shamanTarget]?.role || 'unknown');
+      const verdict = isSuspiciousRole(seenRole) ? 'มีพิรุธ' : 'คนดี';
+      roleResults[shamanUid]?.push(`คุณส่อง ${seenName} สำเร็จ: ${verdict} (ไม่ใช่อาชีพจริง)`);
+      shamanScanByUid[shamanUid] = null;
+    } else {
+      roleResults[shamanUid]?.push(`คุณเริ่มเชื่อมจิตกับ ${seenName} แล้ว (ยังไม่เห็นผลตรวจ)`);
+      roleResults[shamanTarget]?.push('คืนนี้มีคนกำลังเชื่อมจิตคุณอยู่');
+      shamanScanByUid[shamanUid] = {
+        targetId: shamanTarget,
+        stage: 1,
+        startedDay: day,
+      };
+    }
+  } else if (shamanUid && shamanProgress && !pub.players?.[shamanProgress.targetId]?.alive) {
+    roleResults[shamanUid]?.push('เป้าหมายที่เชื่อมจิตไว้ตายแล้ว ต้องเริ่มใหม่');
+    shamanScanByUid[shamanUid] = null;
   }
 
   alive.filter((p) => priv[p.uid]?.role === 'villager').forEach((villager) => {
@@ -218,5 +235,6 @@ export function resolveNight(publicState, privateState) {
       logs: logs.length ? logs : ['คืนนี้ไม่มีคนตาย'],
     },
     roleResults,
+    shamanScanByUid,
   };
 }
