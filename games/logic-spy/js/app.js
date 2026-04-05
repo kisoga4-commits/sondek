@@ -40,8 +40,7 @@ function ui() {
   document.getElementById('startRoundBtn')?.addEventListener('click', () => void startRound(players.map(([uid]) => uid)));
 
   const myWord = String(state.privateMe?.word || '');
-  el.secret.innerHTML = `<h3>Secret Card</h3><p>แตะเพื่อดูคำลับ</p><button class="btn" id="showWordBtn">แตะเพื่อดูคำลับ</button><p id="secretWord"></p>${isHost ? '<button class="btn secondary" id="toTalkBtn">เริ่มช่วงพูด</button>' : '<p>รอ Host เริ่มช่วงพูด</p>'}`;
-  document.getElementById('showWordBtn')?.addEventListener('click', () => { document.getElementById('secretWord').textContent = myWord ? `คำของคุณ: ${myWord}` : 'ยังไม่มีคำ'; });
+  el.secret.innerHTML = `<h3>Secret Card</h3><p>แตะเพื่อดูคำลับ — ตอนนี้ระบบแสดงคำให้ทันทีบนหน้าจอแล้ว</p><div class="secret-word-display">${myWord || 'กำลังสุ่มคำ...'}</div>${isHost ? '<button class="btn secondary" id="toTalkBtn">เริ่มช่วงพูด</button>' : '<p>รอ Host เริ่มช่วงพูด</p>'}`;
   document.getElementById('toTalkBtn')?.addEventListener('click', () => void toDiscussion(players.map(([uid]) => uid)));
 
 

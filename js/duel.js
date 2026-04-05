@@ -457,7 +457,16 @@ function handleRoomUpdate(room) {
     : mode === 'logicspy'
       ? 3
       : (String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2);
-  el.startGameBtn.classList.toggle('hidden', !(isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers));
+  const canStart = isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers;
+  el.startGameBtn.classList.toggle('hidden', !isHost || roomStatus(room) !== 'lobby');
+  el.startGameBtn.disabled = !canStart;
+  if (mode === 'logicspy') {
+    el.startGameBtn.textContent = canStart
+      ? 'เริ่มเกม ใครต่างจากเพื่อน'
+      : `ต้องมีอย่างน้อย ${minPlayers} คนเพื่อเริ่ม`;
+  } else {
+    el.startGameBtn.textContent = 'เริ่มเกม';
+  }
   el.lobbyHint.textContent = players.length < minPlayers ? `ต้องมีผู้เล่นอย่างน้อย ${minPlayers} คน` : 'พร้อมเริ่มเกม';
 
   const rs = getActiveRound(room);
