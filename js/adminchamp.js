@@ -565,12 +565,25 @@ function initCourseOfferingSection() {
     courseOfferStatus.textContent = 'กำลังโหลดรายการคอร์ส...';
   }
 
+  let hasFirstSnapshot = false;
+  const loadingTimeoutId = window.setTimeout(() => {
+    if (hasFirstSnapshot) return;
+    if (courseOfferStatus) {
+      courseOfferStatus.textContent = 'โหลดรายการคอร์สนานผิดปกติ กรุณารีเฟรชหรือตรวจสอบ Firebase Rules/Auth';
+    }
+    courseOfferList.innerHTML = '<p class="muted">โหลดคอร์สไม่สำเร็จ (timeout)</p>';
+  }, 8000);
+
   subscribeCourseOfferings((courseOffers) => {
+    hasFirstSnapshot = true;
+    window.clearTimeout(loadingTimeoutId);
     if (courseOfferStatus) {
       courseOfferStatus.textContent = 'พร้อมจัดการคอร์สและรับสมัครนักเรียน';
     }
     renderCourseOfferings(courseOffers);
   }, (error) => {
+    hasFirstSnapshot = true;
+    window.clearTimeout(loadingTimeoutId);
     console.error(error);
     if (courseOfferStatus) {
       courseOfferStatus.textContent = 'โหลดคอร์สไม่สำเร็จ กรุณารีเฟรช';
@@ -834,10 +847,19 @@ function initQuizLibrary() {
   if (!quizLibrary) return;
 
   quizLibrary.innerHTML = '<p class="muted">กำลังโหลดบททดสอบ...</p>';
+  let hasFirstSnapshot = false;
+  const loadingTimeoutId = window.setTimeout(() => {
+    if (hasFirstSnapshot) return;
+    quizLibrary.innerHTML = '<p class="muted">โหลดคลังบททดสอบนานผิดปกติ กรุณารีเฟรชหรือตรวจสอบ Firebase Rules/Auth</p>';
+  }, 8000);
 
   subscribeCourses((courses) => {
+    hasFirstSnapshot = true;
+    window.clearTimeout(loadingTimeoutId);
     void renderCourses(courses);
   }, (error) => {
+    hasFirstSnapshot = true;
+    window.clearTimeout(loadingTimeoutId);
     console.error(error);
     quizLibrary.innerHTML = '<p class="muted">โหลดคลังบททดสอบไม่สำเร็จ</p>';
   });
@@ -891,12 +913,60 @@ if (profileForm) {
   });
 }
 
-initQuizLibrary();
-void loadFeedbackConfig();
-void loadProfileForm();
-void loadLogicSpyWordSets();
-initCourseOfferingSection();
-subscribeAuthStatus(renderAuthStatus);
+function runInitSafely(initLabel, initFn, fallbackFn) {
+  try {
+    initFn();
+  } catch (error) {
+    console.error(`${initLabel} failed`, error);
+    if (fallbackFn instanceof Function) {
+      fallbackFn();
+    }
+  }
+}
+
+runInitSafely('initQuizLibrary', () => {
+  initQuizLibrary();
+}, () => {
+  if (quizLibrary) {
+    quizLibrary.innerHTML = '<p class="muted">โหลดคลังบททดสอบไม่สำเร็จ (init error)</p>';
+  }
+});
+
+runInitSafely('loadFeedbackConfig', () => {
+  void loadFeedbackConfig();
+});
+
+runInitSafely('loadProfileForm', () => {
+  void loadProfileForm();
+}, () => {
+  if (profileFormStatus) {
+    profileFormStatus.textContent = 'โหลดข้อมูลโปรไฟล์ไม่สำเร็จ (init error)';
+  }
+});
+
+runInitSafely('loadLogicSpyWordSets', () => {
+  void loadLogicSpyWordSets();
+}, () => {
+  if (logicSpyWordSetsStatus) {
+    logicSpyWordSetsStatus.textContent = 'โหลดคลังคำไม่สำเร็จ (init error)';
+  }
+});
+
+runInitSafely('initCourseOfferingSection', () => {
+  initCourseOfferingSection();
+}, () => {
+  if (courseOfferStatus) {
+    courseOfferStatus.textContent = 'โหลดรายการคอร์สไม่สำเร็จ (init error)';
+  }
+  if (courseOfferList) {
+    courseOfferList.innerHTML = '<p class="muted">โหลดคอร์สไม่สำเร็จ</p>';
+  }
+});
+
+runInitSafely('subscribeAuthStatus', () => {
+  subscribeAuthStatus(renderAuthStatus);
+});
+
 updateProfileImagePreviewStatus();
 
 if (profileImageInput) {
