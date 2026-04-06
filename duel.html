@@ -17,6 +17,15 @@
           <button id="showHostSetupBtn" class="btn duel-big-btn" type="button" data-open-modal="hostModal">Host</button>
           <button id="showJoinSetupBtn" class="btn btn-secondary duel-big-btn" type="button" data-open-modal="joinModal">Join</button>
         </div>
+        <section class="duel-open-rooms" aria-live="polite">
+          <div class="duel-open-rooms-head">
+            <h3>ห้องที่เปิดรอ Join</h3>
+            <p class="muted">คลิกการ์ดเพื่อเข้าทันที หรือเข้าผ่าน PIN ได้</p>
+          </div>
+          <div id="duelOpenRoomsList" class="duel-open-rooms-list">
+            <div class="duel-empty-state">ยังไม่มีห้องที่เปิดอยู่</div>
+          </div>
+        </section>
         <p id="duelStatusText" class="muted"></p>
       </section>
 
@@ -79,6 +88,7 @@
               <option value="pob_v2">ปอบกินตับ V2</option>
               <option value="logic_spy">ใครต่างจากเพื่อน</option>
             </select>
+            <small id="duelGamePlayCountText" class="muted">สถิติการเล่น: -</small>
           </label>
 
           <div id="duelPobOptions" class="hidden duel-special-mode-note"></div>
@@ -152,6 +162,9 @@
           <label>PIN ห้อง
             <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 6 หลัก" />
           </label>
+        </div>
+        <div id="duelJoinRoomCards" class="duel-open-rooms-list duel-open-rooms-list--modal">
+          <div class="duel-empty-state">กำลังโหลดห้อง...</div>
         </div>
         <div class="quiz-actions">
           <button id="joinRoomBtn" class="btn" type="button">เข้าห้อง</button>
