@@ -474,11 +474,11 @@ export async function getAllCourses() {
   return snap.docs
     .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
     .filter((course) => course.status !== 'deleted')
-    .sort((a, b) => String(a.courseId).localeCompare(String(b.courseId)));
+    .sort((a, b) => String(a.courseId || a.id || '').localeCompare(String(b.courseId || b.id || '')));
 }
 
 export function subscribeCourses(callback, onError) {
-  const q = query(collection(db, 'courses'), orderBy('courseId', 'asc'));
+  const q = collection(db, 'courses');
   let unsubscribe = () => {};
 
   ensureAuthReady()
@@ -486,7 +486,8 @@ export function subscribeCourses(callback, onError) {
       unsubscribe = onSnapshot(q, (snap) => callback(
         snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((course) => course.status !== 'deleted'),
+          .filter((course) => course.status !== 'deleted')
+          .sort((a, b) => String(a.courseId || a.id || '').localeCompare(String(b.courseId || b.id || ''))),
       ), onError);
     })
     .catch((error) => {
@@ -546,14 +547,30 @@ export async function updateCourseOffering(courseId, payload) {
 }
 
 export function subscribeCourseOfferings(callback, onError) {
-  const q = query(collection(db, 'course_offerings'), orderBy('createdAt', 'desc'));
+  const q = collection(db, 'course_offerings');
   let unsubscribe = () => {};
+
+  const toEpoch = (value) => {
+    if (!value) return 0;
+    if (value?.toDate instanceof Function) return value.toDate().getTime();
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? 0 : value.getTime();
+    const parsed = Date.parse(String(value));
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
 
   ensureAuthReady()
     .then(() => {
       unsubscribe = onSnapshot(q, (snap) => callback(
         snap.docs
-          .map((d) => ({ id: d.id, ...d.data() })),
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => {
+            const aTime = toEpoch(a.createdAt || a.updatedAt || a.created_at);
+            const bTime = toEpoch(b.createdAt || b.updatedAt || b.created_at);
+            if (aTime === bTime) {
+              return String(b.courseId || b.id || '').localeCompare(String(a.courseId || a.id || ''));
+            }
+            return bTime - aTime;
+          }),
       ), onError);
     })
     .catch((error) => {
