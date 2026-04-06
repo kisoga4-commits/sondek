@@ -19,6 +19,12 @@ import {
   normalizeRoomIdInput,
   ROOM_ID_LENGTH,
 } from './duelCore.js';
+import {
+  buildExternalGameRedirectUrl,
+  getMinimumPlayers,
+  isExternalGameMode,
+  requiresQuestionBank,
+} from './duelGameModes.js';
 import { getEffectiveFinishDistance } from './duelRules.js';
 
 const el = {
@@ -439,7 +445,7 @@ function handleRoomUpdate(room) {
   const gameMode = String(room?.modeConfig?.gameMode || 'quick');
   const serverAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? -1);
   state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), serverAnsweredRound);
-  if (gameMode !== 'pob' && gameMode !== 'logic_spy') {
+  if (requiresQuestionBank(gameMode)) {
     void ensureRoomQuestionBank(room);
   }
   const players = Object.values(room.players || {});
@@ -450,13 +456,7 @@ function handleRoomUpdate(room) {
   el.lobbyPlayers.innerHTML = players.map((p) => `<div class="duel-lobby-chip${p?.isHost ? ' is-host' : ''}">${p?.name || 'ผู้เล่น'}${p?.isHost ? ' • HOST' : ''}</div>`).join('');
   renderLobbyMeta(room);
 
-  const partyRequiredPlayers = Math.max(4, Number(room?.modeConfig?.teamSize || 2) * 2);
-  const mode = String(room?.modeConfig?.gameMode || 'quick');
-  const minPlayers = mode === 'pob'
-    ? 4
-    : (mode === 'logic_spy'
-      ? 3
-      : (String(room?.modeConfig?.matchType || 'solo') === 'party' ? partyRequiredPlayers : 2));
+  const minPlayers = getMinimumPlayers(room?.modeConfig || {});
   const canStart = isHost && roomStatus(room) === 'lobby' && players.length >= minPlayers;
   el.startGameBtn.classList.toggle('hidden', !isHost || roomStatus(room) !== 'lobby');
   el.startGameBtn.disabled = !canStart;
@@ -482,31 +482,12 @@ function handleRoomUpdate(room) {
   el.lobbySection.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.battleSection.classList.toggle('hidden', roomStatus(room) === 'lobby');
 
-  if (gameMode === 'pob' && roomStatus(room) === 'playing') {
+  if (isExternalGameMode(gameMode) && roomStatus(room) === 'playing') {
     const marker = `${room.roomId}_${room.startedAtMs || 0}_${state.uid}`;
     if (state.pobRedirectMarker !== marker) {
       state.pobRedirectMarker = marker;
-      const params = new URLSearchParams({
-        roomId: String(room.roomId || ''),
-        pin: String(room.pin || room.roomId || ''),
-        role: isHost ? 'host' : 'join',
-        player: String(room?.players?.[state.uid]?.name || ''),
-      });
-      const target = 'games/pob-kintub/index.html';
-      window.location.href = `${target}?${params.toString()}`;
-    }
-    return;
-  }
-  if (gameMode === 'logic_spy' && roomStatus(room) === 'playing') {
-    const marker = `${room.roomId}_${room.startedAtMs || 0}_${state.uid}`;
-    if (state.pobRedirectMarker !== marker) {
-      state.pobRedirectMarker = marker;
-      const params = new URLSearchParams({
-        roomId: String(room.roomId || ''),
-        pin: String(room.pin || room.roomId || ''),
-      });
-      const target = 'games/logic-spy/index.html';
-      window.location.href = `${target}?${params.toString()}`;
+      const redirectUrl = buildExternalGameRedirectUrl({ room, uid: state.uid, isHost });
+      if (redirectUrl) window.location.href = redirectUrl;
     }
     return;
   }
@@ -562,7 +543,7 @@ async function handleCreateRoom() {
     const gameMode = getSelectedGameMode();
     const gameDef = GAME_DEFINITIONS[gameMode] || GAME_DEFINITIONS.quick;
     const modeConfig = gameDef.getConfig();
-    const isSpecialMode = gameMode === 'pob' || gameMode === 'logic_spy';
+    const isSpecialMode = isExternalGameMode(gameMode);
     const courseId = String(el.courseIdInput.value || '').trim();
     let questionSequence = [];
 
