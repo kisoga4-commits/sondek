@@ -98,13 +98,23 @@ test('villager dies from starvation when not working', () => {
   assert.match((result.roleResults?.vill1 || []).join(' | '), /อดตาย/);
 });
 
-test('shaman can inspect role and receive role result text', () => {
+test('shaman needs 2 nights on same target before getting verdict text', () => {
   const pub = baseState();
   const priv = basePrivate();
-  priv.pob1.nightAction = { targetId: null, acted: false, at: 100, order: 2 };
+  pub.day = 5;
+  priv.sham1.shamanScan = { targetId: 'pob1', stage: 1, startedDay: 4 };
   priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
   const result = resolveNight(pub, priv);
-  assert.match((result.roleResults?.sham1 || []).join(' | '), /พบว่าเป็น ปอบ/);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /มีพิรุธ/);
+});
+
+test('shaman first connect warns target and does not reveal role', () => {
+  const pub = baseState();
+  const priv = basePrivate();
+  priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
+  const result = resolveNight(pub, priv);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /เริ่มเชื่อมจิต/);
+  assert.match((result.roleResults?.pob1 || []).join(' | '), /มีคนกำลังเชื่อมจิตคุณ/);
 });
 
 test('shaman cannot inspect a jailed target', () => {
@@ -114,7 +124,7 @@ test('shaman cannot inspect a jailed target', () => {
   priv.police1.nightAction = { targetId: 'pob1', acted: true, at: 70, order: 1 };
   priv.sham1.nightAction = { targetId: 'pob1', acted: true, at: 95, order: 2 };
   const result = resolveNight(pub, priv);
-  assert.match((result.roleResults?.sham1 || []).join(' | '), /โดนขัง จึงส่องบทบาทไม่ได้/);
+  assert.match((result.roleResults?.sham1 || []).join(' | '), /โดนขัง จึงเชื่อมจิตไม่ได้/);
 });
 
 test('police jailing is exposed as role feedback for jailed target', () => {
@@ -160,6 +170,91 @@ test('checkWinner follows new rule: ends only when one faction is fully dead', (
   pub.players.h1.alive = true;
   pub.players.pob1.alive = false;
   assert.equal(checkWinner(pub, priv), 'villager');
+});
+
+test('resolveVote makes madman win immediately when voted out in daytime', () => {
+  const pub = {
+    players: {
+      a: { uid: 'a', name: 'A', alive: true },
+      b: { uid: 'b', name: 'B', alive: true },
+      c: { uid: 'c', name: 'C', alive: true },
+      d: { uid: 'd', name: 'D', alive: true },
+    },
+  };
+  const priv = {
+    a: { role: 'villager', voteTarget: 'b' },
+    b: { role: 'madman', voteTarget: null },
+    c: { role: 'villager', voteTarget: 'b' },
+    d: { role: 'pob', voteTarget: 'b' },
+  };
+  const result = resolveVote(pub, priv);
+  assert.equal(result.eliminatedUid, 'b');
+  assert.equal(result.winner, 'madman');
+});
+
+test('madman does not win if eliminated by night kill', () => {
+  const pub = {
+    day: 2,
+    players: {
+      pob1: { uid: 'pob1', name: 'ปอบ', alive: true },
+      mad1: { uid: 'mad1', name: 'คนบ้า', alive: true },
+      vill1: { uid: 'vill1', name: 'ชาวนา', alive: true },
+    },
+    jailedTonight: {},
+  };
+  const priv = {
+    pob1: { role: 'pob', nightAction: { targetId: 'mad1', acted: true, at: 100, order: 2 } },
+    mad1: { role: 'madman', nightAction: { targetId: null, acted: false, at: 90, order: 1 }, madmanUsed: false },
+    vill1: { role: 'villager', nightAction: { targetId: 'vill1', acted: true, at: 120, order: 3 } },
+  };
+  const night = resolveNight(pub, priv);
+  assert.equal(night.players.mad1.alive, false);
+  assert.equal(checkWinner({ players: night.players }, priv), '');
+});
+
+test('villager side still wins when all pob are dead even if madman survives', () => {
+  const pub = {
+    players: {
+      mad1: { uid: 'mad1', alive: true },
+      h1: { uid: 'h1', alive: true },
+    },
+  };
+  const priv = {
+    mad1: { role: 'madman' },
+    h1: { role: 'villager' },
+  };
+  assert.equal(checkWinner(pub, priv), 'villager');
+});
+
+test('madman can block target action only when used before target order and only once', () => {
+  const pub = {
+    day: 2,
+    players: {
+      pob1: { uid: 'pob1', name: 'ปอบ', alive: true },
+      hunter1: { uid: 'hunter1', name: 'นายพราน', alive: true },
+      mad1: { uid: 'mad1', name: 'คนบ้า', alive: true },
+      vill1: { uid: 'vill1', name: 'ชาวนา', alive: true },
+    },
+    jailedTonight: {},
+  };
+  const priv = {
+    pob1: { role: 'pob', nightAction: { targetId: null, acted: false, at: 90, order: 2 } },
+    hunter1: { role: 'hunter', nightAction: { targetId: 'pob1', acted: true, at: 110, order: 3 } },
+    mad1: { role: 'madman', nightAction: { targetId: 'hunter1', acted: true, at: 60, order: 1 }, madmanUsed: false },
+    vill1: { role: 'villager', nightAction: { targetId: 'vill1', acted: true, at: 120, order: 4 } },
+  };
+  const first = resolveNight(pub, priv);
+  assert.match((first.roleResults?.hunter1 || []).join(' | '), /ใช้สกิลไม่สำเร็จ/);
+  assert.equal(first.madmanUsedByUid.mad1, true);
+
+  const nextPub = { ...pub, day: 3 };
+  const nextPriv = {
+    ...priv,
+    mad1: { ...priv.mad1, madmanUsed: true, nightAction: { targetId: 'pob1', acted: true, at: 50, order: 1, day: 3 } },
+    hunter1: { ...priv.hunter1, nightAction: { targetId: 'pob1', acted: true, at: 120, order: 4, day: 3 } },
+  };
+  const second = resolveNight(nextPub, nextPriv);
+  assert.match((second.roleResults?.mad1 || []).join(' | '), /ใช้สิทธิ์ปั่นกระแสไปแล้ว/);
 });
 
 test('checkWinner does not end game when private roles are incomplete (legacy/stale state)', () => {

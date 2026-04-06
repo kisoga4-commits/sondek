@@ -23,6 +23,7 @@ body {
 .app { width: min(860px, 100% - 1.2rem); margin: 1rem auto 2rem; display: grid; gap: .8rem; }
 .topbar { padding: .6rem .9rem; border: 1px solid #24473b; border-radius: 1rem; background: rgba(6,20,16,.65); backdrop-filter: blur(4px); }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+.topbar-actions { display: flex; align-items: center; gap: .45rem; }
 .topbar h1 { margin: 0; font-size: 1.35rem; }
 .topbar p { margin: .35rem 0 0; color: var(--muted); font-size: .92rem; }
 .icon-link {
@@ -37,6 +38,17 @@ body {
   font-size: 1.2rem;
 }
 .icon-link:hover { background: #1b4336; }
+.icon-link.small {
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: .92rem;
+}
+.icon-link.danger {
+  border-color: #a44d4d;
+  background: #3b1818;
+  color: #ffdada;
+}
+.icon-link.danger:hover { background: #552222; }
 
 .panel {
   border: 1px solid #2d5548;

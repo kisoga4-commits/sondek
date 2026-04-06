@@ -15,7 +15,8 @@ const firebaseConfig = {
 
 const ROLES = {
   pob: { label: 'ปอบ', icon: '👹', desc: 'ฆ่า 1 คน/คืน' },
-  shaman: { label: 'หมอดู', icon: '🔮', desc: 'ดูบท 1 คน/คืน' },
+  shaman: { label: 'หมอดู', icon: '🔮', desc: 'เชื่อมจิต 2 คืนติดเพื่อดูผลแบบย่อ' },
+  madman: { label: 'คนบ้า', icon: '🤪', desc: 'ชนะทันทีเมื่อโดนโหวตออกตอนกลางวัน' },
   monk: { label: 'หมอธรรม', icon: '🛡️', desc: 'คุ้มครอง 1 คน/คืน' },
   hunter: { label: 'นายพราน', icon: '🏹', desc: 'ยิง 1 คน/คืน' },
   police: { label: 'ตำรวจ', icon: '👮', desc: 'จับ 1 คนเข้าคุก/คืน' },
@@ -23,7 +24,8 @@ const ROLES = {
 };
 const ROLE_UI_TEXT = {
   pob: (partners = []) => `คุณคือปอบ จกตับชาวบ้านได้ 1 คนต่อคืน (เพื่อนของคุณคือ: ${partners.length ? partners.join(', ') : 'ไม่มี'})`,
-  shaman: () => 'คุณคือหมอดู เลือกดูอาชีพจริงของเพื่อนได้ 1 คนต่อคืน',
+  shaman: () => 'คุณคือหมอดู คืนแรกต้องเชื่อมจิตเป้าหมายก่อน คืนที่สองต้องเลือกคนเดิม จึงจะเห็นผลแบบ "มีพิรุธ/ชาวบ้าน" เท่านั้น',
+  madman: () => 'คุณคือคนบ้า เป้าหมายคือให้คนอื่นโหวตคุณออกตอนกลางวัน (หากโดนฆ่าตอนกลางคืนจะไม่ชนะ)',
   monk: () => 'คุณคือหมอธรรม เลือกผูกสายสิญจน์ป้องกันคนตายได้ 1 คนต่อคืน',
   hunter: () => 'คุณคือนายพราน มีกระสุน 1 นัดทุกคืน เลือกยิงใครก็ได้ (ระวังยิงพวกเดียวกัน!)',
   police: () => 'คุณคือตำรวจ เลือกจับคนเข้าคุกได้ 1 คน (ถ้าจับปอบ ปอบจะฆ่าใครไม่ได้)',
@@ -31,7 +33,8 @@ const ROLE_UI_TEXT = {
 };
 const ROLE_ACTION_CONFIG = {
   pob: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จกตับ' },
-  shaman: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ส่องบทบาท' },
+  shaman: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'เชื่อมจิต/ตรวจซ้ำ' },
+  madman: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ปิดกั้นการใช้สกิล (ใช้ได้ครั้งเดียว)' },
   monk: { requiresTarget: true, allowSelfTarget: true, actionLabel: 'คุ้มครอง' },
   hunter: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'ยิง' },
   police: { requiresTarget: true, allowSelfTarget: false, actionLabel: 'จับเข้าคุก' },
@@ -96,14 +99,28 @@ function shuffle(list) {
 }
 
 function rolePool(count) {
-  const pools = {
-    4: ['pob', 'police', 'shaman', 'hunter'],
-    5: ['pob', 'police', 'shaman', 'monk', 'hunter'],
-    6: ['pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
-    7: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager'],
-    8: ['pob', 'pob', 'police', 'shaman', 'monk', 'hunter', 'villager', 'villager'],
+  const totalPlayers = Math.max(4, Math.min(12, Number(count || 4)));
+  const utilityPool = ['shaman', 'police', 'monk'];
+  const allRolePool = ['pob', 'madman', 'hunter', 'shaman', 'police', 'monk', 'villager'];
+  const pickOne = (pool) => pool[Math.floor(Math.random() * pool.length)];
+
+  const fixedByCount = {
+    4: ['pob', 'madman', 'hunter', pickOne(utilityPool)],
+    5: ['pob', 'madman', 'hunter', pickOne(utilityPool), 'villager'],
+    6: ['pob', 'madman', 'hunter', 'shaman', 'police', 'villager'],
+    7: ['pob', 'madman', 'hunter', 'shaman', 'police', 'villager', 'villager'],
+    8: ['pob', 'pob', 'madman', 'hunter', 'shaman', 'police', 'monk', 'villager'],
+    9: ['pob', 'pob', 'madman', 'hunter', 'shaman', 'police', 'monk', 'villager'],
+    10: ['pob', 'pob', 'madman', 'hunter', 'shaman', 'police', 'monk', 'villager'],
+    11: ['pob', 'pob', 'pob', 'madman', 'hunter', 'shaman', 'police', 'monk', 'villager'],
+    12: ['pob', 'pob', 'pob', 'madman', 'hunter', 'shaman', 'police', 'monk', 'villager'],
   };
-  return pools[count] || pools[8];
+
+  const roles = [...(fixedByCount[totalPlayers] || fixedByCount[4])];
+  while (roles.length < totalPlayers) {
+    roles.push(pickOne(allRolePool));
+  }
+  return roles;
 }
 
 function buildRandomizedGameState(entries, hostUid) {
@@ -216,18 +233,6 @@ async function readWithTimeout(pathRef, timeoutMs = 4000) {
   ]);
 }
 
-async function getShamanInstantReveal(targetUid) {
-  const targetId = String(targetUid || '').trim();
-  if (!targetId) return '';
-  try {
-    const roleSnap = await readWithTimeout(ref(db, `pob_rooms/${roomId}/private/${targetId}/role`), 3500);
-    const role = String(roleSnap.val() || '').trim();
-    return ROLES[role]?.label || '';
-  } catch (_) {
-    return '';
-  }
-}
-
 async function ensureAuth() {
   await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -250,6 +255,13 @@ function mountError(message) {
   Object.values(els).forEach((x) => x.classList.add('hidden'));
   els.setup.classList.remove('hidden');
   els.setup.innerHTML = `<h2>เกิดข้อผิดพลาด</h2><p class="muted">${message}</p>`;
+}
+
+function bindGlobalActions() {
+  const leaveBtn = document.getElementById('leaveGameTopBtn');
+  if (!leaveBtn || leaveBtn.dataset.bound === '1') return;
+  leaveBtn.dataset.bound = '1';
+  leaveBtn.addEventListener('click', () => { void leaveRoom(); });
 }
 
 function renderHome(message = '') {
@@ -495,14 +507,13 @@ function bindTap(target, handler) {
 
 function renderSetup() {
   const players = Object.values(state.duelPlayers || {});
-  const canStart = state.isHost && players.length >= 4 && players.length <= 8;
+  const canStart = state.isHost && players.length >= 4 && players.length <= 12;
   els.setup.innerHTML = `
     <h2>Step 1: เริ่มเกม (รอ Host กดเริ่ม)</h2>
-    <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-8 คน</p>
+    <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-12 คน</p>
     ${phaseMetaHtml()}
     <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
     ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบกินตับ</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
-    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   const btn = document.getElementById('startCloudGame');
@@ -516,7 +527,6 @@ function renderSetup() {
       }
     };
   }
-  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 function renderIdentity() {
@@ -551,7 +561,6 @@ function renderIdentity() {
       </div>
       `}
     </div>
-    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   bindTap(document.getElementById('toggleRoleSheet'), () => {
@@ -565,7 +574,6 @@ function renderIdentity() {
 
   const goFirstVote = document.getElementById('goFirstVote');
   if (goFirstVote) goFirstVote.onclick = () => { void advanceIdentityToVoteByHost(); };
-  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 async function advanceIdentityToVoteByHost() {
@@ -628,6 +636,11 @@ async function submitNightAction(targetId, acted = true) {
   }
 
   const previousAction = state.mePrivate?.nightAction || null;
+  const madmanUsedAlready = myRole === 'madman' && Boolean(state.mePrivate?.madmanUsed);
+  if (madmanUsedAlready) {
+    openPopup({ title: 'ใช้สกิลครบแล้ว', message: 'คนบ้าใช้สิทธิ์ปิดกั้นได้เพียง 1 ครั้งต่อเกม' });
+    return;
+  }
   try {
     state.isSubmittingNightAction = true;
     const now = Date.now();
@@ -658,16 +671,10 @@ async function submitNightAction(targetId, acted = true) {
       ? 'บันทึกแล้ว: คืนนี้คุณไถนาเรียบร้อย'
       : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
     if (myRole === 'shaman' && normalizedTarget) {
-      if (jailedTonight?.[normalizedTarget]) {
-        message = `${targetName} ถูกขังอยู่ จึงดูบทบาทไม่ได้`;
-      } else {
-        const roleLabel = await getShamanInstantReveal(normalizedTarget);
-        if (roleLabel) {
-          message = `คุณส่อง ${targetName} พบว่าเป็น ${roleLabel}`;
-        } else {
-          message = `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName} (ผลส่องจะยืนยันอีกครั้งตอนเช้า)`;
-        }
-      }
+      message = `บันทึกแล้ว: คุณเชื่อมจิต ${targetName} (ผลตรวจจะสรุปตอนเช้า หากเลือกคนเดิมครบ 2 คืน)`;
+    }
+    if (myRole === 'madman' && normalizedTarget) {
+      message = `บันทึกแล้ว: คุณพยายามปิดกั้น ${targetName} (ใช้ได้ครั้งเดียวทั้งเกม)`;
     }
     openPopup({ title: 'ส่งคำสั่งสำเร็จ', message });
     await maybeResolveNightByConsensus('submit');
@@ -683,6 +690,7 @@ async function submitNightAction(targetId, acted = true) {
     });
   } finally {
     state.isSubmittingNightAction = false;
+    mountByPhase();
   }
 }
 
@@ -758,11 +766,19 @@ async function resolveMorningWithPrivate(privateSnapshot) {
     const next = { ...(data || {}) };
     Object.keys(next).forEach((uid) => {
       const roleMessages = resolvedNight?.roleResults?.[uid] || [];
+      const nextShamanScan = Object.prototype.hasOwnProperty.call(resolvedNight?.shamanScanByUid || {}, uid)
+        ? resolvedNight.shamanScanByUid[uid]
+        : next[uid]?.shamanScan;
+      const nextMadmanUsed = Object.prototype.hasOwnProperty.call(resolvedNight?.madmanUsedByUid || {}, uid)
+        ? Boolean(resolvedNight.madmanUsedByUid[uid])
+        : Boolean(next[uid]?.madmanUsed);
       next[uid] = {
         ...next[uid],
         nightAction: null,
         voteTarget: null,
         nightNotice: roleMessages.join(' | '),
+        shamanScan: nextShamanScan || null,
+        madmanUsed: nextMadmanUsed,
       };
     });
     return next;
@@ -802,11 +818,14 @@ function renderNight() {
   const jailedTonight = deriveJailedTonightFromPrivate();
   const iAmJailed = Boolean(jailedTonight[state.uid]);
   const selectedTarget = String(state.selectedNightTargetId || '').trim();
+  const madmanUsed = myRole === 'madman' && Boolean(state.mePrivate?.madmanUsed);
 
   let actionHtml = '<div class="tag">คุณออกจากเกมแล้ว</div>';
   if (me?.alive && state.roleSheetRevealed) {
     if (iAmJailed) {
       actionHtml = '<div class="tag out">คืนนี้คุณโดนตำรวจจับ ใช้พลังไม่ได้</div>';
+    } else if (madmanUsed) {
+      actionHtml = '<div class="tag">คุณใช้สิทธิ์ปิดกั้นครบแล้ว (1 ครั้งต่อเกม)</div>';
     } else if (myRole === 'villager') {
       actionHtml = `
         <div class="tag">กดปุ่มด้านล่างเพื่อยืนยันว่าไถนาแล้ว</div>
@@ -855,7 +874,6 @@ function renderNight() {
     ${nightPhaseProgressHtml()}
     ${personalNightNoticeHtml()}
     ${state.isHost ? '<button id="resolveMorning" class="btn">ประมวลผลไปช่วงเช้า</button>' : '<p class="muted">ระบบจะพาไปเช้าอัตโนมัติเมื่อครบเงื่อนไข</p>'}
-    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   const openSheet = () => {
@@ -882,7 +900,6 @@ function renderNight() {
   });
 
   document.getElementById('resolveMorning')?.addEventListener('click', () => { void maybeResolveNightByConsensus('manual-host'); });
-  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 
@@ -901,7 +918,6 @@ function renderMorning() {
     <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('')}</div>
     ${personalNightNoticeHtml()}
     ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">ข้ามเวลาและเริ่มโหวตช่วงเช้า</button>' : '<p class="muted">รอ Host เริ่มโหวต หรือรอหมดเวลา</p>'}
-    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   document.getElementById('toVote')?.addEventListener('click', async () => {
@@ -912,7 +928,6 @@ function renderMorning() {
       updatedAtMs: Date.now(),
     }));
   });
-  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 async function advanceMorningToVoteByHost() {
@@ -939,6 +954,10 @@ async function submitVote(targetId) {
     openPopup({ title: 'โหวตไม่ได้', message: 'ผู้เล่นที่ตายแล้วไม่สามารถโหวตได้' });
     return;
   }
+  if (String(state.mePrivate?.role || '') === 'madman') {
+    openPopup({ title: 'โหวตไม่ได้', message: 'คนบ้าไม่มีสิทธิ์โหวตในช่วงกลางวัน' });
+    return;
+  }
   if (!state.publicState?.players?.[normalizedTarget]?.alive) {
     openPopup({ title: 'โหวตไม่สำเร็จ', message: 'ผู้เล่นที่เลือกไม่อยู่ในสถานะโหวตแล้ว' });
     return;
@@ -961,6 +980,7 @@ async function submitVote(targetId) {
     });
   } finally {
     state.isSubmittingVote = false;
+    mountByPhase();
   }
 }
 
@@ -1040,6 +1060,8 @@ async function claimVoteResolveLock(reason = 'auto') {
 function renderVote() {
   const alive = alivePlayers();
   const myVote = state.mePrivate?.voteTarget || '';
+  const isMadmanRole = String(state.mePrivate?.role || '') === 'madman';
+  const canVote = isAlive() && !isMadmanRole;
   const requiredVotes = Math.floor(alive.length / 2) + 1;
 
   const stepLabel = state.publicState?.isFirstDayVote ? 'Step 2' : 'Step 5';
@@ -1053,15 +1075,14 @@ function renderVote() {
     <h2>${titleText}</h2>
     ${phaseMetaHtml()}
     <p class="muted">คะแนนจะรวมแบบไม่บอกว่าใครโหวตใคร และจะขับออกเมื่อได้เสียงเกินครึ่งของผู้รอดชีวิต (${requiredVotes} เสียงขึ้นไป)</p>
-    <p class="muted">${state.isHost ? `สถานะโหวต ${votesSubmitted}/${alive.length} คน` : `คุณ${myVote ? 'โหวตแล้ว ✅' : 'ยังไม่โหวต ⬜'}`}</p>
+    <p class="muted">${state.isHost ? `สถานะโหวต ${votesSubmitted}/${alive.length} คน` : (isMadmanRole ? 'คุณเป็นคนบ้า จึงไม่มีสิทธิ์โหวต' : `คุณ${myVote ? 'โหวตแล้ว ✅' : 'ยังไม่โหวต ⬜'}`)}</p>
     ${personalNightNoticeHtml()}
     <div class="secret-wrapper">
       ${deadOverlayHtml()}
-      <div class="big-grid">${alive.filter((p) => p.uid !== state.uid).map((p) => `<button class="btn big-btn voteBtn" data-id="${p.uid}" ${isAlive() ? '' : 'disabled'}>${p.name}${myVote === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
+      <div class="big-grid">${alive.filter((p) => p.uid !== state.uid).map((p) => `<button class="btn big-btn voteBtn" data-id="${p.uid}" ${canVote ? '' : 'disabled'}>${p.name}${myVote === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
     </div>
     <div class="grid" style="margin-top:.7rem;">${Object.entries(state.publicState?.voteSummary || {}).map(([name, score]) => `<div class="tag">${name} = ${score} คะแนน</div>`).join('') || '<div class="tag">รอรวมผลโหวต</div>'}</div>
     ${state.isHost ? '<button id="finalVote" class="btn" style="margin-top:.7rem;">ข้ามเวลาและรวมคะแนนโหวต</button>' : '<p class="muted">รอ Host รวมคะแนน หรือรอหมดเวลา</p>'}
-    <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 
   document.querySelectorAll('.voteBtn').forEach((btn) => {
@@ -1071,7 +1092,6 @@ function renderVote() {
     });
   });
   document.getElementById('finalVote')?.addEventListener('click', () => { void finalizeVoteByHost(); });
-  document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
 
 function renderEnd() {
@@ -1081,7 +1101,7 @@ function renderEnd() {
   els.end.innerHTML = `
     <h2>Step 6: จบเกม (ประกาศฝ่ายชนะ)</h2>
     ${phaseMetaHtml()}
-    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : (winner === 'cancelled' ? '⛔ เกมยุติ' : '👹 ฝั่งปอบชนะ')}</div>
+    <div class="tag">${winner === 'villager' ? '🎉 ฝั่งชาวบ้านชนะ' : (winner === 'madman' ? '🤪 คนบ้าชนะทันทีจากการโดนโหวตออก' : (winner === 'cancelled' ? '⛔ เกมยุติ' : '👹 ฝั่งปอบชนะ'))}</div>
     <div class="result-list" style="margin-top:.7rem;">${Object.values(state.publicState?.players || {}).map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name} • ${ROLES[revealRoles[p.uid]]?.label || '-'}</div>`).join('')}</div>
     <div class="grid" style="margin-top:.7rem;">
       ${historyRows.map((h) => `<div class=\"tag\">คืน ${h.day}: ${Array.isArray(h.logs) ? h.logs.join(' | ') : '-'}</div>`).join('') || '<div class=\"tag\">ไม่มี history</div>'}
@@ -1095,7 +1115,7 @@ function renderEnd() {
     mountByPhase();
     try {
       const entries = Object.values(state.duelPlayers || {});
-      if (entries.length < 4 || entries.length > 8) {
+      if (entries.length < 4 || entries.length > 12) {
         await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, voteResolveLock: null, lastLogs: ['รีเซ็ตเกม: จำนวนผู้เล่นไม่พอ กรุณารอ Host เริ่มใหม่'], updatedAtMs: Date.now() }));
       } else {
         await seedGameFromEntries(entries, state.uid);
@@ -1223,6 +1243,7 @@ async function maybeAutoAdvancePhase() {
 }
 
 async function initCloud() {
+  bindGlobalActions();
   if (!roomId) {
     renderHome('ยังไม่พบ roomId ใน URL');
     return;
@@ -1247,7 +1268,7 @@ async function initCloud() {
     const status = String(room?.status || room?.state?.status || 'lobby');
     if (mode === 'pob' && status === 'playing' && state.isHost && !state.publicState) {
       const entries = Object.values(state.duelPlayers || {});
-      if (entries.length >= 4 && entries.length <= 8) {
+      if (entries.length >= 4 && entries.length <= 12) {
         void seedGameFromEntries(entries, state.uid).catch(() => {});
       }
     }
