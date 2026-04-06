@@ -32,12 +32,15 @@ const el = {
   finishMessage: document.getElementById('duelFinishMessage'),
   entrySection: document.getElementById('duelEntrySection'),
   courseIdInput: document.getElementById('duelCourseId'),
+  courseLabel: document.getElementById('duelCourseLabel'),
   hostNameInput: document.getElementById('duelHostName'),
   joinNameInput: document.getElementById('duelJoinName'),
+  quickJoinNameInput: document.getElementById('duelQuickJoinName'),
   gameModeInput: document.getElementById('duelGameMode'),
   quickOptionsWrap: document.getElementById('duelQuickOptions'),
   wormOptionsWrap: document.getElementById('duelWormOptions'),
   pobOptionsWrap: document.getElementById('duelPobOptions'),
+  pobDurationInput: document.getElementById('duelPobDuration'),
   durationInput: document.getElementById('duelDuration'),
   quickDurationInput: document.getElementById('duelQuickDuration'),
   matchTypeInput: document.getElementById('duelMatchType'),
@@ -99,7 +102,7 @@ const GAME_DEFINITIONS = {
       matchType: 'solo',
       teamSize: 2,
       finishDistance: 10,
-      durationSeconds: Number(el.durationInput?.value || 300),
+      durationSeconds: Number(el.pobDurationInput?.value || 300),
     }),
   },
   pob_v2: {
@@ -108,7 +111,7 @@ const GAME_DEFINITIONS = {
       matchType: 'solo',
       teamSize: 2,
       finishDistance: 10,
-      durationSeconds: Number(el.durationInput?.value || 300),
+      durationSeconds: Number(el.pobDurationInput?.value || 300),
     }),
   },
   logic_spy: {
@@ -117,7 +120,7 @@ const GAME_DEFINITIONS = {
       matchType: 'solo',
       teamSize: 2,
       finishDistance: 10,
-      durationSeconds: Number(el.durationInput?.value || 300),
+      durationSeconds: Number(el.quickDurationInput?.value || 300),
     }),
   },
 };
@@ -132,11 +135,12 @@ const getSelectedGameMode = () => {
 
 function syncHostModeOptions() {
   const mode = getSelectedGameMode();
-  el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
+  const useQuickOptions = mode === 'quick' || mode === 'logic_spy';
+  el.quickOptionsWrap?.classList.toggle('hidden', !useQuickOptions);
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
   el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob' && mode !== 'pob_v2');
-  const courseLabel = el.courseIdInput?.closest('label');
-  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2');
+  const hideCourse = mode === 'pob' || mode === 'pob_v2';
+  el.courseLabel?.classList.toggle('hidden', hideCourse);
   syncWormMatchOptions();
   renderSelectedModePlayCount();
 }
@@ -473,7 +477,14 @@ function renderOpenRooms() {
         const roomId = normalizeRoomIdInput(node.getAttribute('data-join-room-id') || '');
         if (!roomId) return;
         if (el.roomIdInput) el.roomIdInput.value = roomId;
+        const preferredName = String(el.quickJoinNameInput?.value || el.joinNameInput?.value || '').trim();
+        if (preferredName) {
+          el.joinNameInput.value = preferredName;
+          void handleJoinRoom();
+          return;
+        }
         openModal(el.joinModal);
+        setStatus('กรอกชื่อก่อน แล้วแตะการ์ดอีกครั้งเพื่อเข้าทันที');
       });
     });
   });
