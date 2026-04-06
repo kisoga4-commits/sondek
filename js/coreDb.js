@@ -36,6 +36,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 let authInitPromise = null;
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 3500;
 
 function isPermissionDeniedError(error) {
   const errorCode = String(error?.code || '');
@@ -62,24 +63,26 @@ function toCoreAuthConfigError(error) {
 }
 
 async function ensureAuthReady() {
+  if (auth.currentUser) return;
+
   if (!authInitPromise) {
-    authInitPromise = new Promise((resolve, reject) => {
+    authInitPromise = new Promise((resolve) => {
       let settled = false;
       let unsubscribe = null;
+      let timeoutId = null;
 
       const finalizeResolve = () => {
         if (settled) return;
         settled = true;
+        if (timeoutId) window.clearTimeout(timeoutId);
         if (unsubscribe) unsubscribe();
         resolve();
       };
 
-      const finalizeReject = (error) => {
-        if (settled) return;
-        settled = true;
-        if (unsubscribe) unsubscribe();
-        reject(error);
-      };
+      timeoutId = window.setTimeout(() => {
+        console.warn('Auth bootstrap timeout. Continue in guest mode.');
+        finalizeResolve();
+      }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
       unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -90,29 +93,17 @@ async function ensureAuthReady() {
         try {
           await signInAnonymously(auth);
         } catch (error) {
-          finalizeReject(toCoreAuthConfigError(error));
+          console.warn('Anonymous auth is unavailable. Continue in guest mode for public Firestore reads/writes allowed by rules.', toCoreAuthConfigError(error));
+          finalizeResolve();
         }
       }, (error) => {
-        finalizeReject(toCoreAuthConfigError(error));
+        console.warn('Auth state listener failed. Continue in guest mode.', toCoreAuthConfigError(error));
+        finalizeResolve();
       });
     });
   }
 
-  try {
-    await authInitPromise;
-  } catch (error) {
-    authInitPromise = null;
-    const errorCode = String(error?.code || '');
-    const isAuthBootstrapIssue = errorCode.includes('auth/anonymous-not-enabled')
-      || errorCode.includes('auth/operation-not-allowed')
-      || errorCode.includes('auth/admin-restricted-operation')
-      || errorCode.includes('auth/unauthorized-domain');
-    if (isAuthBootstrapIssue) {
-      console.warn('Anonymous auth is unavailable. Continue in guest mode for public Firestore reads/writes allowed by rules.', error);
-      return;
-    }
-    throw error;
-  }
+  await authInitPromise;
 }
 
 async function ensureWriteAccess() {
