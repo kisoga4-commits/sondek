@@ -4,8 +4,6 @@ export {
   finalizeDuelByTimeout,
   getQuestionsByCourse,
   joinDuelRoom,
-  subscribeDuelPlayCounts,
-  subscribeOpenDuelRooms,
   startDuelRoom,
   submitDuelAnswer,
   subscribeAuthStatus,

@@ -92,7 +92,7 @@ async function onSaveLogicSpyWordSets() {
     if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = `บันทึกคลังคำสำเร็จ ${sets.length} ชุด`;
   } catch (error) {
     if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = 'บันทึกคลังคำไม่สำเร็จ';
-    alert(getFriendlyAdminWriteError(error, 'บันทึกคลังคำไม่สำเร็จ'));
+    alert('บันทึกคลังคำไม่สำเร็จ');
   } finally {
     if (saveLogicSpyWordSetsBtn) saveLogicSpyWordSetsBtn.disabled = false;
   }
@@ -170,18 +170,6 @@ function getFriendlyCourseOfferError(error) {
     return 'เพิ่มคอร์สไม่สำเร็จ: ระบบยืนยันตัวตน Firebase ยังไม่พร้อม (Anonymous Auth)';
   }
   return `เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่ (${code || 'unknown-error'})`;
-}
-
-function getFriendlyAdminWriteError(error, fallbackMessage = 'บันทึกไม่สำเร็จ กรุณาลองใหม่') {
-  const code = String(error?.code || '');
-  const message = String(error?.message || '');
-  if (code.includes('auth/not-authenticated') || code.includes('auth/anonymous-not-enabled')) {
-    return 'ระบบยังเขียนข้อมูลไม่ได้ เพราะยังไม่ได้ล็อกอินแบบ Anonymous\n\nกรุณาเปิด Firebase Authentication > Sign-in method > Anonymous แล้วรีเฟรชหน้าเว็บ';
-  }
-  if (code.includes('permission-denied') || message.includes('Missing or insufficient permissions')) {
-    return 'บันทึกไม่สำเร็จ เพราะบัญชีนี้ยังไม่มีสิทธิ์ write ใน Firestore\n\nตรวจสอบ Firestore Rules ให้อนุญาต write เมื่อ request.auth != null';
-  }
-  return `${fallbackMessage}${message ? ` (${message})` : ''}`;
 }
 
 function updateProfileImagePreviewStatus() {
@@ -319,7 +307,7 @@ async function onSaveCourseOffering(event) {
   } catch (error) {
     console.error(error);
     if (courseOfferStatus) courseOfferStatus.textContent = 'เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่';
-    alert(getFriendlyAdminWriteError(error, getFriendlyCourseOfferError(error)));
+    alert(getFriendlyCourseOfferError(error));
   } finally {
     if (saveCourseOfferBtn) saveCourseOfferBtn.disabled = false;
   }
@@ -349,7 +337,7 @@ async function onEnrollCourse(event) {
     alert('บันทึกผู้สนใจคอร์สเรียบร้อย');
   } catch (error) {
     console.error(error);
-    alert(getFriendlyAdminWriteError(error, 'สมัครคอร์สไม่สำเร็จ กรุณาลองใหม่'));
+    alert('สมัครคอร์สไม่สำเร็จ กรุณาลองใหม่');
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
@@ -380,7 +368,7 @@ async function onEditCourseOffering(course) {
     alert('แก้ไขข้อมูลคอร์สเรียบร้อย');
   } catch (error) {
     console.error(error);
-    alert(getFriendlyAdminWriteError(error, 'แก้ไขข้อมูลคอร์สไม่สำเร็จ'));
+    alert('แก้ไขข้อมูลคอร์สไม่สำเร็จ');
   }
 }
 
@@ -391,7 +379,7 @@ async function onDeleteCourseOffering(course) {
     alert('ลบคอร์สเรียบร้อย');
   } catch (error) {
     console.error(error);
-    alert(getFriendlyAdminWriteError(error, 'ลบคอร์สไม่สำเร็จ'));
+    alert('ลบคอร์สไม่สำเร็จ');
   }
 }
 
@@ -412,7 +400,7 @@ async function onEditEnrollment(courseId, enrollment) {
     });
   } catch (error) {
     console.error(error);
-    alert(getFriendlyAdminWriteError(error, 'แก้ไขผู้สมัครไม่สำเร็จ'));
+    alert('แก้ไขผู้สมัครไม่สำเร็จ');
   }
 }
 
@@ -422,7 +410,7 @@ async function onDeleteEnrollment(courseId, enrollment) {
     await deleteCourseEnrollment(courseId, enrollment.enrollmentId);
   } catch (error) {
     console.error(error);
-    alert(getFriendlyAdminWriteError(error, 'ลบผู้สมัครไม่สำเร็จ'));
+    alert('ลบผู้สมัครไม่สำเร็จ');
   }
 }
 
@@ -565,25 +553,12 @@ function initCourseOfferingSection() {
     courseOfferStatus.textContent = 'กำลังโหลดรายการคอร์ส...';
   }
 
-  let hasFirstSnapshot = false;
-  const loadingTimeoutId = window.setTimeout(() => {
-    if (hasFirstSnapshot) return;
-    if (courseOfferStatus) {
-      courseOfferStatus.textContent = 'โหลดรายการคอร์สนานผิดปกติ กรุณารีเฟรชหรือตรวจสอบ Firebase Rules/Auth';
-    }
-    courseOfferList.innerHTML = '<p class="muted">โหลดคอร์สไม่สำเร็จ (timeout)</p>';
-  }, 8000);
-
   subscribeCourseOfferings((courseOffers) => {
-    hasFirstSnapshot = true;
-    window.clearTimeout(loadingTimeoutId);
     if (courseOfferStatus) {
       courseOfferStatus.textContent = 'พร้อมจัดการคอร์สและรับสมัครนักเรียน';
     }
     renderCourseOfferings(courseOffers);
   }, (error) => {
-    hasFirstSnapshot = true;
-    window.clearTimeout(loadingTimeoutId);
     console.error(error);
     if (courseOfferStatus) {
       courseOfferStatus.textContent = 'โหลดคอร์สไม่สำเร็จ กรุณารีเฟรช';
@@ -731,46 +706,45 @@ async function onSaveFeedbackConfig() {
     closeFeedbackModal();
   } catch (error) {
     console.error(error);
-    alert(getFriendlyAdminWriteError(error));
+    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
   } finally {
     saveFeedbackBtn.disabled = false;
   }
 }
 
 async function renderCourses(courses) {
-  try {
-    quizLibrary.innerHTML = '';
+  quizLibrary.innerHTML = '';
 
-    if (!Array.isArray(courses) || !courses.length) {
-      quizLibrary.innerHTML = '<p class="muted">ยังไม่มีบททดสอบในระบบ</p>';
-      return;
+  if (!courses.length) {
+    quizLibrary.innerHTML = '<p class="muted">ยังไม่มีบททดสอบในระบบ</p>';
+    return;
+  }
+
+  const playCountsByCourseId = {};
+  const playCounts = await Promise.all(courses.map(async (course) => {
+    try {
+      return await getPlayCountByCourse(course.courseId);
+    } catch (error) {
+      console.warn('โหลดจำนวนครั้งที่เล่นไม่สำเร็จ', course.courseId, error);
+      return 0;
     }
+  }));
 
-    const playCountsByCourseId = {};
-    const playCounts = await Promise.all(courses.map(async (course) => {
-      try {
-        return await getPlayCountByCourse(course.courseId);
-      } catch (error) {
-        console.warn('โหลดจำนวนครั้งที่เล่นไม่สำเร็จ', course.courseId, error);
-        return 0;
-      }
-    }));
+  courses.forEach((course, index) => {
+    playCountsByCourseId[course.courseId] = playCounts[index];
+  });
 
-    courses.forEach((course, index) => {
-      playCountsByCourseId[course.courseId] = playCounts[index];
-    });
+  courses.forEach((course) => {
+    const title = course.title ? escapeHtml(course.title) : escapeHtml(course.courseId);
+    const courseId = escapeHtml(course.courseId);
+    const editLink = `template.html?courseId=${encodeURIComponent(course.courseId)}`;
+    const quizLink = buildQuizLink(course);
+    const top5Link = buildTop5Link(course);
+    const playCount = Number(playCountsByCourseId[course.courseId] || 0);
 
-    courses.forEach((course) => {
-      const title = course.title ? escapeHtml(course.title) : escapeHtml(course.courseId);
-      const courseId = escapeHtml(course.courseId);
-      const editLink = `template.html?courseId=${encodeURIComponent(course.courseId)}`;
-      const quizLink = buildQuizLink(course);
-      const top5Link = buildTop5Link(course);
-      const playCount = Number(playCountsByCourseId[course.courseId] || 0);
-
-      const card = document.createElement('article');
-      card.className = 'library-item library-item-grid';
-      card.innerHTML = `
+    const card = document.createElement('article');
+    card.className = 'library-item library-item-grid';
+    card.innerHTML = `
       <div class="library-head">
         <div>
           <p class="item-title">${title}</p>
@@ -806,60 +780,47 @@ async function renderCourses(courses) {
           </details>
         </div>
       </div>
-      `;
+    `;
 
-      card.querySelector('[data-action="copy"]').addEventListener('click', () => {
-        void copyLink(quizLink);
-      });
-
-      card.querySelector('[data-action="toggle-qr"]').addEventListener('click', (event) => {
-        const btn = event.currentTarget;
-        const qrWrap = card.querySelector('[data-role="qr-wrap"]');
-        if (!qrWrap) return;
-
-        const isHidden = qrWrap.classList.contains('hidden');
-        qrWrap.classList.toggle('hidden', !isHidden);
-        btn.textContent = isHidden ? 'ซ่อน QR' : 'แสดง QR';
-      });
-
-      card.querySelector('[data-action="download-qr"]').addEventListener('click', () => {
-        const qr = card.querySelector('img');
-        if (!qr?.src) {
-          alert('ไม่พบรูป QR');
-          return;
-        }
-        downloadQrFromImage(qr.src, course.courseId);
-      });
-
-      card.querySelector('[data-action="delete"]').addEventListener('click', () => {
-        void onDeleteCourse(course.courseId);
-      });
-
-      quizLibrary.appendChild(card);
+    card.querySelector('[data-action="copy"]').addEventListener('click', () => {
+      void copyLink(quizLink);
     });
-  } catch (error) {
-    console.error(error);
-    quizLibrary.innerHTML = '<p class="muted">เกิดข้อผิดพลาดระหว่างแสดงคลังบททดสอบ กรุณารีเฟรช</p>';
-  }
+
+    card.querySelector('[data-action="toggle-qr"]').addEventListener('click', (event) => {
+      const btn = event.currentTarget;
+      const qrWrap = card.querySelector('[data-role="qr-wrap"]');
+      if (!qrWrap) return;
+
+      const isHidden = qrWrap.classList.contains('hidden');
+      qrWrap.classList.toggle('hidden', !isHidden);
+      btn.textContent = isHidden ? 'ซ่อน QR' : 'แสดง QR';
+    });
+
+    card.querySelector('[data-action="download-qr"]').addEventListener('click', () => {
+      const qr = card.querySelector('img');
+      if (!qr?.src) {
+        alert('ไม่พบรูป QR');
+        return;
+      }
+      downloadQrFromImage(qr.src, course.courseId);
+    });
+
+    card.querySelector('[data-action="delete"]').addEventListener('click', () => {
+      void onDeleteCourse(course.courseId);
+    });
+
+    quizLibrary.appendChild(card);
+  });
 }
 
 function initQuizLibrary() {
   if (!quizLibrary) return;
 
   quizLibrary.innerHTML = '<p class="muted">กำลังโหลดบททดสอบ...</p>';
-  let hasFirstSnapshot = false;
-  const loadingTimeoutId = window.setTimeout(() => {
-    if (hasFirstSnapshot) return;
-    quizLibrary.innerHTML = '<p class="muted">โหลดคลังบททดสอบนานผิดปกติ กรุณารีเฟรชหรือตรวจสอบ Firebase Rules/Auth</p>';
-  }, 8000);
 
   subscribeCourses((courses) => {
-    hasFirstSnapshot = true;
-    window.clearTimeout(loadingTimeoutId);
     void renderCourses(courses);
   }, (error) => {
-    hasFirstSnapshot = true;
-    window.clearTimeout(loadingTimeoutId);
     console.error(error);
     quizLibrary.innerHTML = '<p class="muted">โหลดคลังบททดสอบไม่สำเร็จ</p>';
   });
@@ -913,60 +874,12 @@ if (profileForm) {
   });
 }
 
-function runInitSafely(initLabel, initFn, fallbackFn) {
-  try {
-    initFn();
-  } catch (error) {
-    console.error(`${initLabel} failed`, error);
-    if (fallbackFn instanceof Function) {
-      fallbackFn();
-    }
-  }
-}
-
-runInitSafely('initQuizLibrary', () => {
-  initQuizLibrary();
-}, () => {
-  if (quizLibrary) {
-    quizLibrary.innerHTML = '<p class="muted">โหลดคลังบททดสอบไม่สำเร็จ (init error)</p>';
-  }
-});
-
-runInitSafely('loadFeedbackConfig', () => {
-  void loadFeedbackConfig();
-});
-
-runInitSafely('loadProfileForm', () => {
-  void loadProfileForm();
-}, () => {
-  if (profileFormStatus) {
-    profileFormStatus.textContent = 'โหลดข้อมูลโปรไฟล์ไม่สำเร็จ (init error)';
-  }
-});
-
-runInitSafely('loadLogicSpyWordSets', () => {
-  void loadLogicSpyWordSets();
-}, () => {
-  if (logicSpyWordSetsStatus) {
-    logicSpyWordSetsStatus.textContent = 'โหลดคลังคำไม่สำเร็จ (init error)';
-  }
-});
-
-runInitSafely('initCourseOfferingSection', () => {
-  initCourseOfferingSection();
-}, () => {
-  if (courseOfferStatus) {
-    courseOfferStatus.textContent = 'โหลดรายการคอร์สไม่สำเร็จ (init error)';
-  }
-  if (courseOfferList) {
-    courseOfferList.innerHTML = '<p class="muted">โหลดคอร์สไม่สำเร็จ</p>';
-  }
-});
-
-runInitSafely('subscribeAuthStatus', () => {
-  subscribeAuthStatus(renderAuthStatus);
-});
-
+initQuizLibrary();
+void loadFeedbackConfig();
+void loadProfileForm();
+void loadLogicSpyWordSets();
+initCourseOfferingSection();
+subscribeAuthStatus(renderAuthStatus);
 updateProfileImagePreviewStatus();
 
 if (profileImageInput) {
@@ -980,11 +893,15 @@ if (openProfilePageBtn) {
 }
 
 if (openMyProfileBtn) {
-  openMyProfileBtn.href = buildProfileLink();
+  openMyProfileBtn.addEventListener('click', () => {
+    window.open(buildProfileLink(), '_blank', 'noopener,noreferrer');
+  });
 }
 
 if (openCourseDestinationBtn) {
-  openCourseDestinationBtn.href = buildCourseDestinationLink();
+  openCourseDestinationBtn.addEventListener('click', () => {
+    window.open(buildCourseDestinationLink(), '_blank', 'noopener,noreferrer');
+  });
 }
 
 if (courseOfferForm) {

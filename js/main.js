@@ -1,5 +1,4 @@
 import {
-  getAllCourses,
   getCourse,
   getLeaderboard,
   getPlayCountByCourse,
@@ -63,7 +62,6 @@ const homeHubHomeLink = document.getElementById('homeHubHomeLink');
 const homeHubQuizLink = document.getElementById('homeHubQuizLink');
 const homeHubTopLink = document.getElementById('homeHubTopLink');
 const homeHubProfileLink = document.getElementById('homeHubProfileLink');
-let coursePickerWrap = null;
 
 const state = {
   course: null,
@@ -247,38 +245,6 @@ function getQuestionTypeLabel(type) {
   return 'คำถาม';
 }
 
-function getCourseLink(course) {
-  const baseUrl = getBasePathUrl(window.location.pathname);
-  return `${baseUrl}quiz.html?id=${encodeURIComponent(course?.courseId || '')}`;
-}
-
-function ensureCoursePickerWrap() {
-  if (coursePickerWrap) return coursePickerWrap;
-  const wrap = document.createElement('div');
-  wrap.id = 'coursePickerWrap';
-  wrap.className = 'mt-4 space-y-2';
-  introSection?.appendChild(wrap);
-  coursePickerWrap = wrap;
-  return wrap;
-}
-
-function renderCoursePicker(courses) {
-  const wrap = ensureCoursePickerWrap();
-  wrap.innerHTML = '';
-  if (!Array.isArray(courses) || !courses.length) {
-    wrap.innerHTML = '<p class="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">ยังไม่มีบททดสอบในระบบ</p>';
-    return;
-  }
-
-  courses.forEach((course) => {
-    const link = document.createElement('a');
-    link.href = getCourseLink(course);
-    link.className = 'block rounded-xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow';
-    link.textContent = `เริ่มทำ: ${String(course?.title || course?.courseId || 'บททดสอบ')}`;
-    wrap.appendChild(link);
-  });
-}
-
 async function init() {
   const baseUrl = getBasePathUrl(window.location.pathname);
   if (homeHubHomeLink) homeHubHomeLink.href = `${baseUrl}index.html`;
@@ -297,21 +263,8 @@ async function init() {
   if (homeCourseCta) homeCourseCta.href = `${baseUrl}courses.html`;
 
   if (!courseId) {
-    quizTitle.textContent = 'คลังข้อสอบ';
-    quizDescription.textContent = 'เลือกบททดสอบจากรายการด้านล่าง';
-    courseInfo.textContent = 'ยังไม่ได้เลือกบททดสอบ';
-    playCountInfo.textContent = 'โหมดนี้ใช้สำหรับเลือกบททดสอบก่อนเริ่มทำ';
-    if (entryForm) entryForm.classList.add('hidden');
-    if (startBtn) startBtn.disabled = true;
-
-    try {
-      const courses = await getAllCourses();
-      renderCoursePicker(courses);
-    } catch (error) {
-      console.error(error);
-      renderCoursePicker([]);
-      playCountInfo.textContent = 'โหลดคลังข้อสอบไม่สำเร็จ กรุณารีเฟรชอีกครั้ง';
-    }
+    courseInfo.textContent = 'ไม่พบรหัสแบบทดสอบในลิงก์ ตัวอย่าง: quiz.html?id=quiz_xxx';
+    playCountInfo.textContent = 'ไม่พบข้อมูลจำนวนผู้เล่น';
     return;
   }
 
@@ -349,8 +302,6 @@ async function init() {
     }
 
     state.drawCount = Math.max(1, Number(course.drawCount || course.questionCount || DEFAULT_DRAW_COUNT));
-    if (entryForm) entryForm.classList.remove('hidden');
-    if (coursePickerWrap) coursePickerWrap.innerHTML = '';
 
     quizTitle.textContent = course.title || 'แบบทดสอบ';
     quizDescription.textContent = course.description || 'ตอบคำถามให้ครบ แล้วไปดูอันดับ TOP';

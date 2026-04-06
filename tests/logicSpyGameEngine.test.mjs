@@ -1,12 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  buildRoundAssignments,
-  buildVoteRevealByVoter,
-  calculateRoundScore,
-  normalizeWordSets,
-  pickWordSet,
-} from '../games/logic-spy/js/gameEngine.js';
+import { buildRoundAssignments, calculateRoundScore, normalizeWordSets, pickWordSet } from '../games/logic-spy/js/gameEngine.js';
 
 test('normalizeWordSets keeps only valid 4-word entries and removes duplicated words', () => {
   const normalized = normalizeWordSets([
@@ -52,18 +46,4 @@ test('calculateRoundScore ignores self vote and invalid target', () => {
   });
 
   assert.deepEqual(score, { u1: 1, u2: 0, u3: 1 });
-});
-
-test('buildVoteRevealByVoter marks who voted correctly for odd player', () => {
-  const rows = buildVoteRevealByVoter({
-    oddUid: 'u3',
-    playerIds: ['u1', 'u2', 'u3'],
-    votesByUid: { u1: 'u3', u2: 'u2' },
-  });
-
-  assert.deepEqual(rows, [
-    { voterUid: 'u1', votedUid: 'u3', isCorrect: true, noVote: false },
-    { voterUid: 'u2', votedUid: '', isCorrect: false, noVote: true },
-    { voterUid: 'u3', votedUid: '', isCorrect: false, noVote: true },
-  ]);
 });

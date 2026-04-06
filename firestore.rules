@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // เช็กว่ามีการยืนยันตัวตนแล้ว (ใช้กับบางระบบเฉพาะ)
+    // เช็กว่ามีการยืนยันตัวตนแล้ว
     // รวมถึง Anonymous Auth ด้วย
     function isAuthenticated() {
       return request.auth != null;
@@ -10,41 +10,41 @@ service cloud.firestore {
 
     // -----------------------------
     // 1) คอร์ส / ข้อสอบ / ตั้งค่า / โปรไฟล์
-    // โหมดปัจจุบันของโปรเจกต์: ใครเข้าหน้า adminchamp ได้ให้แก้ไขได้ทันที
-    // อ่าน/เขียนสาธารณะทั้งหมด (ยังไม่มีระบบสิทธิ์แอดมินแบบแยกบทบาท)
+    // อ่านได้สาธารณะ
+    // เขียนได้เฉพาะคนที่ login แล้ว
     // -----------------------------
     match /courses/{courseId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated();
     }
 
     match /questions/{questionId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated();
     }
 
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated();
     }
 
     match /profile/{profileId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated();
     }
 
     match /course_offerings/{courseId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAuthenticated();
     }
 
     // -----------------------------
     // 2) leads = รายชื่อผู้เข้าสอบ / คะแนน / leaderboard
-    // เปิดแบบเดียวกับ adminchamp เพื่อไม่ให้หน้าคลัง/สถิติพังจาก auth bootstrap
+    // ตามโหมดง่าย: ต้อง login ก่อน ถึงจะอ่าน/เขียนได้
     // -----------------------------
     match /leads/{leadId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
     // -----------------------------

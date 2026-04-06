@@ -12,23 +12,11 @@
       <section class="card duel-entry-card" id="duelEntrySection">
         <div class="hero-badge">DUEL QUIZ</div>
         <h1>🐛 สนามแข่งคำถาม</h1>
-        <p class="muted">สร้างห้อง เลือกเกม เลือกบททดสอบ และตั้งเวลาแข่ง 2-5 นาทีได้ในหน้าเดียว</p>
+        <p class="muted">ตอบใครตอบมัน ไม่สลับคิว ตอบแล้วไปข้อใหม่ทันที พร้อมเสียงชม/ด่าให้ลุ้นทุกข้อ</p>
         <div class="quiz-actions duel-entry-actions">
-          <button id="showHostSetupBtn" class="btn duel-big-btn" type="button" data-open-modal="hostModal">Host</button>
-          <button id="showJoinSetupBtn" class="btn btn-secondary duel-big-btn" type="button" data-open-modal="joinModal">Join</button>
+          <button id="showHostSetupBtn" class="btn duel-big-btn" type="button">Host</button>
+          <button id="showJoinSetupBtn" class="btn btn-secondary duel-big-btn" type="button">Join</button>
         </div>
-        <section class="duel-open-rooms" aria-live="polite">
-          <div class="duel-open-rooms-head">
-            <h3>ห้องที่เปิดรอ Join</h3>
-            <p class="muted">กดการ์ดเพื่อเข้าทันที (ถ้าใส่ชื่อแล้ว) หรือกรอก PIN เองก็ได้</p>
-          </div>
-          <label>ชื่อผู้เล่นสำหรับเข้าไว
-            <input id="duelQuickJoinName" type="text" maxlength="24" placeholder="ใส่ชื่อก่อนกดการ์ดห้อง" />
-          </label>
-          <div id="duelOpenRoomsList" class="duel-open-rooms-list">
-            <div class="duel-empty-state">ยังไม่มีห้องที่เปิดอยู่</div>
-          </div>
-        </section>
         <p id="duelStatusText" class="muted"></p>
       </section>
 
@@ -73,12 +61,12 @@
 
     <section id="hostModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="hostModalTitle">
       <article class="card duel-modal-card">
-        <h3 id="hostModalTitle">สร้างห้องแข่งขัน</h3>
+        <h3 id="hostModalTitle">สร้างห้อง หนอนกระดื้บ</h3>
         <div class="duel-setup-grid duel-setup-grid--single">
           <label>ชื่อผู้เล่น
             <input id="duelHostName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
           </label>
-          <label id="duelCourseLabel">บททดสอบ (ดึงจากคลังข้อสอบเดิม)
+          <label>บททดสอบ
             <select id="duelCourseId">
               <option value="">-- เลือกบททดสอบ --</option>
             </select>
@@ -88,23 +76,11 @@
               <option value="quick">ตอบไว</option>
               <option value="worm">หนอนกระดื้บ</option>
               <option value="pob">ปอบกินตับ</option>
-              <option value="pob_v2">ปอบกินตับ V2</option>
               <option value="logic_spy">ใครต่างจากเพื่อน</option>
             </select>
-            <small id="duelGamePlayCountText" class="muted">สถิติการเล่น: -</small>
           </label>
 
-          <div id="duelPobOptions" class="hidden">
-            <p class="duel-special-mode-note">โหมดปอบจะใช้ระบบแข่งเฉพาะเกมปอบ และไม่ต้องเลือกบททดสอบ</p>
-            <label>เวลาเกม
-              <select id="duelPobDuration">
-                <option value="120">2 นาที</option>
-                <option value="180">3 นาที</option>
-                <option value="240">4 นาที</option>
-                <option value="300">5 นาที</option>
-              </select>
-            </label>
-          </div>
+          <div id="duelPobOptions" class="hidden duel-special-mode-note"></div>
 
           <div id="duelQuickOptions">
             <label>รูปแบบการแข่ง
@@ -167,7 +143,7 @@
 
     <section id="joinModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="joinModalTitle">
       <article class="card duel-modal-card">
-        <h3 id="joinModalTitle">เข้าห้องแข่งขัน</h3>
+        <h3 id="joinModalTitle">เข้าห้อง หนอนกระดื้บ</h3>
         <div class="duel-setup-grid duel-setup-grid--single">
           <label>ชื่อผู้เล่น
             <input id="duelJoinName" type="text" maxlength="24" placeholder="กรอกชื่อของคุณ" />
@@ -175,9 +151,6 @@
           <label>PIN ห้อง
             <input id="duelRoomId" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 6 หลัก" />
           </label>
-        </div>
-        <div id="duelJoinRoomCards" class="duel-open-rooms-list duel-open-rooms-list--modal">
-          <div class="duel-empty-state">กำลังโหลดห้อง...</div>
         </div>
         <div class="quiz-actions">
           <button id="joinRoomBtn" class="btn" type="button">เข้าห้อง</button>
@@ -196,20 +169,6 @@
       </article>
     </section>
 
-    <script>
-      // Fallback modal controls: keeps Host/Join usable even when module scripts fail to load.
-      (() => {
-        const openModal = (id) => document.getElementById(String(id || ''))?.classList.remove('hidden');
-        const closeModal = (id) => document.getElementById(String(id || ''))?.classList.add('hidden');
-
-        document.querySelectorAll('[data-open-modal]').forEach((btn) => {
-          btn.addEventListener('click', () => openModal(btn.getAttribute('data-open-modal')));
-        });
-        document.querySelectorAll('[data-close-modal]').forEach((btn) => {
-          btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close-modal')));
-        });
-      })();
-    </script>
     <script type="module" src="js/duel.js"></script>
   </body>
 </html>

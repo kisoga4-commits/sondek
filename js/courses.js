@@ -1,7 +1,7 @@
 import {
   saveCourseEnrollment,
   subscribeCourseOfferings,
-} from './coreDb.js';
+} from './db.js';
 
 const publicCourseList = document.getElementById('publicCourseList');
 

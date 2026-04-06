@@ -2,13 +2,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebas
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import { getDatabase, onValue, ref, runTransaction, set, update } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
 import { doc, getDoc, getFirestore } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import {
-  DEFAULT_LOGIC_SPY_WORD_SETS,
-  buildRoundAssignments,
-  buildVoteRevealByVoter,
-  calculateRoundScore,
-  pickWordSet,
-} from './gameEngine.js';
+import { DEFAULT_LOGIC_SPY_WORD_SETS, buildRoundAssignments, calculateRoundScore, pickWordSet } from './gameEngine.js';
 
 const config = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -273,27 +267,10 @@ function ui() {
 
   const wordsByUid = game?.secretWordsByUid || {};
   const reason = String(game?.reason || '-');
-  const oddUid = String(game?.oddUid || '');
-  const oddName = oddUid ? displayPlayerName(oddUid, duelPlayersByUid?.[oddUid]?.name || oddUid) : '-';
-  const voteRevealRows = buildVoteRevealByVoter({
-    oddUid,
-    votesByUid: game?.votes || {},
-    playerIds: players.map(([uid]) => uid),
-  }).map(({ voterUid, votedUid, isCorrect, noVote }) => {
-    const voterName = displayPlayerName(voterUid, duelPlayersByUid?.[voterUid]?.name || voterUid);
-    const targetName = votedUid ? displayPlayerName(votedUid, duelPlayersByUid?.[votedUid]?.name || votedUid) : 'ไม่โหวต/โหวตไม่ถูกต้อง';
-    const resultLabel = noVote ? '⚪ ไม่นับคะแนน' : (isCorrect ? '✅ ตอบถูกคน' : '❌ ตอบผิดคน');
-    return `<div class="vote-item"><b>${voterName}</b><span>โหวต: ${targetName}</span><span>${resultLabel}</span></div>`;
-  }).join('');
   el.result.innerHTML = `
     <h3>Result</h3>
-    <p>คนที่ต่างจากเพื่อนรอบนี้คือ: <b>${oddName}</b></p>
     <p>${reason}</p>
     <p>กลับ Lobby อัตโนมัติใน <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
-    <h4>สรุปผลโหวต (ใครโหวตถูกคน)</h4>
-    ${voteRevealRows || '<p class="muted">ยังไม่มีข้อมูลโหวต</p>'}
-    <hr/>
-    <h4>คำที่แต่ละคนได้รับ</h4>
     ${players
       .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, player?.name || uid)}</b><span>${wordsByUid[uid] || '-'}</span><span>(+${Number(game?.roundScore?.[uid] || 0)} แต้ม)</span></div>`)
       .join('')}

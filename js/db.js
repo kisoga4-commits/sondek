@@ -64,7 +64,6 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 
 let authInitPromise = null;
-const AUTH_BOOTSTRAP_TIMEOUT_MS = 3500;
 
 
 function isPermissionDeniedError(error) {
@@ -110,26 +109,24 @@ function toDuelAuthConfigError(error) {
 
 
 async function ensureAuthReady() {
-  if (auth.currentUser) return;
-
   if (!authInitPromise) {
-    authInitPromise = new Promise((resolve) => {
+    authInitPromise = new Promise((resolve, reject) => {
       let settled = false;
       let unsubscribe = null;
-      let timeoutId = null;
 
       const finalizeResolve = () => {
         if (settled) return;
         settled = true;
-        if (timeoutId) window.clearTimeout(timeoutId);
         if (unsubscribe) unsubscribe();
         resolve();
       };
 
-      timeoutId = window.setTimeout(() => {
-        console.warn('Auth bootstrap timeout. Continue in guest mode.');
-        finalizeResolve();
-      }, AUTH_BOOTSTRAP_TIMEOUT_MS);
+      const finalizeReject = (error) => {
+        if (settled) return;
+        settled = true;
+        if (unsubscribe) unsubscribe();
+        reject(error);
+      };
 
       unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -140,13 +137,9 @@ async function ensureAuthReady() {
         try {
           await signInAnonymously(auth);
         } catch (error) {
-          console.warn('Anonymous auth is unavailable. Continue in guest mode for public Firestore reads/writes allowed by rules.', toDuelAuthConfigError(error));
-          finalizeResolve();
+          finalizeReject(toDuelAuthConfigError(error));
         }
-      }, (error) => {
-        console.warn('Auth state listener failed. Continue in guest mode.', toDuelAuthConfigError(error));
-        finalizeResolve();
-      });
+      }, finalizeReject);
     });
   }
 
@@ -198,6 +191,12 @@ export async function runWeeklyDuelMaintenance(options = {}) {
 
 async function ensureWriteAccess() {
   await ensureAuthReady();
+
+  if (!auth.currentUser) {
+    const error = new Error('Anonymous sign-in is not available. Enable Firebase Authentication > Anonymous.');
+    error.code = 'auth/not-authenticated';
+    throw error;
+  }
 }
 
 
@@ -475,11 +474,11 @@ export async function getAllCourses() {
   return snap.docs
     .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
     .filter((course) => course.status !== 'deleted')
-    .sort((a, b) => String(a.courseId || a.id || '').localeCompare(String(b.courseId || b.id || '')));
+    .sort((a, b) => String(a.courseId).localeCompare(String(b.courseId)));
 }
 
 export function subscribeCourses(callback, onError) {
-  const q = collection(db, 'courses');
+  const q = query(collection(db, 'courses'), orderBy('courseId', 'asc'));
   let unsubscribe = () => {};
 
   ensureAuthReady()
@@ -487,8 +486,7 @@ export function subscribeCourses(callback, onError) {
       unsubscribe = onSnapshot(q, (snap) => callback(
         snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((course) => course.status !== 'deleted')
-          .sort((a, b) => String(a.courseId || a.id || '').localeCompare(String(b.courseId || b.id || ''))),
+          .filter((course) => course.status !== 'deleted'),
       ), onError);
     })
     .catch((error) => {
@@ -548,30 +546,14 @@ export async function updateCourseOffering(courseId, payload) {
 }
 
 export function subscribeCourseOfferings(callback, onError) {
-  const q = collection(db, 'course_offerings');
+  const q = query(collection(db, 'course_offerings'), orderBy('createdAt', 'desc'));
   let unsubscribe = () => {};
-
-  const toEpoch = (value) => {
-    if (!value) return 0;
-    if (value?.toDate instanceof Function) return value.toDate().getTime();
-    if (value instanceof Date) return Number.isNaN(value.getTime()) ? 0 : value.getTime();
-    const parsed = Date.parse(String(value));
-    return Number.isNaN(parsed) ? 0 : parsed;
-  };
 
   ensureAuthReady()
     .then(() => {
       unsubscribe = onSnapshot(q, (snap) => callback(
         snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => {
-            const aTime = toEpoch(a.createdAt || a.updatedAt || a.created_at);
-            const bTime = toEpoch(b.createdAt || b.updatedAt || b.created_at);
-            if (aTime === bTime) {
-              return String(b.courseId || b.id || '').localeCompare(String(a.courseId || a.id || ''));
-            }
-            return bTime - aTime;
-          }),
+          .map((d) => ({ id: d.id, ...d.data() })),
       ), onError);
     })
     .catch((error) => {
@@ -922,14 +904,6 @@ function syncDuelRoomShape(room = {}) {
   };
 }
 
-function getModeMaxPlayers(gameMode, matchType = 'solo', teamSize = 2) {
-  if (gameMode === 'pob_v2') return 24;
-  if (gameMode === 'pob') return 8;
-  if (gameMode === 'logic_spy') return 5;
-  if (matchType === 'party') return Math.max(4, Math.min(6, Number(teamSize || 2) * 2));
-  return 4;
-}
-
 function buildDuelPlayerPayload(name) {
   return {
     name: sanitizeDuelName(name),
@@ -1010,16 +984,14 @@ export async function createDuelRoom(payload) {
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
   const requestedGameMode = String(payload?.gameMode || '').toLowerCase();
-  const gameMode = ['quick', 'worm', 'pob', 'pob_v2', 'logic_spy'].includes(requestedGameMode) ? requestedGameMode : 'quick';
+  const gameMode = ['quick', 'worm', 'pob', 'logic_spy'].includes(requestedGameMode) ? requestedGameMode : 'quick';
   const matchType = requestedMatchType;
   const gameLabel = String(payload?.gameLabel || '').trim()
     || (gameMode === 'worm'
       ? 'หนอนกระดื้บ'
       : gameMode === 'pob'
         ? 'ปอบกินตับ'
-        : gameMode === 'pob_v2'
-          ? 'ปอบกินตับ V2'
-          : gameMode === 'logic_spy'
+        : gameMode === 'logic_spy'
           ? 'ใครต่างจากเพื่อน'
           : 'ตอบไว');
   const questionPoolIds = Array.isArray(payload?.questionPoolIds)
@@ -1066,7 +1038,7 @@ export async function createDuelRoom(payload) {
           hostUid: uid,
           hostName: hostPlayer.name,
           durationSeconds,
-          maxPlayers: getModeMaxPlayers(gameMode, matchType, teamSize),
+          maxPlayers: 8,
           modeConfig,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
           questionPoolIds,
@@ -1188,17 +1160,18 @@ export async function startDuelRoom(roomId) {
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
       const requiredPlayers = gameMode === 'pob'
         ? 4
-        : (gameMode === 'pob_v2'
-          ? 4
         : (gameMode === 'logic_spy' ? 3 : (matchType === 'party' ? teamSize * 2 : 2));
-        )
       if (Object.keys(players).length < requiredPlayers) {
         throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${requiredPlayers} คนก่อนเริ่มดวล`);
       }
 
       const nowMs = Date.now();
-      const modeMaxPlayers = getModeMaxPlayers(gameMode, matchType, teamSize);
-      const playerEntries = Object.entries(players).slice(0, modeMaxPlayers);
+      const playerEntries = Object.entries(players).slice(
+        0,
+        gameMode === 'pob'
+          ? 8
+          : (gameMode === 'logic_spy' ? 5 : (matchType === 'party' ? teamSize * 2 : 4)),
+      );
       const normalizedPlayers = {};
       let teams = null;
       if (matchType === 'party') {
@@ -1288,72 +1261,6 @@ export function subscribeDuelRoom(roomId, callback, onError) {
       if (onError) onError(error);
     });
 
-  return () => unsubscribe();
-}
-
-export function subscribeOpenDuelRooms(callback, onError) {
-  let unsubscribe = () => {};
-  ensureAuthReady()
-    .then(() => {
-      const roomsRef = rtdbRef(rtdb, 'rooms');
-      unsubscribe = onValue(roomsRef, (snap) => {
-        if (!snap.exists()) {
-          callback([]);
-          return;
-        }
-        const entries = Object.entries(snap.val() || {});
-        const rooms = entries
-          .map(([id, room]) => syncDuelRoomShape({ roomId: id, ...room }))
-          .filter((room) => String(room?.status || '') === 'lobby')
-          .map((room) => {
-            const mode = String(room?.modeConfig?.gameMode || 'quick');
-            const matchType = String(room?.modeConfig?.matchType || 'solo');
-            const teamSize = Number(room?.modeConfig?.teamSize || 2);
-            const maxPlayers = Number(room?.maxPlayers || getModeMaxPlayers(mode, matchType, teamSize));
-            const playersCount = Object.keys(room?.players || {}).length;
-            return {
-              roomId: String(room?.roomId || room?.pin || ''),
-              pin: String(room?.pin || room?.roomId || ''),
-              hostName: String(room?.hostName || ''),
-              status: String(room?.status || 'lobby'),
-              modeConfig: room?.modeConfig || {},
-              playersCount,
-              maxPlayers,
-              createdAtMs: Number(room?.createdAtMs || 0),
-              updatedAtMs: Number(room?.updatedAtMs || 0),
-            };
-          })
-          .sort((a, b) => Number(b.updatedAtMs || 0) - Number(a.updatedAtMs || 0))
-          .slice(0, 20);
-        callback(rooms);
-      }, onError);
-    })
-    .catch((error) => {
-      if (onError) onError(error);
-    });
-  return () => unsubscribe();
-}
-
-export function subscribeDuelPlayCounts(callback, onError) {
-  let unsubscribe = () => {};
-  ensureAuthReady()
-    .then(() => {
-      const statsDocRef = doc(db, 'settings', DUEL_GAME_PLAY_COUNT_DOC_ID);
-      unsubscribe = onSnapshot(statsDocRef, (snap) => {
-        const data = snap.exists() ? snap.data() : {};
-        const byMode = (data?.playCountByMode && typeof data.playCountByMode === 'object')
-          ? data.playCountByMode
-          : {};
-        callback({
-          totalPlayCount: Number(data?.totalPlayCount || 0),
-          playCountByMode: byMode,
-          updatedAt: data?.updatedAt || null,
-        });
-      }, onError);
-    })
-    .catch((error) => {
-      if (onError) onError(error);
-    });
   return () => unsubscribe();
 }
 

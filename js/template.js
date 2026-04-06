@@ -4,7 +4,7 @@ import {
   getQuestionsByCourse,
   replaceQuestionsForCourse,
   saveCourse,
-} from './coreDb.js';
+} from './db.js';
 
 const MIN_QUESTION_BANK = 10;
 
@@ -612,7 +612,7 @@ async function deleteCurrentQuiz() {
     await deleteCourseWithQuestions(courseId);
     localStorage.removeItem(LOCAL_SNAPSHOT_KEY);
     alert('ลบบททดสอบเรียบร้อยแล้ว');
-    window.location.href = 'index.html';
+    window.location.href = 'adminchamp.html';
   } catch (error) {
     console.error(error);
     alert(`ลบบททดสอบไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
@@ -858,7 +858,7 @@ titlePromptFormEl?.addEventListener('submit', (event) => {
   submitTitlePrompt();
 });
 titlePromptExitBtnEl?.addEventListener('click', () => {
-  window.location.href = 'index.html';
+  window.location.href = 'adminchamp.html';
 });
 
 drawCountPresetEls.forEach((item) => {
