@@ -1140,6 +1140,53 @@ export async function joinDuelRoom(roomId, playerName) {
   return { roomId: safeRoomId, uid };
 }
 
+export async function leaveDuelRoom(roomId) {
+  await ensureWriteAccess();
+  const uid = getDuelActorUid();
+  const safeRoomId = normalizeDuelRoomId(roomId);
+  if (safeRoomId.length !== DUEL_ROOM_ID_LENGTH) return { roomId: safeRoomId, uid, removed: false };
+
+  const roomRef = rtdbRef(rtdb, `rooms/${safeRoomId}`);
+  let tx;
+  try {
+    tx = await runRtdbTransaction(roomRef, (data) => {
+      if (!data || typeof data !== 'object') return data;
+      const players = { ...(data.players || {}) };
+      if (!players[uid]) return data;
+
+      delete players[uid];
+      const nextEntries = Object.entries(players);
+      if (!nextEntries.length) {
+        return null;
+      }
+
+      const [nextHostUid, nextHostPlayer] = nextEntries
+        .sort((a, b) => Number(a?.[1]?.joinedAt || 0) - Number(b?.[1]?.joinedAt || 0))[0];
+      const currentHostUid = String(data.hostUid || '');
+      const shouldRotateHost = currentHostUid === uid || !players[currentHostUid];
+      if (shouldRotateHost) {
+        players[nextHostUid] = {
+          ...nextHostPlayer,
+          isHost: true,
+          updatedAt: Date.now(),
+        };
+      }
+
+      return {
+        ...syncDuelRoomShape(data),
+        players,
+        hostUid: shouldRotateHost ? nextHostUid : currentHostUid,
+        hostName: shouldRotateHost ? String(players[nextHostUid]?.name || data.hostName || 'Host') : data.hostName,
+        updatedAtMs: Date.now(),
+      };
+    });
+  } catch (error) {
+    throw toDuelPermissionDeniedError(error);
+  }
+
+  return { roomId: safeRoomId, uid, removed: !tx?.snapshot?.exists() };
+}
+
 export async function startDuelRoom(roomId) {
   await ensureWriteAccess();
   const uid = getDuelActorUid();

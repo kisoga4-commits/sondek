@@ -4,6 +4,7 @@ import {
   finalizeDuelByTimeout,
   getQuestionsByCourse,
   joinDuelRoom,
+  leaveDuelRoom,
   startDuelRoom,
   submitDuelAnswer,
   subscribeAuthStatus,
@@ -169,6 +170,8 @@ const state = {
   audioUnlocked: false,
   openRooms: [],
   duelPlayStats: {},
+  isJoiningRoom: false,
+  isNavigatingExternalGame: false,
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -414,14 +417,22 @@ function unlockAudio() {
 }
 
 function renderLobbyMeta(room) {
-  const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
+  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
+  const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[gameMode]?.label || 'ตอบไว');
   const matchType = String(room?.modeConfig?.matchType || 'solo');
   const teamSize = Number(room?.modeConfig?.teamSize || 2);
+  const currentPlayers = Object.keys(room?.players || {}).length;
+  const minPlayers = getMinimumPlayers(room?.modeConfig || {});
   const items = [
     `เกม: ${gameLabel}`,
-    `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
-    `เส้นชัย: ${getEffectiveFinishDistance(room?.modeConfig || {})} ช่อง`,
-    `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
+    `ผู้เล่น: ${currentPlayers} / อย่างน้อย ${minPlayers} คน`,
+    ...(gameMode === 'pob' || gameMode === 'logic_spy'
+      ? []
+      : [
+        `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
+        `เส้นชัย: ${getEffectiveFinishDistance(room?.modeConfig || {})} ช่อง`,
+        `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
+      ]),
     `สถานะ: ${roomStatus(room) === 'lobby' ? 'รอเริ่ม' : roomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม'}`,
   ];
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
@@ -469,14 +480,23 @@ function renderOpenRooms() {
   }).join('');
 
   el.openRoomsList.querySelectorAll('[data-room-id]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const roomId = normalizeRoomIdInput(btn.dataset.roomId || '');
-      if (!roomId) return;
-      if (el.roomIdInput) el.roomIdInput.value = roomId;
-      openModal(el.joinModal);
-      el.joinNameInput?.focus();
-    });
+    btn.addEventListener('click', () => void handleQuickJoinFromOpenRoom(btn.dataset.roomId || '', btn));
   });
+}
+
+function getPreferredPlayerName() {
+  const currentJoin = String(el.joinNameInput?.value || '').trim();
+  const currentHost = String(el.hostNameInput?.value || '').trim();
+  const saved = String(window.localStorage.getItem('duel_player_name') || '').trim();
+  return currentJoin || currentHost || saved || '';
+}
+
+function rememberPlayerName(name) {
+  const safeName = String(name || '').trim();
+  if (!safeName) return;
+  window.localStorage.setItem('duel_player_name', safeName);
+  if (el.joinNameInput && !String(el.joinNameInput.value || '').trim()) el.joinNameInput.value = safeName;
+  if (el.hostNameInput && !String(el.hostNameInput.value || '').trim()) el.hostNameInput.value = safeName;
 }
 
 function ensureTimer(room) {
@@ -546,7 +566,10 @@ function handleRoomUpdate(room) {
     if (state.pobRedirectMarker !== marker) {
       state.pobRedirectMarker = marker;
       const redirectUrl = buildExternalGameRedirectUrl({ room, uid: state.uid, isHost });
-      if (redirectUrl) window.location.href = redirectUrl;
+      if (redirectUrl) {
+        state.isNavigatingExternalGame = true;
+        window.location.href = redirectUrl;
+      }
     }
     return;
   }
@@ -635,6 +658,7 @@ async function handleCreateRoom() {
       questionPoolIds,
       questionAnswerKey,
     });
+    rememberPlayerName(String(el.hostNameInput.value || '').trim());
     state.roomId = created.roomId;
     closeModal(el.hostModal);
     subscribeRoom(created.roomId);
@@ -644,16 +668,51 @@ async function handleCreateRoom() {
 }
 
 async function handleJoinRoom() {
+  if (state.isJoiningRoom) return;
   try {
+    state.isJoiningRoom = true;
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
     if (roomId.length !== ROOM_ID_LENGTH) throw new Error('PIN ไม่ถูกต้อง');
-    const joined = await joinDuelRoom(roomId, String(el.joinNameInput.value || '').trim() || 'ผู้เล่น');
+    const nextName = String(el.joinNameInput.value || '').trim() || getPreferredPlayerName() || 'ผู้เล่น';
+    const joined = await joinDuelRoom(roomId, nextName);
+    rememberPlayerName(nextName);
     state.roomId = joined.roomId;
     closeModal(el.joinModal);
     subscribeRoom(roomId);
   } catch (error) {
     setStatus(error.message || 'เข้าห้องไม่สำเร็จ');
+  } finally {
+    state.isJoiningRoom = false;
+  }
+}
+
+async function handleQuickJoinFromOpenRoom(rawRoomId, triggerButton) {
+  if (state.isJoiningRoom) return;
+  const roomId = normalizeRoomIdInput(rawRoomId || '');
+  if (!roomId) return;
+  if (el.roomIdInput) el.roomIdInput.value = roomId;
+  let playerName = getPreferredPlayerName();
+  if (!playerName) {
+    const prompted = window.prompt('กรอกชื่อของคุณก่อนเข้าห้อง', '') || '';
+    playerName = String(prompted).trim();
+  }
+  if (!playerName) {
+    openModal(el.joinModal);
+    el.joinNameInput?.focus();
+    return;
+  }
+  if (el.joinNameInput) el.joinNameInput.value = playerName;
+
+  const originalText = triggerButton?.textContent || '';
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'กำลังเข้าห้อง...';
+  }
+  await handleJoinRoom();
+  if (triggerButton) {
+    triggerButton.disabled = false;
+    triggerButton.textContent = originalText || 'เข้าห้องนี้';
   }
 }
 
@@ -695,6 +754,16 @@ async function init() {
   syncHostModeOptions();
   syncWormMatchOptions();
   syncQuickMatchOptions();
+  const rememberedName = String(window.localStorage.getItem('duel_player_name') || '').trim();
+  if (rememberedName) {
+    if (el.joinNameInput) el.joinNameInput.value = rememberedName;
+    if (el.hostNameInput) el.hostNameInput.value = rememberedName;
+  }
+
+  window.addEventListener('pagehide', () => {
+    if (!state.roomId || state.isNavigatingExternalGame) return;
+    void leaveDuelRoom(state.roomId);
+  });
 
   subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
   try {
