@@ -556,8 +556,18 @@ function handleRoomUpdate(room) {
 
 async function loadQuestionBank(courseId) {
   const rows = await getQuestionsByCourse(courseId);
-  if (!rows.length) throw new Error('ไม่พบคลังโจทย์');
-  state.questionBank = rows.map((q) => ({ ...q }));
+  if (!rows.length) throw new Error('ไม่พบบททดสอบที่มีข้อสอบ');
+
+  const playableRows = rows
+    .map((row) => normalizeQuestion(row))
+    .filter((question) => Array.isArray(question.choices) && question.choices.length > 0 && Number(question.answerIndex) >= 0)
+    .map((question) => ({ ...question }));
+
+  if (!playableRows.length) {
+    throw new Error('บททดสอบนี้มีเฉพาะข้อพิมพ์/เรียงลำดับ ซึ่งยังไม่รองรับในโหมดดวล');
+  }
+
+  state.questionBank = playableRows;
   state.loadedCourseId = courseId;
   state.personalLoopKey = '';
   state.personalQuestionSequence = [];

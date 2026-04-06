@@ -30,19 +30,74 @@ function hideModal() {
   rankModal.classList.remove('flex');
 }
 
-async function init() {
-  if (!courseId) {
-    topCourseTitle.textContent = 'เลือกดูอันดับคะแนนของแต่ละบททดสอบ';
-    retryLink.classList.add('hidden');
-    openRankModal.classList.add('hidden');
-    if (allTopSection) allTopSection.classList.remove('hidden');
-    await renderAllCourseTopCards();
+function renderTopList(items = [], options = {}) {
+  const { includeCourse = false } = options;
+  topList.innerHTML = '';
+
+  if (!items.length) {
+    emptyTop.classList.remove('hidden');
     return;
   }
 
+  emptyTop.classList.add('hidden');
+  items.forEach((lead, index) => {
+    const li = document.createElement('li');
+    li.className = 'flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3';
+    li.innerHTML = `
+      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl">${getRankIcon(index)}</div>
+      <div>
+        <p class="text-lg font-bold">${lead.name || '-'}</p>
+        <p class="text-sm text-slate-700">อันดับ ${index + 1} • ${lead.scorePercent || 0}/100 • ${lead.durationSeconds || 0} วินาที</p>
+        ${includeCourse ? `<p class="text-xs text-slate-500">บททดสอบ: ${lead.courseTitle || lead.courseId || '-'}</p>` : ''}
+      </div>
+    `;
+    topList.appendChild(li);
+  });
+}
+
+async function getGlobalTopLeaders(limit = 10) {
+  const courses = await getAllCourses();
+  const cards = await Promise.all(courses.map(async (course) => {
+    const leaders = await getLeaderboard(course.courseId).catch(() => []);
+    return {
+      course,
+      leaders,
+    };
+  }));
+
+  return cards
+    .flatMap(({ course, leaders }) => leaders.map((lead) => ({
+      ...lead,
+      courseId: course?.courseId || '',
+      courseTitle: course?.title || course?.courseId || '',
+    })))
+    .sort((a, b) => {
+      const scoreDiff = Number(b.scorePercent || 0) - Number(a.scorePercent || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return Number(a.durationSeconds || 0) - Number(b.durationSeconds || 0);
+    })
+    .slice(0, limit);
+}
+
+async function init() {
   const basePath = window.location.pathname.includes('/')
     ? window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1)
     : '/';
+
+  if (!courseId) {
+    topCourseTitle.textContent = 'อันดับคะแนนรวม TOP จากทุกบททดสอบ';
+    retryLink.classList.add('hidden');
+
+    const [globalLeaders] = await Promise.all([
+      getGlobalTopLeaders(10),
+      renderAllCourseTopCards(),
+    ]);
+
+    renderTopList(globalLeaders, { includeCourse: true });
+    if (allTopSection) allTopSection.classList.remove('hidden');
+    return;
+  }
+
   retryLink.href = `${window.location.origin}${basePath}quiz.html?id=${encodeURIComponent(courseId)}`;
 
   const [course, leaders] = await Promise.all([
@@ -51,25 +106,7 @@ async function init() {
   ]);
 
   topCourseTitle.textContent = course?.title || `แบบทดสอบ ${courseId}`;
-  topList.innerHTML = '';
-
-  if (!leaders.length) {
-    emptyTop.classList.remove('hidden');
-    return;
-  }
-
-  leaders.forEach((lead, index) => {
-    const li = document.createElement('li');
-    li.className = 'flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3';
-    li.innerHTML = `
-      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl">${getRankIcon(index)}</div>
-      <div>
-        <p class="text-lg font-bold">${lead.name || '-'}</p>
-        <p class="text-sm text-slate-700">อันดับ ${index + 1} • ${lead.scorePercent || 0}/100 • ${lead.durationSeconds || 0} วินาที</p>
-      </div>
-    `;
-    topList.appendChild(li);
-  });
+  renderTopList(leaders);
 }
 
 async function renderAllCourseTopCards() {
