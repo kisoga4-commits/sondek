@@ -4,7 +4,7 @@ import {
   getQuestionsByCourse,
   replaceQuestionsForCourse,
   saveCourse,
-} from './db.js';
+} from './coreDb.js';
 
 const MIN_QUESTION_BANK = 10;
 
