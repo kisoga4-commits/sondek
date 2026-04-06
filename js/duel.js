@@ -169,6 +169,7 @@ const state = {
   audioUnlocked: false,
   openRooms: [],
   duelPlayStats: {},
+  isJoiningRoom: false,
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -414,14 +415,22 @@ function unlockAudio() {
 }
 
 function renderLobbyMeta(room) {
-  const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
+  const gameMode = String(room?.modeConfig?.gameMode || 'quick');
+  const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[gameMode]?.label || 'ตอบไว');
   const matchType = String(room?.modeConfig?.matchType || 'solo');
   const teamSize = Number(room?.modeConfig?.teamSize || 2);
+  const currentPlayers = Object.keys(room?.players || {}).length;
+  const minPlayers = getMinimumPlayers(room?.modeConfig || {});
   const items = [
     `เกม: ${gameLabel}`,
-    `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
-    `เส้นชัย: ${getEffectiveFinishDistance(room?.modeConfig || {})} ช่อง`,
-    `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
+    `ผู้เล่น: ${currentPlayers} / อย่างน้อย ${minPlayers} คน`,
+    ...(gameMode === 'pob' || gameMode === 'logic_spy'
+      ? []
+      : [
+        `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
+        `เส้นชัย: ${getEffectiveFinishDistance(room?.modeConfig || {})} ช่อง`,
+        `เวลาเกม: ${Math.max(2, Math.round(Number(room.durationSeconds || 120) / 60))} นาที`,
+      ]),
     `สถานะ: ${roomStatus(room) === 'lobby' ? 'รอเริ่ม' : roomStatus(room) === 'playing' ? 'กำลังเล่น' : 'จบเกม'}`,
   ];
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
@@ -469,13 +478,7 @@ function renderOpenRooms() {
   }).join('');
 
   el.openRoomsList.querySelectorAll('[data-room-id]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const roomId = normalizeRoomIdInput(btn.dataset.roomId || '');
-      if (!roomId) return;
-      if (el.roomIdInput) el.roomIdInput.value = roomId;
-      openModal(el.joinModal);
-      el.joinNameInput?.focus();
-    });
+    btn.addEventListener('click', () => void handleQuickJoinFromOpenRoom(btn.dataset.roomId || '', btn));
   });
 }
 
@@ -644,16 +647,39 @@ async function handleCreateRoom() {
 }
 
 async function handleJoinRoom() {
+  if (state.isJoiningRoom) return;
   try {
+    state.isJoiningRoom = true;
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
     if (roomId.length !== ROOM_ID_LENGTH) throw new Error('PIN ไม่ถูกต้อง');
-    const joined = await joinDuelRoom(roomId, String(el.joinNameInput.value || '').trim() || 'ผู้เล่น');
+    const nextName = String(el.joinNameInput.value || '').trim() || 'ผู้เล่น';
+    const joined = await joinDuelRoom(roomId, nextName);
     state.roomId = joined.roomId;
     closeModal(el.joinModal);
     subscribeRoom(roomId);
   } catch (error) {
     setStatus(error.message || 'เข้าห้องไม่สำเร็จ');
+  } finally {
+    state.isJoiningRoom = false;
+  }
+}
+
+async function handleQuickJoinFromOpenRoom(rawRoomId, triggerButton) {
+  if (state.isJoiningRoom) return;
+  const roomId = normalizeRoomIdInput(rawRoomId || '');
+  if (!roomId) return;
+  if (el.roomIdInput) el.roomIdInput.value = roomId;
+
+  const originalText = triggerButton?.textContent || '';
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'กำลังเข้าห้อง...';
+  }
+  await handleJoinRoom();
+  if (triggerButton) {
+    triggerButton.disabled = false;
+    triggerButton.textContent = originalText || 'เข้าห้องนี้';
   }
 }
 
