@@ -1,4 +1,4 @@
-import { getCourse, getProfile } from './db.js';
+import { getCourse, getProfile } from './coreDb.js';
 import { normalizePublicImageUrl, optimizePublicImageUrl } from './imageUrl.js';
 
 const params = new URLSearchParams(window.location.search);

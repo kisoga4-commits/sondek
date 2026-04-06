@@ -904,6 +904,14 @@ function syncDuelRoomShape(room = {}) {
   };
 }
 
+function getModeMaxPlayers(gameMode, matchType = 'solo', teamSize = 2) {
+  if (gameMode === 'pob_v2') return 24;
+  if (gameMode === 'pob') return 8;
+  if (gameMode === 'logic_spy') return 5;
+  if (matchType === 'party') return Math.max(4, Math.min(6, Number(teamSize || 2) * 2));
+  return 4;
+}
+
 function buildDuelPlayerPayload(name) {
   return {
     name: sanitizeDuelName(name),
@@ -1040,7 +1048,7 @@ export async function createDuelRoom(payload) {
           hostUid: uid,
           hostName: hostPlayer.name,
           durationSeconds,
-          maxPlayers: gameMode === 'pob_v2' ? 24 : 8,
+          maxPlayers: getModeMaxPlayers(gameMode, matchType, teamSize),
           modeConfig,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
           questionPoolIds,
@@ -1171,15 +1179,8 @@ export async function startDuelRoom(roomId) {
       }
 
       const nowMs = Date.now();
-      const playerEntries = Object.entries(players).slice(
-        0,
-        gameMode === 'pob'
-          ? 8
-          : (gameMode === 'pob_v2'
-            ? 24
-          : (gameMode === 'logic_spy' ? 5 : (matchType === 'party' ? teamSize * 2 : 4)),
-          )
-      );
+      const modeMaxPlayers = getModeMaxPlayers(gameMode, matchType, teamSize);
+      const playerEntries = Object.entries(players).slice(0, modeMaxPlayers);
       const normalizedPlayers = {};
       let teams = null;
       if (matchType === 'party') {
