@@ -8,5 +8,7 @@ export {
   submitDuelAnswer,
   subscribeAuthStatus,
   subscribeCourses,
+  subscribeDuelGamePlayCounts,
+  subscribeOpenDuelRooms,
   subscribeDuelRoom,
 } from './db.js';
