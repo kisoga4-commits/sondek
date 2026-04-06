@@ -37,7 +37,12 @@ async function ensureAuthReady() {
       }, reject);
     });
   }
-  await authPromise;
+  try {
+    await authPromise;
+  } catch (error) {
+    authPromise = null;
+    throw error;
+  }
 }
 
 export async function getLogicSpyWordSetConfig() {

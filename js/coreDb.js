@@ -92,11 +92,18 @@ async function ensureAuthReady() {
         } catch (error) {
           finalizeReject(toCoreAuthConfigError(error));
         }
-      }, finalizeReject);
+      }, (error) => {
+        finalizeReject(toCoreAuthConfigError(error));
+      });
     });
   }
 
-  await authInitPromise;
+  try {
+    await authInitPromise;
+  } catch (error) {
+    authInitPromise = null;
+    throw error;
+  }
 }
 
 async function ensureWriteAccess() {

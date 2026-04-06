@@ -139,11 +139,18 @@ async function ensureAuthReady() {
         } catch (error) {
           finalizeReject(toDuelAuthConfigError(error));
         }
-      }, finalizeReject);
+      }, (error) => {
+        finalizeReject(toDuelAuthConfigError(error));
+      });
     });
   }
 
-  await authInitPromise;
+  try {
+    await authInitPromise;
+  } catch (error) {
+    authInitPromise = null;
+    throw error;
+  }
 }
 
 export async function ensureDuelAuthReady() {
