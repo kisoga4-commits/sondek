@@ -1264,6 +1264,45 @@ export function subscribeDuelRoom(roomId, callback, onError) {
   return () => unsubscribe();
 }
 
+export function subscribeOpenDuelRooms(callback, onError) {
+  let unsubscribe = () => {};
+  ensureAuthReady()
+    .then(() => {
+      const roomsRef = rtdbRef(rtdb, 'rooms');
+      unsubscribe = onValue(roomsRef, (snap) => {
+        if (!snap.exists()) {
+          callback([]);
+          return;
+        }
+        const rows = Object.entries(snap.val() || {})
+          .map(([id, room]) => ({ id, ...syncDuelRoomShape(room) }))
+          .filter((room) => String(room?.status || 'lobby') === 'lobby')
+          .sort((a, b) => Number(b?.updatedAtMs || 0) - Number(a?.updatedAtMs || 0))
+          .slice(0, 12);
+        callback(rows);
+      }, onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+  return () => unsubscribe();
+}
+
+export function subscribeDuelGamePlayCounts(callback, onError) {
+  let unsubscribe = () => {};
+  ensureAuthReady()
+    .then(() => {
+      const statsRef = doc(db, 'settings', DUEL_GAME_PLAY_COUNT_DOC_ID);
+      unsubscribe = onSnapshot(statsRef, (snap) => {
+        callback(snap.exists() ? (snap.data() || {}) : {});
+      }, onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+  return () => unsubscribe();
+}
+
 export async function submitDuelAnswer(roomId, payload) {
   await ensureWriteAccess();
   const uid = getDuelActorUid();
