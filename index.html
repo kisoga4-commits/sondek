@@ -10,42 +10,78 @@
     <main class="container home-layout app-home">
       <section class="card home-hero">
         <p class="hero-badge">PAKDU LEARNING HUB</p>
-        <h1>เลือกโหมดที่ต้องการ</h1>
-        <p class="muted hero-subtitle">หน้าแรกแบบเรียบ ๆ สำหรับมือถือ เข้าใช้งานได้ไว ลื่น และชัดเจน</p>
+        <h1>หน้าแรกระบบหลัก + ระบบเกม</h1>
+        <p class="muted hero-subtitle">แยกเมนูระบบหลักสำหรับเรียน/คลังข้อสอบ ออกจากระบบเกมให้ชัดเจน และใช้งานได้เหมือนเดิม</p>
       </section>
 
-      <section class="mode-grid" aria-label="รายการโหมด">
-        <a class="mode-card" href="quiz.html">
-          <span class="mode-icon">🧪</span>
-          <div>
-            <h2>โหมดทดสอบ</h2>
-            <p>เริ่มทำข้อสอบก่อนเรียนเพื่อวัดพื้นฐาน</p>
-          </div>
-        </a>
+      <section class="card" aria-label="ระบบหลัก">
+        <h2>ระบบหลัก (เรียน + คลังข้อสอบ)</h2>
+        <p class="muted">เมนูหลักเดิมที่ต้องใช้ทุกวัน เช่น ทำข้อสอบ ดูคอร์ส โปรไฟล์ และเข้าคลังข้อสอบ</p>
 
-        <a class="mode-card" href="courses.html">
-          <span class="mode-icon">📚</span>
-          <div>
-            <h2>โหมดคอร์สที่เปิดสอน</h2>
-            <p>ดูคอร์สที่กำลังเปิดและส่งชื่อสมัคร</p>
-          </div>
-        </a>
+        <div class="mode-grid" aria-label="รายการระบบหลัก">
+          <a class="mode-card" href="quiz.html">
+            <span class="mode-icon">🧪</span>
+            <div>
+              <h3>โหมดทดสอบ</h3>
+              <p>เริ่มทำข้อสอบก่อนเรียนเพื่อวัดพื้นฐาน</p>
+            </div>
+          </a>
 
-        <a class="mode-card" href="profile.html">
-          <span class="mode-icon">👤</span>
-          <div>
-            <h2>โปรไฟล์</h2>
-            <p>ดูข้อมูลครูผู้สอนและช่องทางติดต่อ</p>
-          </div>
-        </a>
+          <a class="mode-card" href="courses.html">
+            <span class="mode-icon">📚</span>
+            <div>
+              <h3>โหมดคอร์สที่เปิดสอน</h3>
+              <p>ดูคอร์สที่กำลังเปิดและส่งชื่อสมัคร</p>
+            </div>
+          </a>
 
-        <a class="mode-card" href="duel.html">
-          <span class="mode-icon">⚔️</span>
-          <div>
-            <h2>โหมดดวล</h2>
-            <p>Attack &amp; Survive แข่งตอบคำถามแบบเรียลไทม์</p>
-          </div>
-        </a>
+          <a class="mode-card" href="profile.html">
+            <span class="mode-icon">👤</span>
+            <div>
+              <h3>โปรไฟล์</h3>
+              <p>ดูข้อมูลครูผู้สอนและช่องทางติดต่อ</p>
+            </div>
+          </a>
+
+          <a class="mode-card" href="top.html">
+            <span class="mode-icon">🏆</span>
+            <div>
+              <h3>อันดับคะแนน</h3>
+              <p>ดูอันดับคะแนน TOP 5 ของบททดสอบ</p>
+            </div>
+          </a>
+
+          <a class="mode-card" href="template.html">
+            <span class="mode-icon">🗂️</span>
+            <div>
+              <h3>คลังข้อสอบ</h3>
+              <p>สร้าง/แก้ไขคลังข้อสอบและชุดคำถาม</p>
+            </div>
+          </a>
+
+          <a class="mode-card" href="adminchamp.html">
+            <span class="mode-icon">🛠️</span>
+            <div>
+              <h3>จัดการบททดสอบ</h3>
+              <p>ดูรายการบททดสอบและจัดการระบบแอดมิน</p>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <section class="card" aria-label="ระบบเกมแยก">
+        <h2>ระบบเกม (แยกจากระบบหลัก)</h2>
+        <p class="muted">เข้าเล่นเกมผ่านโหมดดวลเพื่อสร้างห้องและเลือกเกม: Duel, ปอบกินตับ, ปอบจกตับ V2 และ Logic Spy</p>
+
+        <div class="mode-grid" aria-label="รายการระบบเกม">
+          <a class="mode-card" href="duel.html">
+            <span class="mode-icon">⚔️</span>
+            <div>
+              <h3>โหมดดวล / ห้องเกม</h3>
+              <p>จุดเข้าใช้งานระบบเกมทั้งหมด พร้อมเลือกโหมดเกมในห้องเดียว</p>
+            </div>
+          </a>
+        </div>
       </section>
     </main>
   </body>
