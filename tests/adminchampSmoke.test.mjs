@@ -30,8 +30,7 @@ test('adminchamp page keeps critical management controls and script wiring', () 
   });
 });
 
-test('indexchamp route redirects to adminchamp route', () => {
-  const html = read('indexchamp.html');
-  assert.equal(html.includes('url=adminchamp.html'), true);
-  assert.equal(html.includes("window.location.replace('adminchamp.html')"), true);
+test('legacy indexchamp file is removed to keep single admin entrypoint', () => {
+  const legacyPath = path.join(repoRoot, 'indexchamp.html');
+  assert.equal(fs.existsSync(legacyPath), false);
 });
