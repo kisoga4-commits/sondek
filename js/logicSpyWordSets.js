@@ -16,42 +16,58 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const DOC_ID = 'logic_spy_word_sets';
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 3500;
 
 let authPromise = null;
 
 async function ensureAuthReady() {
   if (!authPromise) {
-    authPromise = new Promise((resolve, reject) => {
-      const unsub = onAuthStateChanged(auth, async (user) => {
+    authPromise = new Promise((resolve) => {
+      let settled = false;
+      let unsub = null;
+      let timeoutId = null;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timeoutId) window.clearTimeout(timeoutId);
+        if (unsub) unsub();
+        resolve();
+      };
+
+      timeoutId = window.setTimeout(() => {
+        console.warn('Logic Spy auth bootstrap timeout. Continue in guest mode.');
+        finish();
+      }, AUTH_BOOTSTRAP_TIMEOUT_MS);
+
+      unsub = onAuthStateChanged(auth, async (user) => {
         if (user) {
-          unsub();
-          resolve();
+          finish();
           return;
         }
         try {
           await signInAnonymously(auth);
         } catch (error) {
-          unsub();
-          reject(error);
+          const errorCode = String(error?.code || '');
+          const isAuthBootstrapIssue = errorCode.includes('auth/anonymous-not-enabled')
+            || errorCode.includes('auth/operation-not-allowed')
+            || errorCode.includes('auth/admin-restricted-operation')
+            || errorCode.includes('auth/unauthorized-domain');
+          if (isAuthBootstrapIssue) {
+            console.warn('Anonymous auth is unavailable. Continue in guest mode for settings read/write allowed by rules.', error);
+            finish();
+            return;
+          }
+          console.error('Logic Spy auth bootstrap failed.', error);
+          finish();
         }
-      }, reject);
+      }, (error) => {
+        console.error('Logic Spy auth state listener failed.', error);
+        finish();
+      });
     });
   }
-  try {
-    await authPromise;
-  } catch (error) {
-    authPromise = null;
-    const errorCode = String(error?.code || '');
-    const isAuthBootstrapIssue = errorCode.includes('auth/anonymous-not-enabled')
-      || errorCode.includes('auth/operation-not-allowed')
-      || errorCode.includes('auth/admin-restricted-operation')
-      || errorCode.includes('auth/unauthorized-domain');
-    if (isAuthBootstrapIssue) {
-      console.warn('Anonymous auth is unavailable. Continue in guest mode for settings read/write allowed by rules.', error);
-      return;
-    }
-    throw error;
-  }
+  await authPromise;
 }
 
 export async function getLogicSpyWordSetConfig() {
