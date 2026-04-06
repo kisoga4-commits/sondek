@@ -8,6 +8,8 @@ import {
   submitDuelAnswer,
   subscribeAuthStatus,
   subscribeCourses,
+  subscribeDuelGamePlayCounts,
+  subscribeOpenDuelRooms,
   subscribeDuelRoom,
 } from './duelDb.js';
 import { isQuestionCorrect, normalizeQuestion, pickRandomQuestions } from './quiz.js';
@@ -56,6 +58,8 @@ const el = {
   joinRoomBtn: document.getElementById('joinRoomBtn'),
   startGameBtn: document.getElementById('startGameBtn'),
   statusText: document.getElementById('duelStatusText'),
+  openRoomsSection: document.getElementById('duelOpenRoomsSection'),
+  openRoomsList: document.getElementById('duelOpenRoomsList'),
   lobbySection: document.getElementById('duelLobbySection'),
   lobbyModeText: document.getElementById('duelLobbyModeText'),
   lobbyRoomIdText: document.getElementById('duelLobbyRoomId'),
@@ -163,6 +167,8 @@ const state = {
   renderedQuestionKey: '',
   audioCtx: null,
   audioUnlocked: false,
+  openRooms: [],
+  duelPlayStats: {},
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -421,6 +427,58 @@ function renderLobbyMeta(room) {
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
 }
 
+function getModePlayCount(mode) {
+  const modeKey = String(mode || 'quick');
+  const byMode = state.duelPlayStats?.playCountByMode || {};
+  return Math.max(0, Number(byMode?.[modeKey] || 0));
+}
+
+function renderOpenRooms() {
+  if (!el.openRoomsList) return;
+  const rooms = Array.isArray(state.openRooms) ? state.openRooms : [];
+  if (!rooms.length) {
+    el.openRoomsList.innerHTML = '<div class="duel-empty-state">ยังไม่มีห้องที่เปิดรอผู้เล่น</div>';
+    return;
+  }
+  el.openRoomsList.innerHTML = rooms.map((room) => {
+    const roomId = String(room?.pin || room?.roomId || room?.id || '');
+    const hostName = String(room?.hostName || 'Host');
+    const gameMode = String(room?.modeConfig?.gameMode || 'quick');
+    const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[gameMode]?.label || 'ตอบไว');
+    const currentPlayers = Object.keys(room?.players || {}).length;
+    const minPlayers = getMinimumPlayers(room?.modeConfig || {});
+    const playCount = getModePlayCount(gameMode);
+    return `
+      <article class="duel-open-room-item">
+        <div class="duel-open-room-main">
+          <p class="duel-open-room-title">${gameLabel} • PIN ${roomId}</p>
+          <p class="muted">Host: ${hostName}</p>
+          <div class="duel-lobby-meta">
+            <span class="duel-lobby-chip">ผู้เล่น ${currentPlayers} คน</span>
+            <span class="duel-lobby-chip">อย่างน้อย ${minPlayers} คน</span>
+            <span class="duel-lobby-chip">เล่นแล้ว ${playCount} ครั้ง</span>
+          </div>
+        </div>
+        <button
+          class="btn btn-secondary duel-open-room-join-btn"
+          type="button"
+          data-room-id="${roomId}"
+        >เข้าห้องนี้</button>
+      </article>
+    `;
+  }).join('');
+
+  el.openRoomsList.querySelectorAll('[data-room-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const roomId = normalizeRoomIdInput(btn.dataset.roomId || '');
+      if (!roomId) return;
+      if (el.roomIdInput) el.roomIdInput.value = roomId;
+      openModal(el.joinModal);
+      el.joinNameInput?.focus();
+    });
+  });
+}
+
 function ensureTimer(room) {
   if (state.timerId) window.clearInterval(state.timerId);
   const tick = () => {
@@ -479,6 +537,7 @@ function handleRoomUpdate(room) {
   }
 
   el.entrySection.classList.add('hidden');
+  el.openRoomsSection?.classList.add('hidden');
   el.lobbySection.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.battleSection.classList.toggle('hidden', roomStatus(room) === 'lobby');
 
@@ -657,6 +716,15 @@ async function init() {
       el.courseIdInput.appendChild(option);
     });
     el.courseIdInput.value = current;
+  }, () => {});
+
+  subscribeOpenDuelRooms((rooms) => {
+    state.openRooms = rooms;
+    renderOpenRooms();
+  }, () => {});
+  subscribeDuelGamePlayCounts((stats) => {
+    state.duelPlayStats = stats || {};
+    renderOpenRooms();
   }, () => {});
 }
 

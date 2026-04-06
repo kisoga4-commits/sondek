@@ -1703,6 +1703,7 @@ select:focus {
 }
 
 .duel-entry-card,
+.duel-open-rooms-card,
 .duel-lobby-card,
 .duel-battle-shell,
 .duel-modal-card {
@@ -1712,6 +1713,41 @@ select:focus {
 
 .duel-entry-actions {
   margin-top: 1rem;
+}
+
+.duel-open-rooms-card {
+  margin-top: 0.85rem;
+}
+
+.duel-open-rooms-list {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.duel-open-room-item {
+  border: 1px solid #dbeafe;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.duel-open-room-main {
+  min-width: 0;
+}
+
+.duel-open-room-title {
+  margin: 0;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.duel-open-room-join-btn {
+  min-width: 120px;
 }
 
 .duel-big-btn {
@@ -1959,6 +1995,11 @@ select:focus {
 }
 
 @media (max-width: 768px) {
+  .duel-open-room-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .duel-answer-actions {
     grid-template-columns: 1fr;
   }
