@@ -4,6 +4,8 @@ import {
   finalizeDuelByTimeout,
   getQuestionsByCourse,
   joinDuelRoom,
+  subscribeDuelPlayCounts,
+  subscribeOpenDuelRooms,
   startDuelRoom,
   submitDuelAnswer,
   subscribeAuthStatus,
@@ -46,9 +48,12 @@ const el = {
   quickTeamSizeLabel: document.getElementById('duelQuickTeamSizeLabel'),
   finishDistanceInput: document.getElementById('duelFinishDistance'),
   roomIdInput: document.getElementById('duelRoomId'),
+  openRoomsList: document.getElementById('duelOpenRoomsList'),
+  joinRoomCards: document.getElementById('duelJoinRoomCards'),
   createRoomBtn: document.getElementById('createRoomBtn'),
   joinRoomBtn: document.getElementById('joinRoomBtn'),
   startGameBtn: document.getElementById('startGameBtn'),
+  gamePlayCountText: document.getElementById('duelGamePlayCountText'),
   statusText: document.getElementById('duelStatusText'),
   lobbySection: document.getElementById('duelLobbySection'),
   lobbyModeText: document.getElementById('duelLobbyModeText'),
@@ -131,8 +136,9 @@ function syncHostModeOptions() {
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
   el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob' && mode !== 'pob_v2');
   const courseLabel = el.courseIdInput?.closest('label');
-  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2' || mode === 'logic_spy');
+  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2');
   syncWormMatchOptions();
+  renderSelectedModePlayCount();
 }
 
 function syncWormMatchOptions() {
@@ -166,6 +172,10 @@ const state = {
   renderedQuestionKey: '',
   audioCtx: null,
   audioUnlocked: false,
+  openRooms: [],
+  playCountsByMode: {},
+  unsubOpenRooms: null,
+  unsubPlayCounts: null,
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -425,6 +435,50 @@ function renderLobbyMeta(room, playersCount = 0) {
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
 }
 
+function renderSelectedModePlayCount() {
+  if (!el.gamePlayCountText) return;
+  const mode = getSelectedGameMode();
+  const count = Number(state.playCountsByMode?.[mode] || 0);
+  el.gamePlayCountText.textContent = `สถิติการเล่น: ${count.toLocaleString('th-TH')} ครั้ง`;
+}
+
+function buildOpenRoomCard(room) {
+  const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[String(room?.modeConfig?.gameMode || 'quick')]?.label || 'ตอบไว');
+  const playersCount = Math.max(0, Number(room?.playersCount || 0));
+  const maxPlayers = Math.max(playersCount, Number(room?.maxPlayers || 0));
+  const matchType = String(room?.modeConfig?.matchType || 'solo');
+  const teamSize = Number(room?.modeConfig?.teamSize || 2);
+  return `
+    <button type="button" class="duel-open-room-card" data-join-room-id="${String(room?.roomId || '')}">
+      <div class="duel-open-room-top">
+        <span class="duel-open-room-pin">PIN ${String(room?.pin || room?.roomId || '')}</span>
+        <span>${playersCount}/${maxPlayers} คน</span>
+      </div>
+      <p class="duel-open-room-meta">${gameLabel} • ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'} • Host ${String(room?.hostName || 'Host')}</p>
+    </button>
+  `;
+}
+
+function renderOpenRooms() {
+  const rooms = Array.isArray(state.openRooms) ? state.openRooms : [];
+  const html = rooms.length
+    ? rooms.map((room) => buildOpenRoomCard(room)).join('')
+    : '<div class="duel-empty-state">ยังไม่มีห้องที่เปิดอยู่</div>';
+  if (el.openRoomsList) el.openRoomsList.innerHTML = html;
+  if (el.joinRoomCards) el.joinRoomCards.innerHTML = html;
+
+  [el.openRoomsList, el.joinRoomCards].forEach((container) => {
+    container?.querySelectorAll('[data-join-room-id]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const roomId = normalizeRoomIdInput(node.getAttribute('data-join-room-id') || '');
+        if (!roomId) return;
+        if (el.roomIdInput) el.roomIdInput.value = roomId;
+        openModal(el.joinModal);
+      });
+    });
+  });
+}
+
 function ensureTimer(room) {
   if (state.timerId) window.clearInterval(state.timerId);
   const tick = () => {
@@ -449,7 +503,7 @@ function handleRoomUpdate(room) {
   const gameMode = String(room?.modeConfig?.gameMode || 'quick');
   const serverAnsweredRound = Number(room?.players?.[state.uid]?.answeredRound ?? -1);
   state.optimisticAnsweredRound = Math.max(Number(state.optimisticAnsweredRound ?? -1), serverAnsweredRound);
-  if (gameMode !== 'pob' && gameMode !== 'pob_v2' && gameMode !== 'logic_spy') {
+  if (gameMode !== 'pob' && gameMode !== 'pob_v2') {
     void ensureRoomQuestionBank(room);
   }
   const players = Object.values(room.players || {});
@@ -526,20 +580,6 @@ function handleRoomUpdate(room) {
     }
     return;
   }
-  if (gameMode === 'logic_spy' && roomStatus(room) === 'playing') {
-    const marker = `${room.roomId}_${room.startedAtMs || 0}_${state.uid}`;
-    if (state.pobRedirectMarker !== marker) {
-      state.pobRedirectMarker = marker;
-      const params = new URLSearchParams({
-        roomId: String(room.roomId || ''),
-        pin: String(room.pin || room.roomId || ''),
-      });
-      const target = 'games/logic-spy/index.html';
-      window.location.href = `${target}?${params.toString()}`;
-    }
-    return;
-  }
-
   renderRace(room);
   renderQuestion(room);
   ensureTimer(room);
@@ -601,7 +641,7 @@ async function handleCreateRoom() {
     const gameMode = getSelectedGameMode();
     const gameDef = GAME_DEFINITIONS[gameMode] || GAME_DEFINITIONS.quick;
     const modeConfig = gameDef.getConfig();
-    const isSpecialMode = gameMode === 'pob' || gameMode === 'pob_v2' || gameMode === 'logic_spy';
+    const isSpecialMode = gameMode === 'pob' || gameMode === 'pob_v2';
     const courseId = String(el.courseIdInput.value || '').trim();
     let questionSequence = [];
 
@@ -694,6 +734,7 @@ async function init() {
   syncHostModeOptions();
   syncWormMatchOptions();
   syncQuickMatchOptions();
+  renderSelectedModePlayCount();
 
   subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
   try {
@@ -715,6 +756,14 @@ async function init() {
       el.courseIdInput.appendChild(option);
     });
     el.courseIdInput.value = current;
+  }, () => {});
+  state.unsubOpenRooms = subscribeOpenDuelRooms((rooms) => {
+    state.openRooms = rooms;
+    renderOpenRooms();
+  }, () => {});
+  state.unsubPlayCounts = subscribeDuelPlayCounts((stats) => {
+    state.playCountsByMode = stats?.playCountByMode || {};
+    renderSelectedModePlayCount();
   }, () => {});
 }
 

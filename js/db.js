@@ -1273,6 +1273,72 @@ export function subscribeDuelRoom(roomId, callback, onError) {
   return () => unsubscribe();
 }
 
+export function subscribeOpenDuelRooms(callback, onError) {
+  let unsubscribe = () => {};
+  ensureAuthReady()
+    .then(() => {
+      const roomsRef = rtdbRef(rtdb, 'rooms');
+      unsubscribe = onValue(roomsRef, (snap) => {
+        if (!snap.exists()) {
+          callback([]);
+          return;
+        }
+        const entries = Object.entries(snap.val() || {});
+        const rooms = entries
+          .map(([id, room]) => syncDuelRoomShape({ roomId: id, ...room }))
+          .filter((room) => String(room?.status || '') === 'lobby')
+          .map((room) => {
+            const mode = String(room?.modeConfig?.gameMode || 'quick');
+            const matchType = String(room?.modeConfig?.matchType || 'solo');
+            const teamSize = Number(room?.modeConfig?.teamSize || 2);
+            const maxPlayers = Number(room?.maxPlayers || getModeMaxPlayers(mode, matchType, teamSize));
+            const playersCount = Object.keys(room?.players || {}).length;
+            return {
+              roomId: String(room?.roomId || room?.pin || ''),
+              pin: String(room?.pin || room?.roomId || ''),
+              hostName: String(room?.hostName || ''),
+              status: String(room?.status || 'lobby'),
+              modeConfig: room?.modeConfig || {},
+              playersCount,
+              maxPlayers,
+              createdAtMs: Number(room?.createdAtMs || 0),
+              updatedAtMs: Number(room?.updatedAtMs || 0),
+            };
+          })
+          .sort((a, b) => Number(b.updatedAtMs || 0) - Number(a.updatedAtMs || 0))
+          .slice(0, 20);
+        callback(rooms);
+      }, onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+  return () => unsubscribe();
+}
+
+export function subscribeDuelPlayCounts(callback, onError) {
+  let unsubscribe = () => {};
+  ensureAuthReady()
+    .then(() => {
+      const statsDocRef = doc(db, 'settings', DUEL_GAME_PLAY_COUNT_DOC_ID);
+      unsubscribe = onSnapshot(statsDocRef, (snap) => {
+        const data = snap.exists() ? snap.data() : {};
+        const byMode = (data?.playCountByMode && typeof data.playCountByMode === 'object')
+          ? data.playCountByMode
+          : {};
+        callback({
+          totalPlayCount: Number(data?.totalPlayCount || 0),
+          playCountByMode: byMode,
+          updatedAt: data?.updatedAt || null,
+        });
+      }, onError);
+    })
+    .catch((error) => {
+      if (onError) onError(error);
+    });
+  return () => unsubscribe();
+}
+
 export async function submitDuelAnswer(roomId, payload) {
   await ensureWriteAccess();
   const uid = getDuelActorUid();
