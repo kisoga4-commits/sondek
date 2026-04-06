@@ -1,4 +1,4 @@
-import { getCourse, getLeaderboard } from './db.js';
+import { getAllCourses, getCourse, getLeaderboard } from './db.js';
 
 const params = new URLSearchParams(window.location.search);
 const courseId = params.get('id');
@@ -10,6 +10,8 @@ const retryLink = document.getElementById('retryLink');
 const openRankModal = document.getElementById('openRankModal');
 const closeRankModal = document.getElementById('closeRankModal');
 const rankModal = document.getElementById('rankModal');
+const allTopSection = document.getElementById('allTopSection');
+const courseTopList = document.getElementById('courseTopList');
 
 function getRankIcon(rank) {
   if (rank === 0) return '👑';
@@ -30,9 +32,11 @@ function hideModal() {
 
 async function init() {
   if (!courseId) {
-    topCourseTitle.textContent = 'ไม่พบรหัสแบบทดสอบ';
+    topCourseTitle.textContent = 'เลือกดูอันดับคะแนนของแต่ละบททดสอบ';
     retryLink.classList.add('hidden');
     openRankModal.classList.add('hidden');
+    if (allTopSection) allTopSection.classList.remove('hidden');
+    await renderAllCourseTopCards();
     return;
   }
 
@@ -66,6 +70,43 @@ async function init() {
     `;
     topList.appendChild(li);
   });
+}
+
+async function renderAllCourseTopCards() {
+  if (!courseTopList) return;
+  courseTopList.innerHTML = '<p class="text-slate-500">กำลังโหลดรายการบททดสอบ...</p>';
+
+  try {
+    const courses = await getAllCourses();
+    if (!courses.length) {
+      courseTopList.innerHTML = '<p class="text-slate-500">ยังไม่มีบททดสอบในระบบ</p>';
+      return;
+    }
+
+    const cards = await Promise.all(courses.map(async (course) => {
+      const leaders = await getLeaderboard(course.courseId).catch(() => []);
+      return { course, leaders };
+    }));
+
+    courseTopList.innerHTML = '';
+    cards.forEach(({ course, leaders }) => {
+      const link = `top.html?id=${encodeURIComponent(course.courseId)}`;
+      const item = document.createElement('article');
+      item.className = 'rounded-2xl border border-amber-100 bg-amber-50 p-4';
+      item.innerHTML = `
+        <h3 class="text-lg font-black text-slate-800">${course.title || course.courseId}</h3>
+        <p class="mt-1 text-sm text-slate-600">รหัส: ${course.courseId}</p>
+        <p class="mt-2 text-sm font-semibold text-slate-700">
+          ${leaders.length ? `อันดับ 1: ${leaders[0]?.name || '-'} (${leaders[0]?.scorePercent || 0}/100)` : 'ยังไม่มีผู้ทำแบบทดสอบ'}
+        </p>
+        <a href="${link}" class="mt-3 inline-block rounded-xl bg-indigo-600 px-3 py-2 text-sm font-black text-white">ดู TOP 5 ของบทนี้</a>
+      `;
+      courseTopList.appendChild(item);
+    });
+  } catch (error) {
+    console.error(error);
+    courseTopList.innerHTML = '<p class="text-rose-600">โหลดรายการบททดสอบไม่สำเร็จ กรุณารีเฟรช</p>';
+  }
 }
 
 if (openRankModal) {

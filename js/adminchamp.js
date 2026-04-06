@@ -713,38 +713,39 @@ async function onSaveFeedbackConfig() {
 }
 
 async function renderCourses(courses) {
-  quizLibrary.innerHTML = '';
+  try {
+    quizLibrary.innerHTML = '';
 
-  if (!courses.length) {
-    quizLibrary.innerHTML = '<p class="muted">ยังไม่มีบททดสอบในระบบ</p>';
-    return;
-  }
-
-  const playCountsByCourseId = {};
-  const playCounts = await Promise.all(courses.map(async (course) => {
-    try {
-      return await getPlayCountByCourse(course.courseId);
-    } catch (error) {
-      console.warn('โหลดจำนวนครั้งที่เล่นไม่สำเร็จ', course.courseId, error);
-      return 0;
+    if (!Array.isArray(courses) || !courses.length) {
+      quizLibrary.innerHTML = '<p class="muted">ยังไม่มีบททดสอบในระบบ</p>';
+      return;
     }
-  }));
 
-  courses.forEach((course, index) => {
-    playCountsByCourseId[course.courseId] = playCounts[index];
-  });
+    const playCountsByCourseId = {};
+    const playCounts = await Promise.all(courses.map(async (course) => {
+      try {
+        return await getPlayCountByCourse(course.courseId);
+      } catch (error) {
+        console.warn('โหลดจำนวนครั้งที่เล่นไม่สำเร็จ', course.courseId, error);
+        return 0;
+      }
+    }));
 
-  courses.forEach((course) => {
-    const title = course.title ? escapeHtml(course.title) : escapeHtml(course.courseId);
-    const courseId = escapeHtml(course.courseId);
-    const editLink = `template.html?courseId=${encodeURIComponent(course.courseId)}`;
-    const quizLink = buildQuizLink(course);
-    const top5Link = buildTop5Link(course);
-    const playCount = Number(playCountsByCourseId[course.courseId] || 0);
+    courses.forEach((course, index) => {
+      playCountsByCourseId[course.courseId] = playCounts[index];
+    });
 
-    const card = document.createElement('article');
-    card.className = 'library-item library-item-grid';
-    card.innerHTML = `
+    courses.forEach((course) => {
+      const title = course.title ? escapeHtml(course.title) : escapeHtml(course.courseId);
+      const courseId = escapeHtml(course.courseId);
+      const editLink = `template.html?courseId=${encodeURIComponent(course.courseId)}`;
+      const quizLink = buildQuizLink(course);
+      const top5Link = buildTop5Link(course);
+      const playCount = Number(playCountsByCourseId[course.courseId] || 0);
+
+      const card = document.createElement('article');
+      card.className = 'library-item library-item-grid';
+      card.innerHTML = `
       <div class="library-head">
         <div>
           <p class="item-title">${title}</p>
@@ -780,37 +781,41 @@ async function renderCourses(courses) {
           </details>
         </div>
       </div>
-    `;
+      `;
 
-    card.querySelector('[data-action="copy"]').addEventListener('click', () => {
-      void copyLink(quizLink);
+      card.querySelector('[data-action="copy"]').addEventListener('click', () => {
+        void copyLink(quizLink);
+      });
+
+      card.querySelector('[data-action="toggle-qr"]').addEventListener('click', (event) => {
+        const btn = event.currentTarget;
+        const qrWrap = card.querySelector('[data-role="qr-wrap"]');
+        if (!qrWrap) return;
+
+        const isHidden = qrWrap.classList.contains('hidden');
+        qrWrap.classList.toggle('hidden', !isHidden);
+        btn.textContent = isHidden ? 'ซ่อน QR' : 'แสดง QR';
+      });
+
+      card.querySelector('[data-action="download-qr"]').addEventListener('click', () => {
+        const qr = card.querySelector('img');
+        if (!qr?.src) {
+          alert('ไม่พบรูป QR');
+          return;
+        }
+        downloadQrFromImage(qr.src, course.courseId);
+      });
+
+      card.querySelector('[data-action="delete"]').addEventListener('click', () => {
+        void onDeleteCourse(course.courseId);
+      });
+
+      quizLibrary.appendChild(card);
     });
-
-    card.querySelector('[data-action="toggle-qr"]').addEventListener('click', (event) => {
-      const btn = event.currentTarget;
-      const qrWrap = card.querySelector('[data-role="qr-wrap"]');
-      if (!qrWrap) return;
-
-      const isHidden = qrWrap.classList.contains('hidden');
-      qrWrap.classList.toggle('hidden', !isHidden);
-      btn.textContent = isHidden ? 'ซ่อน QR' : 'แสดง QR';
-    });
-
-    card.querySelector('[data-action="download-qr"]').addEventListener('click', () => {
-      const qr = card.querySelector('img');
-      if (!qr?.src) {
-        alert('ไม่พบรูป QR');
-        return;
-      }
-      downloadQrFromImage(qr.src, course.courseId);
-    });
-
-    card.querySelector('[data-action="delete"]').addEventListener('click', () => {
-      void onDeleteCourse(course.courseId);
-    });
-
-    quizLibrary.appendChild(card);
-  });
+  } catch (error) {
+    console.error(error);
+    quizLibrary.innerHTML = '<p class="muted">เกิดข้อผิดพลาดระหว่างแสดงคลังบททดสอบ กรุณารีเฟรช</p>';
+  }
 }
 
 function initQuizLibrary() {
