@@ -303,7 +303,7 @@ function renderVillageGridHtml(players) {
   const statusMeta = (player) => {
     if (player.alive) return { icon: '🟢', text: 'ยังรอดชีวิต', className: '' };
     if (player.deathCause === 'โดนจกตับ') return { icon: '🩸', text: 'ตายจากโดนจกตับ', className: 'out' };
-
+    if (player.deathCause === 'vote_eliminated') return { icon: '🚫', text: 'โดนขับไล่ออกจากหมู่บ้าน (ตาย)', className: 'out' };
     if (player.deathCause === 'โดนยิง') return { icon: '🏹', text: 'ตายจากโดนนายพรานยิง', className: 'out' };
     if (player.deathCause === 'โดนขับไล่') return { icon: '🚫', text: 'ตายจากโดนขับไล่', className: 'out' };
     return { icon: '💀', text: 'ตายแล้ว (ไม่ทราบสาเหตุ)', className: 'out' };
@@ -911,11 +911,26 @@ async function resolveMorningByHost() {
 function renderMorning() {
   const players = Object.values(state.publicState?.players || {});
   const logs = state.publicState?.lastLogs || [];
+  const deadLogMatches = logs
+    .map((entry) => {
+      const matched = String(entry).match(/^(.+)\sตาย\s\((.+)\)$/);
+      if (!matched) return null;
+      return { name: matched[1], reason: matched[2] };
+    })
+    .filter(Boolean);
+  const diedTonightCount = deadLogMatches.length;
+  const aliveCount = players.filter((p) => p.alive).length;
   els.morning.innerHTML = `
     <h2>Step 4: เช้าตรู่ (ดูผู้รอดชีวิตและเหตุการณ์เมื่อคืน)</h2>
     ${phaseMetaHtml()}
+    <div class="tag">สรุปเมื่อคืน: ตาย ${diedTonightCount} คน • รอดอยู่ในเกม ${aliveCount} คน</div>
+    <div class="grid" style="margin-top:.7rem;">
+      ${deadLogMatches.length
+        ? deadLogMatches.map((item) => `<div class="tag">💀 ${item.name} ตายเพราะ ${item.reason}</div>`).join('')
+        : '<div class="tag">คืนนี้ไม่มีคนตาย</div>'}
+    </div>
     <div class="result-list">${players.map((p) => `<div class="tag ${p.alive ? '' : 'out'}">${p.name}</div>`).join('')}</div>
-    <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('')}</div>
+    <div class="grid" style="margin-top:.7rem;">${logs.map((x) => `<div class="tag">${x}</div>`).join('') || '<div class="tag">ไม่มีเหตุการณ์เพิ่มเติม</div>'}</div>
     ${personalNightNoticeHtml()}
     ${state.isHost ? '<button id="toVote" class="btn" style="margin-top:.6rem;">ข้ามเวลาและเริ่มโหวตช่วงเช้า</button>' : '<p class="muted">รอ Host เริ่มโหวต หรือรอหมดเวลา</p>'}
   `;
@@ -1006,7 +1021,7 @@ async function finalizeVoteByHost() {
     return {
       ...data,
       players: voteResult.players,
-      voteSummary: voteResult.voteSummary,
+      voteSummary: {},
       phase: voteResult.winner ? 'end' : 'night',
       phaseEndsAtMs: voteResult.winner ? 0 : (Date.now() + phaseDurationMs('night')),
       actionSeq: voteResult.winner ? Number(data?.actionSeq || 0) : 0,
@@ -1019,7 +1034,9 @@ async function finalizeVoteByHost() {
       nightSubmittedBy: {},
       nightResolveLock: null,
       voteResolveLock: null,
-      lastLogs: outUid ? [`${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} ถูกโหวตออก`] : ['ไม่มีใครถูกโหวตออก'],
+      lastLogs: outUid
+        ? [`${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} โดนขับไล่ออกจากหมู่บ้าน (ตาย)`]
+        : ['ไม่มีใครโดนขับไล่ออกจากหมู่บ้าน'],
       updatedAtMs: Date.now(),
     };
   });
