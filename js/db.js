@@ -45,6 +45,7 @@ import {
 } from './profileImagePolicy.js';
 import { normalizePublicImageUrl } from './imageUrl.js';
 import { getEffectiveFinishDistance, getWormWrongPenalty, pickWormComboTargetUid } from './duelRules.js';
+import { getRoomMaxPlayers, getStartPlayerCap } from './duelRoomRules.js';
 import { buildPersonalQuestionLoop, LOOP_QUESTION_COUNT } from './duelCore.js';
 
 const firebaseConfig = {
@@ -1038,7 +1039,7 @@ export async function createDuelRoom(payload) {
           hostUid: uid,
           hostName: hostPlayer.name,
           durationSeconds,
-          maxPlayers: 8,
+          maxPlayers: getRoomMaxPlayers(gameMode),
           modeConfig,
           questionSequence: Array.isArray(payload?.questionSequence) ? payload.questionSequence : [],
           questionPoolIds,
@@ -1168,9 +1169,7 @@ export async function startDuelRoom(roomId) {
       const nowMs = Date.now();
       const playerEntries = Object.entries(players).slice(
         0,
-        gameMode === 'pob'
-          ? 8
-          : (gameMode === 'logic_spy' ? 5 : (matchType === 'party' ? teamSize * 2 : 4)),
+        getStartPlayerCap({ gameMode, matchType, teamSize }),
       );
       const normalizedPlayers = {};
       let teams = null;

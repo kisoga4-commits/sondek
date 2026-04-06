@@ -4,9 +4,14 @@ function markDead(nextPublic, uid, reason, logs) {
   nextPublic.players[uid].deathCause = reason || 'unknown';
   logs.push(`${nextPublic.players[uid].name} ตาย (${reason})`);
 }
+function isSuspiciousRole(role) {
+  return role === 'pob' || role === 'madman' || role === 'villager';
+}
+
 const ROLE_LABELS = {
   pob: 'ปอบ',
   shaman: 'หมอดู',
+  madman: 'คนบ้า',
   monk: 'หมอธรรม',
   hunter: 'นายพราน',
   police: 'ตำรวจ',
@@ -88,6 +93,7 @@ export function resolveVote(publicState, privateState) {
   const tally = {};
 
   alive.forEach((p) => {
+    if (String(priv?.[p.uid]?.role || '') === 'madman') return;
     const target = String(priv[p.uid]?.voteTarget || '').trim();
     if (!target || !pub.players?.[target]?.alive || target === p.uid) return;
     tally[target] = (tally[target] || 0) + 1;
@@ -107,13 +113,15 @@ export function resolveVote(publicState, privateState) {
   }
 
   const summary = Object.fromEntries(sorted.map(([uid, score]) => [pub.players?.[uid]?.name || uid, score]));
-  const end = checkWinner(pub, priv);
+  const isMadmanWin = outUid && String(priv?.[outUid]?.role || '') === 'madman';
+  const end = isMadmanWin ? 'madman' : checkWinner(pub, priv);
 
   return {
     players: pub.players,
     voteSummary: summary,
     eliminatedUid: outUid,
     requiredVotes,
+    madmanWinUid: isMadmanWin ? outUid : '',
     winner: end || '',
   };
 }
@@ -125,6 +133,7 @@ export function resolveNight(publicState, privateState) {
   const alive = Object.values(pub.players || {}).filter((p) => p.alive);
   const uidByRole = (role) => alive.filter((p) => priv[p.uid]?.role === role).map((p) => p.uid);
   const pobUids = uidByRole('pob');
+  const madmanUid = uidByRole('madman')[0] || null;
   const monkUid = uidByRole('monk')[0] || null;
   const hunterUid = uidByRole('hunter')[0] || null;
   const jailedTonight = deriveJailedTonight(pub, priv, alive);
@@ -141,12 +150,42 @@ export function resolveNight(publicState, privateState) {
       if (roleResults[uid]) roleResults[uid].push('คุณโดนขัง');
     });
   }
+  const madmanAction = getNightActionForDay(priv, madmanUid, day);
+  const madmanAlreadyUsed = Boolean(priv?.[madmanUid || '']?.madmanUsed);
+  const madmanTarget = !madmanUid || madmanAlreadyUsed || isBlockedByPolice(priv, jailedTonight, madmanUid, day)
+    ? null
+    : String(madmanAction?.targetId || '').trim();
+  const madmanOrder = Number(madmanAction?.order || 0);
+  const madmanUsedByUid = {};
+  if (madmanUid) {
+    if (madmanAlreadyUsed) {
+      roleResults[madmanUid]?.push('คุณใช้สิทธิ์ปั่นกระแสไปแล้ว 1 ครั้งต่อเกม');
+    } else if (isBlockedByPolice(priv, jailedTonight, madmanUid, day)) {
+      roleResults[madmanUid]?.push('คุณโดนขัง');
+    } else if (madmanTarget && jailedTonight[madmanTarget]) {
+      roleResults[madmanUid]?.push(`เป้าหมาย ${pub.players?.[madmanTarget]?.name || 'ผู้เล่น'} โดนขังอยู่แล้ว จึงปิดกั้นไม่สำเร็จ`);
+      madmanUsedByUid[madmanUid] = true;
+    } else if (madmanTarget) {
+      roleResults[madmanUid]?.push(`คุณปิดกั้น ${pub.players?.[madmanTarget]?.name || 'ผู้เล่น'} แล้ว`);
+      madmanUsedByUid[madmanUid] = true;
+    }
+  }
+  const isBlockedByMadman = (uid) => {
+    if (!uid || !madmanTarget || !madmanOrder || uid !== madmanTarget) return false;
+    const targetAction = getNightActionForDay(priv, uid, day);
+    const targetOrder = Number(targetAction?.order || 0);
+    if (!targetOrder) return true;
+    return madmanOrder < targetOrder;
+  };
 
   const monkAction = getNightActionForDay(priv, monkUid, day);
-  const protectedUid = isBlockedByPolice(priv, jailedTonight, monkUid, day) ? null : (monkAction?.targetId || null);
+  const monkBlocked = isBlockedByPolice(priv, jailedTonight, monkUid, day) || isBlockedByMadman(monkUid);
+  const protectedUid = monkBlocked ? null : (monkAction?.targetId || null);
   if (monkUid) {
     if (isBlockedByPolice(priv, jailedTonight, monkUid, day)) {
       roleResults[monkUid]?.push('คุณถูกขังก่อน จึงคุ้มครองใครไม่ได้');
+    } else if (isBlockedByMadman(monkUid)) {
+      roleResults[monkUid]?.push('มีคนทำให้คุณใช้สกิลไม่สำเร็จในคืนนี้');
     } else if (protectedUid) {
       roleResults[monkUid]?.push(`คุณคุ้มครอง ${pub.players?.[protectedUid]?.name || 'ผู้เล่น'} สำเร็จ`);
     }
@@ -157,6 +196,8 @@ export function resolveNight(publicState, privateState) {
     if (!pobTarget) return;
     if (isBlockedByPolice(priv, jailedTonight, pobUid, day)) {
       roleResults[pobUid]?.push('คุณโดนขัง');
+    } else if (isBlockedByMadman(pobUid)) {
+      roleResults[pobUid]?.push('มีคนทำให้คุณใช้สกิลไม่สำเร็จในคืนนี้');
     } else if (pobTarget === protectedUid) {
       logs.push(`${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกคุ้มครองโดยหมอธรรม`);
       roleResults[pobUid]?.push(`เป้าหมาย ${pub.players?.[pobTarget]?.name || 'ผู้เล่น'} ถูกคุ้มครอง`);
@@ -169,9 +210,12 @@ export function resolveNight(publicState, privateState) {
   });
 
   const hunterAction = getNightActionForDay(priv, hunterUid, day);
-  const hunterTarget = isBlockedByPolice(priv, jailedTonight, hunterUid, day) ? null : (hunterAction?.targetId || null);
+  const hunterBlocked = isBlockedByPolice(priv, jailedTonight, hunterUid, day) || isBlockedByMadman(hunterUid);
+  const hunterTarget = hunterBlocked ? null : (hunterAction?.targetId || null);
   if (hunterUid && isBlockedByPolice(priv, jailedTonight, hunterUid, day)) {
     roleResults[hunterUid]?.push('คุณโดนขัง');
+  } else if (hunterUid && isBlockedByMadman(hunterUid)) {
+    roleResults[hunterUid]?.push('มีคนทำให้คุณใช้สกิลไม่สำเร็จในคืนนี้');
   }
   if (hunterTarget) {
     if (jailedTonight[hunterTarget]) {
@@ -184,20 +228,47 @@ export function resolveNight(publicState, privateState) {
 
   const shamanUid = uidByRole('shaman')[0] || null;
   const shamanAction = getNightActionForDay(priv, shamanUid, day);
-  const shamanTarget = isBlockedByPolice(priv, jailedTonight, shamanUid, day) ? null : (shamanAction?.targetId || null);
+  const shamanTarget = (isBlockedByPolice(priv, jailedTonight, shamanUid, day) || isBlockedByMadman(shamanUid)) ? null : (shamanAction?.targetId || null);
+  const shamanProgress = shamanUid ? (priv?.[shamanUid]?.shamanScan || null) : null;
+  const shamanScanByUid = {};
   if (shamanUid && isBlockedByPolice(priv, jailedTonight, shamanUid, day)) {
     roleResults[shamanUid]?.push('คุณโดนขัง');
+    shamanScanByUid[shamanUid] = null;
+  } else if (shamanUid && isBlockedByMadman(shamanUid)) {
+    roleResults[shamanUid]?.push('มีคนทำให้คุณใช้สกิลไม่สำเร็จในคืนนี้');
   } else if (shamanUid && shamanTarget && jailedTonight[shamanTarget]) {
-    roleResults[shamanUid]?.push(`${pub.players?.[shamanTarget]?.name || 'ผู้เล่น'} โดนขัง จึงส่องบทบาทไม่ได้`);
+    roleResults[shamanUid]?.push(`${pub.players?.[shamanTarget]?.name || 'ผู้เล่น'} โดนขัง จึงเชื่อมจิตไม่ได้`);
   } else if (shamanUid && shamanTarget) {
-    const seenRole = String(priv[shamanTarget]?.role || 'unknown');
     const seenName = pub.players?.[shamanTarget]?.name || 'ผู้เล่น';
-    roleResults[shamanUid]?.push(`คุณส่อง ${seenName} พบว่าเป็น ${ROLE_LABELS[seenRole] || seenRole}`);
+    const validPrevProgress = shamanProgress
+      && pub.players?.[shamanProgress.targetId]?.alive
+      ? shamanProgress
+      : null;
+    const isSecondScanSameTarget = Boolean(validPrevProgress && validPrevProgress.targetId === shamanTarget);
+    if (isSecondScanSameTarget) {
+      const seenRole = String(priv?.[shamanTarget]?.role || 'unknown');
+      const verdict = isSuspiciousRole(seenRole) ? 'มีพิรุธ' : 'ชาวบ้าน';
+      roleResults[shamanUid]?.push(`คุณตรวจ ${seenName} สำเร็จ: ${verdict} (ไม่ใช่อาชีพจริง)`);
+      shamanScanByUid[shamanUid] = null;
+    } else {
+      roleResults[shamanUid]?.push(`คุณเริ่มเชื่อมจิตกับ ${seenName} แล้ว (ยังไม่เห็นผลตรวจ)`);
+      roleResults[shamanTarget]?.push('มีคนกำลังเชื่อมจิตคุณ');
+      shamanScanByUid[shamanUid] = {
+        targetId: shamanTarget,
+        stage: 1,
+        startedDay: day,
+      };
+    }
+  } else if (shamanUid && shamanProgress && !pub.players?.[shamanProgress.targetId]?.alive) {
+    roleResults[shamanUid]?.push('เป้าหมายที่เชื่อมจิตไว้ตายแล้ว ต้องเริ่มใหม่');
+    shamanScanByUid[shamanUid] = null;
   }
 
   alive.filter((p) => priv[p.uid]?.role === 'villager').forEach((villager) => {
     const acted = Boolean(getNightActionForDay(priv, villager.uid, day)?.acted);
-    if (!acted) {
+    if (isBlockedByMadman(villager.uid)) {
+      roleResults[villager.uid]?.push('มีคนทำให้คุณใช้สกิลไม่สำเร็จในคืนนี้');
+    } else if (!acted) {
       markDead(pub, villager.uid, 'อดตาย', logs);
       roleResults[villager.uid]?.push('คืนนี้คุณไม่ได้ไถนา จึงอดตาย');
     } else {
@@ -218,5 +289,7 @@ export function resolveNight(publicState, privateState) {
       logs: logs.length ? logs : ['คืนนี้ไม่มีคนตาย'],
     },
     roleResults,
+    shamanScanByUid,
+    madmanUsedByUid,
   };
 }
