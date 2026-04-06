@@ -92,7 +92,7 @@ async function onSaveLogicSpyWordSets() {
     if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = `บันทึกคลังคำสำเร็จ ${sets.length} ชุด`;
   } catch (error) {
     if (logicSpyWordSetsStatus) logicSpyWordSetsStatus.textContent = 'บันทึกคลังคำไม่สำเร็จ';
-    alert('บันทึกคลังคำไม่สำเร็จ');
+    alert(getFriendlyAdminWriteError(error, 'บันทึกคลังคำไม่สำเร็จ'));
   } finally {
     if (saveLogicSpyWordSetsBtn) saveLogicSpyWordSetsBtn.disabled = false;
   }
@@ -170,6 +170,18 @@ function getFriendlyCourseOfferError(error) {
     return 'เพิ่มคอร์สไม่สำเร็จ: ระบบยืนยันตัวตน Firebase ยังไม่พร้อม (Anonymous Auth)';
   }
   return `เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่ (${code || 'unknown-error'})`;
+}
+
+function getFriendlyAdminWriteError(error, fallbackMessage = 'บันทึกไม่สำเร็จ กรุณาลองใหม่') {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  if (code.includes('auth/not-authenticated') || code.includes('auth/anonymous-not-enabled')) {
+    return 'ระบบยังเขียนข้อมูลไม่ได้ เพราะยังไม่ได้ล็อกอินแบบ Anonymous\n\nกรุณาเปิด Firebase Authentication > Sign-in method > Anonymous แล้วรีเฟรชหน้าเว็บ';
+  }
+  if (code.includes('permission-denied') || message.includes('Missing or insufficient permissions')) {
+    return 'บันทึกไม่สำเร็จ เพราะบัญชีนี้ยังไม่มีสิทธิ์ write ใน Firestore\n\nตรวจสอบ Firestore Rules ให้อนุญาต write เมื่อ request.auth != null';
+  }
+  return `${fallbackMessage}${message ? ` (${message})` : ''}`;
 }
 
 function updateProfileImagePreviewStatus() {
@@ -307,7 +319,7 @@ async function onSaveCourseOffering(event) {
   } catch (error) {
     console.error(error);
     if (courseOfferStatus) courseOfferStatus.textContent = 'เพิ่มคอร์สไม่สำเร็จ กรุณาลองใหม่';
-    alert(getFriendlyCourseOfferError(error));
+    alert(getFriendlyAdminWriteError(error, getFriendlyCourseOfferError(error)));
   } finally {
     if (saveCourseOfferBtn) saveCourseOfferBtn.disabled = false;
   }
@@ -337,7 +349,7 @@ async function onEnrollCourse(event) {
     alert('บันทึกผู้สนใจคอร์สเรียบร้อย');
   } catch (error) {
     console.error(error);
-    alert('สมัครคอร์สไม่สำเร็จ กรุณาลองใหม่');
+    alert(getFriendlyAdminWriteError(error, 'สมัครคอร์สไม่สำเร็จ กรุณาลองใหม่'));
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
@@ -368,7 +380,7 @@ async function onEditCourseOffering(course) {
     alert('แก้ไขข้อมูลคอร์สเรียบร้อย');
   } catch (error) {
     console.error(error);
-    alert('แก้ไขข้อมูลคอร์สไม่สำเร็จ');
+    alert(getFriendlyAdminWriteError(error, 'แก้ไขข้อมูลคอร์สไม่สำเร็จ'));
   }
 }
 
@@ -379,7 +391,7 @@ async function onDeleteCourseOffering(course) {
     alert('ลบคอร์สเรียบร้อย');
   } catch (error) {
     console.error(error);
-    alert('ลบคอร์สไม่สำเร็จ');
+    alert(getFriendlyAdminWriteError(error, 'ลบคอร์สไม่สำเร็จ'));
   }
 }
 
@@ -400,7 +412,7 @@ async function onEditEnrollment(courseId, enrollment) {
     });
   } catch (error) {
     console.error(error);
-    alert('แก้ไขผู้สมัครไม่สำเร็จ');
+    alert(getFriendlyAdminWriteError(error, 'แก้ไขผู้สมัครไม่สำเร็จ'));
   }
 }
 
@@ -410,7 +422,7 @@ async function onDeleteEnrollment(courseId, enrollment) {
     await deleteCourseEnrollment(courseId, enrollment.enrollmentId);
   } catch (error) {
     console.error(error);
-    alert('ลบผู้สมัครไม่สำเร็จ');
+    alert(getFriendlyAdminWriteError(error, 'ลบผู้สมัครไม่สำเร็จ'));
   }
 }
 
@@ -706,7 +718,7 @@ async function onSaveFeedbackConfig() {
     closeFeedbackModal();
   } catch (error) {
     console.error(error);
-    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    alert(getFriendlyAdminWriteError(error));
   } finally {
     saveFeedbackBtn.disabled = false;
   }
