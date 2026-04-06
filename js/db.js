@@ -149,6 +149,15 @@ async function ensureAuthReady() {
     await authInitPromise;
   } catch (error) {
     authInitPromise = null;
+    const errorCode = String(error?.code || '');
+    const isAuthBootstrapIssue = errorCode.includes('auth/anonymous-not-enabled')
+      || errorCode.includes('auth/operation-not-allowed')
+      || errorCode.includes('auth/admin-restricted-operation')
+      || errorCode.includes('auth/unauthorized-domain');
+    if (isAuthBootstrapIssue) {
+      console.warn('Anonymous auth is unavailable. Continue in guest mode for public Firestore reads/writes allowed by rules.', error);
+      return;
+    }
     throw error;
   }
 }
@@ -198,12 +207,6 @@ export async function runWeeklyDuelMaintenance(options = {}) {
 
 async function ensureWriteAccess() {
   await ensureAuthReady();
-
-  if (!auth.currentUser) {
-    const error = new Error('Anonymous sign-in is not available. Enable Firebase Authentication > Anonymous.');
-    error.code = 'auth/not-authenticated';
-    throw error;
-  }
 }
 
 
