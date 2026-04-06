@@ -37,7 +37,21 @@ async function ensureAuthReady() {
       }, reject);
     });
   }
-  await authPromise;
+  try {
+    await authPromise;
+  } catch (error) {
+    authPromise = null;
+    const errorCode = String(error?.code || '');
+    const isAuthBootstrapIssue = errorCode.includes('auth/anonymous-not-enabled')
+      || errorCode.includes('auth/operation-not-allowed')
+      || errorCode.includes('auth/admin-restricted-operation')
+      || errorCode.includes('auth/unauthorized-domain');
+    if (isAuthBootstrapIssue) {
+      console.warn('Anonymous auth is unavailable. Continue in guest mode for settings read/write allowed by rules.', error);
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function getLogicSpyWordSetConfig() {
