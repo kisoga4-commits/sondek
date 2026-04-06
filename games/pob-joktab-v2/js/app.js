@@ -308,7 +308,7 @@ function renderHome(message = '') {
   els.home.classList.remove('hidden');
   els.home.innerHTML = `
     <h2>Home</h2>
-    <p class="muted">เข้าโหมดปอบจกตับ V2 จากหน้า Duel เพื่อเชื่อมต่อห้องอัตโนมัติ</p>
+    <p class="muted">เข้าโหมดปอบกินตับ V2 จากหน้า Duel เพื่อเชื่อมต่อห้องอัตโนมัติ</p>
     ${message ? `<p class="muted">${message}</p>` : ''}
     <div class="grid" style="margin-top:.7rem;">
       <a class="btn" href="../../duel.html">🏠 กลับหน้า Duel</a>
@@ -550,7 +550,7 @@ function renderSetup() {
     <p class="muted">สมาชิกในห้องตอนนี้: ${players.length} คน</p>
     ${phaseMetaHtml()}
     <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
-    ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบจกตับ V2</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
+    ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบกินตับ V2</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
     <button id="leaveRoomBtn" class="btn secondary" style="margin-top:.6rem;">ออกจากห้อง</button>
   `;
 

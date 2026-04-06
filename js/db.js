@@ -1000,8 +1000,8 @@ export async function createDuelRoom(payload) {
       : gameMode === 'pob'
         ? 'ปอบกินตับ'
         : gameMode === 'pob_v2'
-          ? 'ปอบจกตับ V2'
-        : gameMode === 'logic_spy'
+          ? 'ปอบกินตับ V2'
+          : gameMode === 'logic_spy'
           ? 'ใครต่างจากเพื่อน'
           : 'ตอบไว');
   const questionPoolIds = Array.isArray(payload?.questionPoolIds)
