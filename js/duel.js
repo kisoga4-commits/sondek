@@ -98,7 +98,7 @@ const GAME_DEFINITIONS = {
     }),
   },
   pob_v2: {
-    label: 'ปอบจกตับ V2',
+    label: 'ปอบกินตับ V2',
     getConfig: () => ({
       matchType: 'solo',
       teamSize: 2,

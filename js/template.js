@@ -612,7 +612,7 @@ async function deleteCurrentQuiz() {
     await deleteCourseWithQuestions(courseId);
     localStorage.removeItem(LOCAL_SNAPSHOT_KEY);
     alert('ลบบททดสอบเรียบร้อยแล้ว');
-    window.location.href = 'adminchamp.html';
+    window.location.href = 'index.html';
   } catch (error) {
     console.error(error);
     alert(`ลบบททดสอบไม่สำเร็จ: ${error?.message || 'กรุณาลองใหม่'}`);
@@ -858,7 +858,7 @@ titlePromptFormEl?.addEventListener('submit', (event) => {
   submitTitlePrompt();
 });
 titlePromptExitBtnEl?.addEventListener('click', () => {
-  window.location.href = 'adminchamp.html';
+  window.location.href = 'index.html';
 });
 
 drawCountPresetEls.forEach((item) => {
