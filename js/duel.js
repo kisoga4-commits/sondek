@@ -4,7 +4,6 @@ import {
   finalizeDuelByTimeout,
   getQuestionsByCourse,
   joinDuelRoom,
-  leaveDuelRoom,
   startDuelRoom,
   submitDuelAnswer,
   subscribeAuthStatus,
@@ -171,7 +170,6 @@ const state = {
   openRooms: [],
   duelPlayStats: {},
   isJoiningRoom: false,
-  isNavigatingExternalGame: false,
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -566,10 +564,7 @@ function handleRoomUpdate(room) {
     if (state.pobRedirectMarker !== marker) {
       state.pobRedirectMarker = marker;
       const redirectUrl = buildExternalGameRedirectUrl({ room, uid: state.uid, isHost });
-      if (redirectUrl) {
-        state.isNavigatingExternalGame = true;
-        window.location.href = redirectUrl;
-      }
+      if (redirectUrl) window.location.href = redirectUrl;
     }
     return;
   }
@@ -759,11 +754,6 @@ async function init() {
     if (el.joinNameInput) el.joinNameInput.value = rememberedName;
     if (el.hostNameInput) el.hostNameInput.value = rememberedName;
   }
-
-  window.addEventListener('pagehide', () => {
-    if (!state.roomId || state.isNavigatingExternalGame) return;
-    void leaveDuelRoom(state.roomId);
-  });
 
   subscribeAuthStatus((authState) => { if (authState.uid) state.uid = authState.uid; });
   try {
