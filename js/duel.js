@@ -176,6 +176,47 @@ const state = {
   isCreatingRoom: false,
 };
 
+
+const OPEN_ROOMS_CACHE_KEY = 'duel_open_rooms_cache_v1';
+
+function getRoomDisplayId(room = {}) {
+  return normalizeRoomIdInput(room?.pin || room?.roomId || room?.id || '');
+}
+
+function mergeOpenRooms(...roomGroups) {
+  return roomGroups
+    .flat()
+    .reduce((acc, room) => {
+      const key = getRoomDisplayId(room);
+      if (!key) return acc;
+      if (acc.some((entry) => getRoomDisplayId(entry) === key)) return acc;
+      acc.push(room);
+      return acc;
+    }, [])
+    .sort((a, b) => Number(b?.updatedAtMs || 0) - Number(a?.updatedAtMs || 0))
+    .slice(0, 12);
+}
+
+function persistOpenRoomsCache(rooms = []) {
+  try {
+    const payload = mergeOpenRooms(Array.isArray(rooms) ? rooms : []);
+    window.localStorage.setItem(OPEN_ROOMS_CACHE_KEY, JSON.stringify(payload));
+  } catch (_error) {
+    // ignore storage errors (private mode / quota)
+  }
+}
+
+function readOpenRoomsCache() {
+  try {
+    const raw = window.localStorage.getItem(OPEN_ROOMS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? mergeOpenRooms(parsed) : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
 const setStatus = (text) => { el.statusText.textContent = text; };
 const openModal = (modal) => modal?.classList.remove('hidden');
@@ -514,16 +555,8 @@ function rememberCreatedRoom(roomId, hostName, gameDef, modeConfig) {
       },
     } : {},
   };
-  const nextRooms = [createdRoom, ...(Array.isArray(state.openRooms) ? state.openRooms : [])]
-    .reduce((acc, room) => {
-      const key = normalizeRoomIdInput(room?.pin || room?.roomId || room?.id || '');
-      if (!key) return acc;
-      if (acc.some((entry) => normalizeRoomIdInput(entry?.pin || entry?.roomId || entry?.id || '') === key)) return acc;
-      acc.push(room);
-      return acc;
-    }, [])
-    .slice(0, 12);
-  state.openRooms = nextRooms;
+  state.openRooms = mergeOpenRooms(createdRoom, Array.isArray(state.openRooms) ? state.openRooms : []);
+  persistOpenRoomsCache(state.openRooms);
   renderOpenRooms();
 }
 
@@ -815,10 +848,24 @@ async function init() {
     el.courseIdInput.value = current;
   }, () => {});
 
-  subscribeOpenDuelRooms((rooms) => {
-    state.openRooms = rooms;
+  const cachedRooms = readOpenRoomsCache();
+  if (cachedRooms.length) {
+    state.openRooms = mergeOpenRooms(cachedRooms, state.openRooms);
     renderOpenRooms();
-  }, () => {});
+  }
+
+  subscribeOpenDuelRooms((rooms) => {
+    state.openRooms = mergeOpenRooms(rooms, state.openRooms);
+    persistOpenRoomsCache(state.openRooms);
+    renderOpenRooms();
+  }, (error) => {
+    const message = String(error?.message || '');
+    if (message.toLowerCase().includes('permission_denied')) {
+      setStatus('อ่านรายชื่อห้องรวมไม่ได้ (สิทธิ์ read) แต่ยังสร้าง/เข้าห้องด้วย PIN ได้ตามปกติ');
+      return;
+    }
+    setStatus('เชื่อมรายการห้องรวมไม่สำเร็จ แต่ยังเข้าห้องด้วย PIN ได้');
+  });
 }
 
 void init();
