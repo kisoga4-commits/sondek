@@ -2,7 +2,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebas
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import { getDatabase, onValue, ref, runTransaction, set, update } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
 import { doc, getDoc, getFirestore } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import { DEFAULT_LOGIC_SPY_WORD_SETS, buildRoundAssignments, calculateRoundScore, pickWordSet } from './gameEngine.js';
+import { DEFAULT_LOGIC_SPY_QUESTION_SETS, buildRoundAssignments, calculateRoundScore, pickQuestionSet } from './gameEngine.js';
 
 const config = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -46,7 +46,7 @@ const state = {
   duel: null,
   game: null,
   privateMe: null,
-  sets: DEFAULT_LOGIC_SPY_WORD_SETS,
+  sets: DEFAULT_LOGIC_SPY_QUESTION_SETS,
   maintenanceBusy: false,
   startFlowMessage: '',
   voteModalOpen: false,
@@ -121,12 +121,16 @@ async function ensureAuth() {
   });
 }
 
-async function loadWordSets() {
+async function loadQuestionSets() {
   try {
-    const snap = await getDoc(doc(fs, 'settings', 'logic_spy_word_sets'));
+    const snap = await getDoc(doc(fs, 'settings', 'logic_spy_question_sets'));
     const sets = snap.exists() ? snap.data()?.sets : null;
     if (Array.isArray(sets) && sets.length) state.sets = sets;
-  } catch (_) {}
+  } catch (_) {
+    const legacySnap = await getDoc(doc(fs, 'settings', 'logic_spy_word_sets'));
+    const legacySets = legacySnap.exists() ? legacySnap.data()?.sets : null;
+    if (Array.isArray(legacySets) && legacySets.length) state.sets = legacySets;
+  }
 }
 
 function phaseRemainSeconds(targetMs) {
@@ -146,7 +150,6 @@ function ui() {
   const duelPlayersByUid = state.duel?.players || {};
   const game = state.game || { status: 'lobby', scores: {}, votes: {} };
   const phase = String(game.status || 'lobby');
-  const myWord = String(state.privateMe?.word || '');
   const moderatorUid = getModeratorUid();
   const isMeModerator = canModerate();
   const roomHostUid = String(state.duel?.hostUid || '');
@@ -179,10 +182,14 @@ function ui() {
     void startRound(players.map(([uid]) => uid));
   });
 
+  const optionsForDisplay = Array.isArray(game?.optionsForRound) ? game.optionsForRound : [];
+  const optionsHtml = `<div class=\"choice-list\">${optionsForDisplay.map((option) => `<div class=\"choice-item\"><b>${String(option?.value || '-')}</b><span>${String(option?.hint || '-')}</span></div>`).join('')}</div>`;
+
   el.secret.innerHTML = `
-    <h3>Secret Card</h3>
+    <h3>โจทย์รอบนี้</h3>
     <p>เวลาที่เหลือ: <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
-    <div class="secret-word-display">${myWord || 'กำลังแจกคำลับ...'}</div>
+    <p class="muted">เลือกคำที่คิดว่า “ต่างจากเพื่อน” โดยดูจากชื่อ + คำใบ้</p>
+    ${optionsHtml}
     ${isMeModerator ? '<button class="btn secondary" id="toDiscussionBtn">เริ่มช่วงพูดทันที</button>' : '<p>รอ Moderator พาเข้าช่วงพูด</p>'}
   `;
 
@@ -211,8 +218,7 @@ function ui() {
 
   const votedCount = Object.keys(game?.votes || {}).length;
   const canVote = phase === 'vote';
-  const myVoteUid = String(game?.votes?.[state.uid] || '');
-  const myVoteName = myVoteUid ? String(duelPlayersByUid?.[myVoteUid]?.name || myVoteUid) : '';
+  const myVoteOption = String(game?.votes?.[state.uid] || '');
   const roundScoreByUid = game?.roundScore && typeof game.roundScore === 'object' ? game.roundScore : {};
   const totalScoreByUid = game?.scores && typeof game.scores === 'object' ? game.scores : {};
   const scoreBoardRows = players
@@ -222,17 +228,22 @@ function ui() {
       return `<div class="score-row"><span class="score-name">${displayPlayerName(uid, player?.name || uid)}</span><span class="score-cell">รอบนี้ <b>+${roundPoints}</b></span><span class="score-cell">รวม <b>${totalPoints}</b></span></div>`;
     })
     .join('');
-  const voteTargets = players
-    .filter(([uid]) => uid !== state.uid)
-    .map(([uid, player]) => `<button class="btn vote-target-btn ${myVoteUid === uid ? 'secondary' : ''}" data-vote-target="${uid}">${displayPlayerName(uid, player?.name || uid)}${myVoteUid === uid ? ' ✅' : ''}</button>`)
+  const optionsForRound = Array.isArray(game?.optionsForRound) ? game.optionsForRound : [];
+  const voteTargets = optionsForRound
+    .map((option) => {
+      const value = String(option?.value || '');
+      const hint = String(option?.hint || '');
+      const selected = myVoteOption === value;
+      return `<button class="btn vote-target-btn ${selected ? 'secondary' : ''}" data-vote-target="${value}"><b>${value}</b>${hint ? `<small>${hint}</small>` : ''}${selected ? ' ✅' : ''}</button>`;
+    })
     .join('');
 
   el.vote.innerHTML = `
     <h3>Voting</h3>
     <p>เวลาที่เหลือ: <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
-    <button class="btn vote-open-btn" id="openVoteModalBtn" ${canVote ? '' : 'disabled'}>${myVoteUid ? `แก้ไขโหวต: ${displayPlayerName(myVoteUid, myVoteName)}` : 'เปิดหน้าต่างโหวต'}</button>
+    <button class="btn vote-open-btn" id="openVoteModalBtn" ${canVote ? '' : 'disabled'}>${myVoteOption ? `แก้ไขคำตอบ: ${myVoteOption}` : 'เปิดหน้าต่างตอบคำถาม'}</button>
     <p>โหวตแล้ว: ${votedCount}/${players.length}</p>
-    <p class="muted">${myVoteUid ? `คุณโหวตให้ ${displayPlayerName(myVoteUid, myVoteName)} แล้ว (กดปุ่มเพื่อเปลี่ยนได้)` : 'คุณยังไม่ได้โหวต'}</p>
+    <p class="muted">${myVoteOption ? `คุณตอบว่า ${myVoteOption} แล้ว (กดปุ่มเพื่อเปลี่ยนได้)` : 'คุณยังไม่ได้ตอบ'}</p>
     <h4>ตารางคะแนน</h4>
     <div class="scoreboard">
       <div class="score-head"><span>ผู้เล่น</span><span>คะแนนรอบนี้</span><span>คะแนนรวม</span></div>
@@ -240,8 +251,8 @@ function ui() {
     </div>
     <div class="modal-backdrop ${state.voteModalOpen && canVote ? '' : 'hidden'}" id="voteModal">
       <div class="modal-card">
-        <h4>เลือกคนที่คิดว่า “ต่างจากเพื่อน”</h4>
-        <p class="muted">กดเลือก 1 คน แล้วหน้าต่างจะปิดอัตโนมัติ</p>
+        <h4>เลือกคำตอบ “ใครต่างจากเพื่อน”</h4>
+        <p class="muted">กดเลือก 1 คำตอบ แล้วหน้าต่างจะปิดอัตโนมัติ</p>
         <div class="vote-grid">${voteTargets || '<p class="muted">ไม่มีเป้าหมายให้โหวต</p>'}</div>
         <button class="btn secondary" id="closeVoteModalBtn">ปิดหน้าต่าง</button>
       </div>
@@ -265,14 +276,17 @@ function ui() {
     });
   });
 
-  const wordsByUid = game?.secretWordsByUid || {};
-  const reason = String(game?.reason || '-');
+  const optionsForReveal = Array.isArray(game?.optionsForRound) ? game.optionsForRound : [];
+  const correctAnswer = String(game?.correctAnswer || '-');
+  const reason = String(game?.explanation || '-');
   el.result.innerHTML = `
     <h3>Result</h3>
+    <p><b>เฉลย:</b> ${correctAnswer}</p>
     <p>${reason}</p>
+    <div class="choice-list">${optionsForReveal.map((option) => `<div class="choice-item"><b>${String(option?.value || '-')}</b><span>${String(option?.hint || '-')}</span></div>`).join('')}</div>
     <p>กลับ Lobby อัตโนมัติใน <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
     ${players
-      .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, player?.name || uid)}</b><span>${wordsByUid[uid] || '-'}</span><span>(+${Number(game?.roundScore?.[uid] || 0)} แต้ม)</span></div>`)
+      .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, player?.name || uid)}</b><span>ตอบ: ${String(game?.votes?.[uid] || '-')}</span><span>(+${Number(game?.roundScore?.[uid] || 0)} แต้ม)</span></div>`)
       .join('')}
     <hr/>
     <h4>สรุปคะแนนรอบนี้และคะแนนรวม</h4>
@@ -353,20 +367,20 @@ async function startRound(playerIds) {
     return;
   }
 
-  const setWords = pickWordSet(state.sets);
-  const assignment = buildRoundAssignments(ids, setWords);
+  const setQuestion = pickQuestionSet(state.sets);
+  const assignment = buildRoundAssignments(ids, setQuestion);
   const nowMs = Date.now();
 
   const updates = {
     hostUid: currentUid,
     status: 'secret',
     playerIds: ids,
-    oddUid: assignment.oddUid,
-    words: assignment.words,
-    reason: assignment.reason,
+    question: assignment.question,
+    optionsForRound: assignment.optionsForRound,
+    correctAnswer: assignment.correctAnswer,
+    explanation: assignment.explanation,
     votes: {},
     roundScore: {},
-    secretWordsByUid: assignment.secretWordsByUid,
     phaseEndsAtMs: nowMs + (SECRET_SECONDS * 1000),
     updatedAtMs: nowMs,
     round: Number(state.game?.round || 0) + 1,
@@ -379,7 +393,6 @@ async function startRound(playerIds) {
       writePaths: ids.map((uid) => `${gameRoomPath}/private/${uid}`),
     });
     await Promise.all(ids.map((uid) => set(ref(db, `${gameRoomPath}/private/${uid}`), {
-      word: assignment.secretWordsByUid[uid],
       round: updates.round,
       updatedAtMs: nowMs,
     })));
@@ -460,7 +473,7 @@ async function finalizeVoteIfReady(force = false) {
     if (!voteClosed) return game;
 
     const roundScore = calculateRoundScore({
-      oddUid: String(game.oddUid || ''),
+      correctAnswer: String(game.correctAnswer || ''),
       votesByUid: votes,
       playerIds: ids,
     });
@@ -506,8 +519,10 @@ async function resetToLobby() {
     votes: {},
     roundScore: {},
     playerIds: null,
-    oddUid: null,
-    secretWordsByUid: null,
+    question: null,
+    optionsForRound: null,
+    correctAnswer: null,
+    explanation: null,
     discussion: null,
     phaseEndsAtMs: null,
     updatedAtMs: Date.now(),
@@ -549,7 +564,7 @@ async function init() {
   }
 
   await ensureAuth();
-  await loadWordSets();
+  await loadQuestionSets();
 
   console.info('[logic-spy][init] subscribe paths', {
     roomId,

@@ -1,37 +1,14 @@
-export const DEFAULT_LOGIC_SPY_WORD_SETS = [
-  ['สุนัข', 'แมว', 'กระต่าย', 'เป็ด'], ['ไก่', 'นก', 'เป็ด', 'สิงโต'], ['วาฬ', 'โลมา', 'พะยูน', 'ฉลาม'],
-  ['นก', 'ผีเสื้อ', 'แมลงปอ', 'มด'], ['วัว', 'ควาย', 'ม้า', 'เสือ'], ['กบ', 'เขียด', 'อึ่งอ่าง', 'งู'],
-  ['ปลานิล', 'ปลาดุก', 'ปลาช่อน', 'ปลาทู'], ['ยุง', 'แมลงวัน', 'มด', 'ผึ้ง'], ['หมู', 'ไก่', 'วัว', 'ช้าง'],
-  ['แมว', 'เสือ', 'สิงโต', 'หมี'], ['เต่า', 'หอย', 'ปู', 'ไส้เดือน'], ['นกยูง', 'นกแก้ว', 'ไก่ฟ้า', 'กา'],
-  ['สุนัข', 'แมว', 'หนูแฮมสเตอร์', 'จระเข้'], ['ตั๊กแตน', 'ผีเสื้อ', 'ผึ้ง', 'แมงมุม'], ['ม้า', 'ลา', 'อูฐ', 'ปลาทอง'],
-  ['เป็ด', 'ห่าน', 'หงส์', 'ไก่'], ['ค้างคาว', 'นกเค้าแมว', 'หิ่งห้อย', 'ไก่ชน'], ['จิ้งจก', 'ตุ๊กแก', 'งู', 'ตุ่น'],
-  ['แมวน้ำ', 'เพนกวิน', 'หมีขั้วโลก', 'อูฐ'], ['ยีราฟ', 'ช้าง', 'กวาง', 'ลิง'], ['ผึ้ง', 'ต่อ', 'แตน', 'ตั๊กแตน'],
-  ['ปลากัด', 'ปลาหางนกยูง', 'ปลาทอง', 'ปลาปิรันย่า'], ['กระต่าย', 'กวาง', 'ม้า', 'จิ้งจอก'], ['นกอินทรี', 'นกเหยี่ยว', 'นกแร้ง', 'นกกระจิบ'],
-  ['กุ้ง', 'หอย', 'ปู', 'ปลา'], ['กิ้งก่า', 'จิ้งจก', 'ตุ๊กแก', 'คางคก'], ['ผีเสื้อ', 'แมลงปอ', 'ผึ้ง', 'มด'],
-  ['แมว', 'สุนัข', 'หมู', 'งู'], ['ช้าง', 'ม้า', 'วัว', 'หนู'], ['เป็ด', 'ห่าน', 'หงส์', 'นกยูง'],
-  ['แมลงสาบ', 'หนู', 'ยุง', 'ผีเสื้อ'], ['กวาง', 'ละมั่ง', 'เก้ง', 'เสือดาว'], ['เต่า', 'ตะพาบ', 'จระเข้', 'ปลาช่อน'],
-  ['ควาย', 'วัว', 'แพะ', 'ไก่'], ['นกแก้ว', 'ขุนทอง', 'นกเอี้ยง', 'นกอินทรี'], ['กระต่าย', 'สุนัข', 'แมว', 'ปลาดาว'],
-  ['ลิง', 'ค่าง', 'ชะนี', 'นกกระจอก'], ['วาฬ', 'แมวน้ำ', 'โลมา', 'ม้าน้ำ'], ['หมู', 'เป็ด', 'ไก่', 'สิงโต'],
-  ['มดแดง', 'ปลวก', 'ผึ้ง', 'แมลงวัน'], ['ส้ม', 'มะนาว', 'มะขาม', 'แตงโม'], ['ทุเรียน', 'ขนุน', 'สับปะรด', 'องุ่น'],
-  ['มะม่วง', 'เงาะ', 'ลำไย', 'แตงกวา'], ['ทองหยิบ', 'ทองหยอด', 'ฝอยทอง', 'พิซซ่า'], ['ส้มตำ', 'ลาบ', 'ซุปหน่อไม้', 'แฮมเบอร์เกอร์'],
-  ['น้ำดื่ม', 'น้ำส้ม', 'นม', 'ข้าวผัด'], ['ไอศกรีม', 'น้ำแข็งใส', 'น้ำหวานเย็น', 'หมูกระทะ'], ['พริก', 'กระเทียม', 'หอมแดง', 'น้ำตาล'],
-  ['คะน้า', 'กวางตุ้ง', 'ผักบุ้ง', 'มะเขือเทศ'], ['แอปเปิ้ล', 'สตรอว์เบอร์รี่', 'เชอร์รี่', 'กล้วย'], ['ข้าวเหนียว', 'ข้าวจ้าว', 'ข้าวกล้อง', 'ก๋วยเตี๋ยว'],
-  ['ปลาเผา', 'ไก่ย่าง', 'หมูหัน', 'ซูชิ'], ['ช็อกโกแลต', 'ลูกอม', 'เยลลี่', 'บรอกโคลี'], ['มะพร้าว', 'ตาล', 'จาก', 'องุ่น'],
-  ['แกงเขียวหวาน', 'แกงเผ็ด', 'แกงส้ม', 'ผัดไทย'], ['ขนมปัง', 'โดนัท', 'เค้ก', 'ข้าวเหนียวมะม่วง'], ['โค้ก', 'เป๊ปซี่', 'สไปรท์', 'น้ำเปล่า'],
-  ['ทุเรียน', 'ลองกอง', 'มังคุด', 'แอปเปิ้ล'], ['ถั่วฝักยาว', 'ถั่วพู', 'ถั่วลันเตา', 'พริกชี้ฟ้า'], ['กะเพรา', 'โหระพา', 'แมงลัก', 'ต้นหอม'],
-  ['ไข่เจียว', 'ไข่ดาว', 'ไข่ต้ม', 'ไข่ปลา'], ['มะขาม', 'มะยม', 'ตะลิงปลิง', 'ขนุน'], ['ลูกชิ้นปิ้ง', 'ไส้กรอกอีสาน', 'หมูปิ้ง', 'สเต็ก'],
-  ['มะละกอ', 'แตงโม', 'สับปะรด', 'ส้ม'], ['กาแฟ', 'ชา', 'โกโก้', 'น้ำผลไม้'], ['กุ้งเผา', 'ปูหม้อดิน', 'หอยนางรม', 'นกทอด'],
-  ['ซอสพริก', 'น้ำจิ้มไก่', 'น้ำปลาหวาน', 'แยมส้ม'], ['ทุเรียน', 'สะตอ', 'ปลาร้า', 'น้ำหอม'], ['ข้าวต้ม', 'โจ๊ก', 'ปาท่องโก๋', 'พิซซ่า'],
-  ['น้ำตาล', 'น้ำผึ้ง', 'น้ำเชื่อม', 'เกลือ'], ['ดินสอ', 'ยางลบ', 'ไม้บรรทัด', 'ช้อน'], ['สบู่', 'ยาสระผม', 'แปรงสีฟัน', 'สมุด'],
-  ['เตียง', 'หมอน', 'ผ้าห่ม', 'หม้อหุงข้าว'], ['พัดลม', 'แอร์', 'ตู้เย็น', 'เตารีด'], ['รถยนต์', 'มอเตอร์ไซค์', 'จักรยาน', 'เรือ'],
-  ['เสื้อ', 'กางเกง', 'กระโปรง', 'รองเท้า'], ['โทรศัพท์', 'แท็บเล็ต', 'คอมพิวเตอร์', 'วิทยุ'], ['จาน', 'ชาม', 'ถ้วย', 'แก้วน้ำ'],
-  ['กระเป๋านักเรียน', 'รองเท้าผ้าใบ', 'ชุดนักเรียน', 'ชุดว่ายน้ำ'], ['กรรไกร', 'คัตเตอร์', 'มีด', 'กาว'], ['ร่ม', 'เสื้อกันฝน', 'รองเท้าบูท', 'แว่นกันแดด'],
-  ['เข็มทิศ', 'แผนที่', 'กล้องส่องทางไกล', 'ตู้ครัว'], ['นาฬิกาข้อมือ', 'นาฬิกาปลุก', 'นาฬิกาแขวน', 'ปฏิทิน'], ['ยางลบ', 'ฟุตเหล็ก', 'วงเวียน', 'ตุ๊กตาผ้า'],
-  ['ถุงเท้า', 'รองเท้าแตะ', 'ผ้าใบ', 'หมวก'], ['ค้อน', 'ตะปู', 'ไขควง', 'แปรงแต่งหน้า'], ['ทีวี', 'ลำโพง', 'หูฟัง', 'แว่นตา'],
-  ['ผ้าเช็ดตัว', 'ผ้าเช็ดหน้า', 'ผ้าถูพื้น', 'ผ้าห่ม'], ['กระติกน้ำ', 'ขวดน้ำ', 'แก้วน้ำ', 'จานข้าว'], ['เทียน', 'ไฟฉาย', 'หลอดไฟ', 'ร่ม'],
-  ['รถจักรยาน', 'สเก็ตบอร์ด', 'สกู๊ตเตอร์', 'รถถัง'], ['กระดาษเอสี่', 'สมุดวาดเขียน', 'กระดาษห่อของขวัญ', 'ผ้าเช็ดมือ'], ['หน้าต่าง', 'ประตู', 'หลังคา', 'รั้วบ้าน'],
-  ['ตู้เสื้อผ้า', 'ลิ้นชัก', 'ชั้นวางรองเท้า', 'เตาแก๊ส'], ['ไม้กวาด', 'ไม้ถูพื้น', 'ที่ตักผง', 'หมอนข้าง'], ['แหวน', 'สร้อย', 'ต่างหู', 'แว่นว่ายน้ำ'],
-  ['ฟุตบอล', 'บาสเกตบอล', 'วอลเลย์บอล', 'โทรทัศน์'], ['สีเทียน', 'สีไม้', 'สีน้ำ', 'น้ำยาล้างจาน'], ['ตู้เย็น', 'ไมโครเวฟ', 'เครื่องซักผ้า', 'เตียงนอน'], ['เครื่องบิน', 'เฮลิคอปเตอร์', 'บอลลูน', 'รถไฟ'],
+export const DEFAULT_LOGIC_SPY_QUESTION_SETS = [
+  {
+    options: [
+      { value: 'แมว', hint: 'คล่องตัวในที่แคบและชอบพักบ่อย' },
+      { value: 'เสือ', hint: 'ล่าแบบลำพังและอาศัยจังหวะ' },
+      { value: 'สิงโต', hint: 'อยู่รวมกันเป็นฝูงและล่าเป็นทีม' },
+      { value: 'หมี', hint: 'มีพลังเยอะและยืนสองขาได้' },
+    ],
+    answer: 'แมว',
+    explanation: 'ต่างจากเพื่อนเพราะเป็นสัตว์เลี้ยงในบ้าน',
+  },
 ];
 
 function sanitizeUniqueStrings(input = []) {
@@ -47,74 +24,86 @@ function pickRandomIndex(length, randomFn = Math.random) {
   return Math.min(length - 1, Math.floor(randomFn() * length));
 }
 
-export function normalizeWordSets(rawSets = []) {
-  return (Array.isArray(rawSets) ? rawSets : [])
-    .map((set) => sanitizeUniqueStrings(set))
-    .filter((set) => set.length === 4);
+function normalizeOption(entry = {}) {
+  const value = String(entry?.value || entry?.word || '').trim();
+  const hint = String(entry?.hint || '').trim();
+  return value ? { value, hint } : null;
 }
 
-export function pickWordSet(wordSets = DEFAULT_LOGIC_SPY_WORD_SETS, randomFn = Math.random) {
-  const normalized = normalizeWordSets(wordSets);
-  const source = normalized.length ? normalized : DEFAULT_LOGIC_SPY_WORD_SETS;
-  return [...source[pickRandomIndex(source.length, randomFn)]];
-}
-
-export function buildRoundAssignments(playerIds = [], wordSet = [], randomFn = Math.random) {
-  const ids = sanitizeUniqueStrings(playerIds);
-  if (ids.length < 3 || ids.length > 5) throw new Error('โหมดนี้รองรับผู้เล่น 3-5 คน');
-
-  const words = normalizeWordSets([wordSet])[0];
-  if (!words) throw new Error('ชุดคำต้องมี 4 คำและห้ามซ้ำกัน');
-
-  const oddUid = ids[pickRandomIndex(ids.length, randomFn)];
-  const commonWords = words.slice(0, 3);
-  const oddWord = words[3];
-
-  const shuffledCommonWords = [...commonWords];
-  for (let i = shuffledCommonWords.length - 1; i > 0; i -= 1) {
-    const j = pickRandomIndex(i + 1, randomFn);
-    [shuffledCommonWords[i], shuffledCommonWords[j]] = [shuffledCommonWords[j], shuffledCommonWords[i]];
-  }
-
-  let nonOddIndex = 0;
-  const secretWordsByUid = ids.reduce((acc, uid) => {
-    if (uid === oddUid) {
-      acc[uid] = oddWord;
-    } else {
-      acc[uid] = shuffledCommonWords[nonOddIndex % shuffledCommonWords.length];
-      nonOddIndex += 1;
-    }
-    return acc;
-  }, {});
-
+function normalizeLegacyWordSet(rawSet = []) {
+  const words = sanitizeUniqueStrings(rawSet);
+  if (words.length !== 4) return null;
   return {
-    words,
-    oddUid,
-    secretWordsByUid,
-    reason: `${commonWords[0]}, ${commonWords[1]}, ${commonWords[2]} อยู่กลุ่มเดียวกัน แต่ ${oddWord} ต่างจากเพื่อน`,
+    options: words.map((value) => ({ value, hint: '' })),
+    answer: words[3],
+    explanation: `${words[3]} ต่างจากเพื่อน`,
   };
 }
 
-export function calculateRoundScore({ oddUid = '', votesByUid = {}, playerIds = [] } = {}) {
+export function normalizeQuestionSets(rawSets = []) {
+  return (Array.isArray(rawSets) ? rawSets : [])
+    .map((rawSet) => {
+      if (Array.isArray(rawSet)) return normalizeLegacyWordSet(rawSet);
+
+      const options = (Array.isArray(rawSet?.options) ? rawSet.options : [])
+        .map(normalizeOption)
+        .filter(Boolean);
+
+      const uniqueOptionValues = sanitizeUniqueStrings(options.map((option) => option.value));
+      if (options.length !== 4 || uniqueOptionValues.length !== 4) return null;
+
+      const answer = String(rawSet?.answer || '').trim();
+      if (!answer || !uniqueOptionValues.includes(answer)) return null;
+
+      return {
+        options: options.map((option) => ({ value: option.value, hint: option.hint })),
+        answer,
+        explanation: String(rawSet?.explanation || '').trim(),
+      };
+    })
+    .filter(Boolean);
+}
+
+export function pickQuestionSet(questionSets = DEFAULT_LOGIC_SPY_QUESTION_SETS, randomFn = Math.random) {
+  const normalized = normalizeQuestionSets(questionSets);
+  const source = normalized.length ? normalized : DEFAULT_LOGIC_SPY_QUESTION_SETS;
+  return JSON.parse(JSON.stringify(source[pickRandomIndex(source.length, randomFn)]));
+}
+
+export function buildRoundAssignments(playerIds = [], questionSet = {}, randomFn = Math.random) {
   const ids = sanitizeUniqueStrings(playerIds);
-  const voteMap = votesByUid && typeof votesByUid === 'object' ? votesByUid : {};
-  const scores = Object.fromEntries(ids.map((id) => [id, 0]));
+  if (ids.length < 3 || ids.length > 5) throw new Error('โหมดนี้รองรับผู้เล่น 3-5 คน');
 
-  ids.forEach((uid) => {
-    const votedUid = String(voteMap?.[uid] || '').trim();
-    if (!votedUid || votedUid === uid) return;
-    if (!ids.includes(votedUid)) return;
-    if (uid !== oddUid && votedUid === oddUid) scores[uid] = 1;
-  });
+  const question = normalizeQuestionSets([questionSet])[0];
+  if (!question) throw new Error('รูปแบบคำถามไม่ถูกต้อง (ต้องมี 4 ตัวเลือก + คำตอบ + คำอธิบาย)');
 
-  if (oddUid && Object.prototype.hasOwnProperty.call(scores, oddUid)) {
-    scores[oddUid] = ids
-      .filter((uid) => uid !== oddUid)
-      .reduce((count, uid) => {
-        const votedUid = String(voteMap?.[uid] || '').trim();
-        return count + (votedUid !== oddUid ? 1 : 0);
-      }, 0);
+  const shuffledOptions = [...question.options];
+  for (let i = shuffledOptions.length - 1; i > 0; i -= 1) {
+    const j = pickRandomIndex(i + 1, randomFn);
+    [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
   }
 
-  return scores;
+  const optionCount = Math.max(3, Math.min(4, ids.length));
+  const optionsForRound = shuffledOptions.slice(0, optionCount);
+  if (!optionsForRound.some((option) => option.value === question.answer)) {
+    optionsForRound[optionCount - 1] = question.options.find((option) => option.value === question.answer);
+  }
+
+  return {
+    question,
+    optionsForRound,
+    correctAnswer: question.answer,
+    explanation: question.explanation,
+  };
+}
+
+export function calculateRoundScore({ correctAnswer = '', votesByUid = {}, playerIds = [] } = {}) {
+  const ids = sanitizeUniqueStrings(playerIds);
+  const answer = String(correctAnswer || '').trim();
+  const voteMap = votesByUid && typeof votesByUid === 'object' ? votesByUid : {};
+
+  return Object.fromEntries(ids.map((uid) => {
+    const votedOption = String(voteMap?.[uid] || '').trim();
+    return [uid, votedOption && votedOption === answer ? 1 : 0];
+  }));
 }

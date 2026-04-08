@@ -15,7 +15,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const DOC_ID = 'logic_spy_word_sets';
+const DOC_ID = 'logic_spy_question_sets';
 
 let authPromise = null;
 

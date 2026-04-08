@@ -108,6 +108,15 @@ body {
 .vote-target-btn {
   width: 100%;
   min-height: 56px;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.vote-target-btn small {
+  color: #cbd5e1;
+  font-size: .82rem;
+  font-weight: 500;
 }
 
 .scoreboard {
@@ -151,4 +160,24 @@ body {
   padding: 20px 14px;
   box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
   letter-spacing: 0.03em;
+}
+
+.choice-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.choice-item {
+  display: grid;
+  gap: 4px;
+  background: #1f2937;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.choice-item span {
+  color: #cbd5e1;
+  font-size: .9rem;
 }

@@ -1,49 +1,58 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRoundAssignments, calculateRoundScore, normalizeWordSets, pickWordSet } from '../games/logic-spy/js/gameEngine.js';
+import { buildRoundAssignments, calculateRoundScore, normalizeQuestionSets, pickQuestionSet } from '../games/logic-spy/js/gameEngine.js';
 
-test('normalizeWordSets keeps only valid 4-word entries and removes duplicated words', () => {
-  const normalized = normalizeWordSets([
-    ['a', 'b', 'c', 'd'],
-    ['a', 'b'],
-    ['a', '', 'c', 'd'],
+test('normalizeQuestionSets keeps only valid 4-option question entries', () => {
+  const normalized = normalizeQuestionSets([
+    {
+      options: [{ value: 'a', hint: 'ha' }, { value: 'b', hint: 'hb' }, { value: 'c', hint: 'hc' }, { value: 'd', hint: 'hd' }],
+      answer: 'd',
+      explanation: 'd is odd',
+    },
+    {
+      options: [{ value: 'a' }, { value: 'b' }],
+      answer: 'a',
+      explanation: '',
+    },
     ['x', 'x', 'y', 'z'],
   ]);
 
-  assert.deepEqual(normalized, [['a', 'b', 'c', 'd']]);
+  assert.equal(normalized.length, 1);
+  assert.equal(normalized[0].answer, 'd');
 });
 
-test('buildRoundAssignments assigns exactly one odd player and rotates common words', () => {
+test('buildRoundAssignments shuffles options and keeps correct answer', () => {
   const randomSteps = [0.99, 0, 0.5, 0];
   const result = buildRoundAssignments(
-    ['u1', 'u2', 'u3', 'u4'],
-    ['x', 'y', 'z', 'odd'],
+    ['u1', 'u2', 'u3'],
+    {
+      options: [{ value: 'x', hint: 'hx' }, { value: 'y', hint: 'hy' }, { value: 'z', hint: 'hz' }, { value: 'odd', hint: 'ho' }],
+      answer: 'odd',
+      explanation: 'odd',
+    },
     () => randomSteps.shift() ?? 0,
   );
 
-  assert.equal(result.oddUid, 'u4');
-  assert.equal(result.secretWordsByUid.u4, 'odd');
-
-  const commonWords = [
-    result.secretWordsByUid.u1,
-    result.secretWordsByUid.u2,
-    result.secretWordsByUid.u3,
-  ];
-
-  assert.deepEqual(new Set(commonWords), new Set(['x', 'y', 'z']));
+  assert.equal(result.correctAnswer, 'odd');
+  assert.equal(result.optionsForRound.length, 3);
+  assert.equal(result.optionsForRound.some((entry) => entry.value === 'odd'), true);
 });
 
-test('pickWordSet returns one 4-word set', () => {
-  const set = pickWordSet([['a', 'b', 'c', 'd']], () => 0);
-  assert.deepEqual(set, ['a', 'b', 'c', 'd']);
+test('pickQuestionSet returns one question set', () => {
+  const set = pickQuestionSet([{
+    options: [{ value: 'a', hint: '' }, { value: 'b', hint: '' }, { value: 'c', hint: '' }, { value: 'd', hint: '' }],
+    answer: 'd',
+    explanation: 'd',
+  }], () => 0);
+  assert.equal(set.answer, 'd');
 });
 
-test('calculateRoundScore ignores self vote and invalid target', () => {
+test('calculateRoundScore gives point on correct answer value', () => {
   const score = calculateRoundScore({
-    oddUid: 'u3',
+    correctAnswer: 'แมว',
     playerIds: ['u1', 'u2', 'u3'],
-    votesByUid: { u1: 'u3', u2: 'u2', u3: 'nobody' },
+    votesByUid: { u1: 'แมว', u2: 'เสือ', u3: '' },
   });
 
-  assert.deepEqual(score, { u1: 1, u2: 0, u3: 1 });
+  assert.deepEqual(score, { u1: 1, u2: 0, u3: 0 });
 });
