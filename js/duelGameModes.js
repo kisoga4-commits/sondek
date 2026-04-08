@@ -4,9 +4,10 @@ export const EXTERNAL_GAME_MODES = {
     minPlayers: 4,
     requiresQuestionBank: false,
     redirectPath: 'games/pob-kintub/index.html',
-    buildRedirectParams: ({ roomId, pin, isHost, playerName }) => ({
+    buildRedirectParams: ({ roomId, pin, uid, isHost, playerName }) => ({
       roomId,
       pin,
+      uid,
       role: isHost ? 'host' : 'join',
       player: playerName,
     }),

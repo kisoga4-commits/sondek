@@ -44,6 +44,7 @@ const ROLE_ACTION_CONFIG = {
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
 const pin = String(params.get('pin') || roomId).trim();
+const requestedUid = String(params.get('uid') || '').trim();
 const requestedPlayerName = String(params.get('player') || '').trim();
 
 const app = initializeApp(firebaseConfig);
@@ -298,6 +299,38 @@ async function ensureRoomMembership() {
   const room = snap.val() || {};
   const players = room?.players || {};
   if (players?.[state.uid]) return;
+
+  const normalizedRequestedUid = requestedUid.trim();
+  if (normalizedRequestedUid && normalizedRequestedUid !== state.uid && players?.[normalizedRequestedUid]) {
+    const tx = await runTransaction(paths.duelRoom, (data) => {
+      if (!data || typeof data !== 'object') return data;
+      const currentPlayers = data?.players && typeof data.players === 'object' ? data.players : {};
+      if (currentPlayers[state.uid]) return data;
+      const legacyPlayer = currentPlayers[normalizedRequestedUid];
+      if (!legacyPlayer) return data;
+
+      const now = Date.now();
+      const nextPlayers = { ...currentPlayers };
+      delete nextPlayers[normalizedRequestedUid];
+      nextPlayers[state.uid] = {
+        ...legacyPlayer,
+        uid: state.uid,
+        online: true,
+        disconnectedAtMs: null,
+        updatedAt: now,
+      };
+
+      return {
+        ...data,
+        players: nextPlayers,
+        hostUid: String(data?.hostUid || '') === normalizedRequestedUid ? state.uid : data?.hostUid,
+        updatedAtMs: now,
+      };
+    });
+
+    const recoveredRoom = tx?.snapshot?.val() || {};
+    if (recoveredRoom?.players?.[state.uid]) return;
+  }
 
   const normalizedRequestedName = requestedPlayerName.toLowerCase();
   if (normalizedRequestedName) {
