@@ -98,6 +98,35 @@ function shuffle(list) {
   return arr;
 }
 
+function resolvePlayerName(player = {}, uid = '') {
+  const candidates = [
+    player?.name,
+    player?.displayName,
+    player?.studentName,
+    player?.nickname,
+    player?.nickName,
+  ];
+  const picked = candidates.map((value) => String(value || '').trim()).find((value) => value.length > 0);
+  if (picked) return picked;
+  const safeUid = String(uid || '').trim();
+  return safeUid ? `UID-${safeUid.slice(0, 6)}` : 'ผู้เล่น';
+}
+
+function getRoomEntries(playersMap = state.duelPlayers) {
+  return Object.entries(playersMap || {})
+    .map(([uid, raw]) => {
+      // ใช้ key ของห้องเป็น uid หลักเสมอ เพราะเป็น source of truth ของ RTDB
+      const normalizedUid = String(uid || '').trim();
+      if (!normalizedUid) return null;
+      return {
+        ...(raw || {}),
+        uid: normalizedUid,
+        name: resolvePlayerName(raw || {}, normalizedUid),
+      };
+    })
+    .filter(Boolean);
+}
+
 function rolePool(count) {
   const totalPlayers = Math.max(4, Math.min(12, Number(count || 4)));
   const utilityPool = ['shaman', 'police', 'monk'];
@@ -129,7 +158,7 @@ function buildRandomizedGameState(entries, hostUid) {
   const privateMap = {};
 
   entries.forEach((p, idx) => {
-    playersMap[p.uid] = { uid: p.uid, name: p.name || 'ผู้เล่น', alive: true, roleHint: 'hidden', deathCause: '' };
+    playersMap[p.uid] = { uid: p.uid, name: resolvePlayerName(p, p.uid), alive: true, roleHint: 'hidden', deathCause: '' };
     privateMap[p.uid] = { role: roles[idx], partners: [], nightAction: null, voteTarget: null, nightNotice: '' };
   });
 
@@ -137,7 +166,7 @@ function buildRandomizedGameState(entries, hostUid) {
     if (privateMap[p.uid].role !== 'pob') return;
     privateMap[p.uid].partners = entries
       .filter((x) => x.uid !== p.uid && privateMap[x.uid].role === 'pob')
-      .map((x) => x.name || 'ผู้เล่น');
+      .map((x) => resolvePlayerName(x, x.uid));
   });
 
   const startedAt = Date.now();
@@ -414,7 +443,7 @@ function currentNightActionStatusHtml() {
   const role = String(state.mePrivate?.role || '');
   const actionLabel = ROLE_ACTION_CONFIG[role]?.actionLabel || 'ใช้สกิล';
   const targetId = String(action?.targetId || '').trim();
-  const targetName = targetId ? (state.publicState?.players?.[targetId]?.name || 'ผู้เล่น') : '';
+  const targetName = targetId ? (state.publicState?.players?.[targetId]?.name || targetId || 'ไม่ทราบชื่อ') : '';
   const text = role === 'villager'
     ? '✅ คุณใช้สิทธิ์คืนนี้แล้ว (ไถนา) • รอระบบประมวลผล'
     : `✅ คุณใช้สิทธิ์คืนนี้แล้ว (${actionLabel} ${targetName || 'ไม่ระบุ'}) • รอระบบประมวลผล`;
@@ -428,7 +457,7 @@ function nightPhaseProgressHtml() {
   if (!pending.length) {
     return '<div class="tag ready" style="margin-top:.55rem;">✅ ทุกคนส่งคำสั่งครบแล้ว กำลังประมวลผลไปช่วงเช้า...</div>';
   }
-  const waitingNames = pending.map((p) => p.name || 'ผู้เล่น').join(', ');
+  const waitingNames = pending.map((p) => resolvePlayerName(p, p.uid)).join(', ');
   return `<div class="tag" style="margin-top:.55rem;">⌛ รอคำสั่งจาก: ${waitingNames}</div>`;
 }
 
@@ -506,13 +535,13 @@ function bindTap(target, handler) {
 }
 
 function renderSetup() {
-  const players = Object.values(state.duelPlayers || {});
+  const players = getRoomEntries();
   const canStart = state.isHost && players.length >= 4 && players.length <= 12;
   els.setup.innerHTML = `
     <h2>Step 1: เริ่มเกม (รอ Host กดเริ่ม)</h2>
     <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-12 คน</p>
     ${phaseMetaHtml()}
-    <div class="player-list">${players.map((p) => `<div class="tag">${p.name || 'ผู้เล่น'} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
+    <div class="player-list">${players.map((p) => `<div class="tag">${resolvePlayerName(p, p.uid)} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
     ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบกินตับ</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
   `;
 
@@ -520,7 +549,7 @@ function renderSetup() {
   if (btn) {
     btn.onclick = async () => {
       try {
-        const entries = Object.values(state.duelPlayers || {});
+        const entries = getRoomEntries();
         await seedGameFromEntries(entries, state.uid);
       } catch (error) {
         window.alert(error.message || 'เริ่มเกมไม่สำเร็จ');
@@ -839,7 +868,7 @@ function renderNight() {
     } else {
       actionHtml = `
         <div class="big-grid">${others.map((p) => `<button class="btn big-btn targetNight ${selectedTarget === p.uid ? 'ready' : ''}" data-id="${p.uid}" ${(acted || state.isSubmittingNightAction) ? 'disabled' : ''}>${p.name}${selectedTarget === p.uid ? ' ✅' : ''}</button>`).join('')}</div>
-        <div class="tag" style="margin-top:.5rem;">เป้าหมายที่เลือก: ${selectedTarget ? (state.publicState?.players?.[selectedTarget]?.name || 'ผู้เล่น') : 'ยังไม่ได้เลือก'}</div>
+        <div class="tag" style="margin-top:.5rem;">เป้าหมายที่เลือก: ${selectedTarget ? (state.publicState?.players?.[selectedTarget]?.name || selectedTarget || 'ไม่ทราบชื่อ') : 'ยังไม่ได้เลือก'}</div>
         <button id="confirmNightActionBtn" class="btn big-btn" ${(acted || state.isSubmittingNightAction || !selectedTarget) ? 'disabled' : ''}>ยืนยันใช้สกิล</button>
       `;
     }
@@ -1040,7 +1069,7 @@ async function finalizeVoteByHost() {
       voteResolveLock: null,
       lastLogs: [
         outUid
-          ? `${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} โดนขับไล่ออกจากหมู่บ้าน (ตาย)`
+          ? `${voteResult.players?.[outUid]?.name || outUid || 'ไม่ทราบชื่อ'} โดนขับไล่ออกจากหมู่บ้าน (ตาย)`
           : 'ไม่มีใครโดนขับไล่ออกจากหมู่บ้าน',
         ...(voteSummaryRows.length ? ['สรุปคะแนนโหวตรอบล่าสุด', ...voteSummaryRows] : ['สรุปคะแนนโหวตรอบล่าสุด: ไม่มีคะแนน']),
       ],
@@ -1137,7 +1166,7 @@ function renderEnd() {
     state.isRestartingGame = true;
     mountByPhase();
     try {
-      const entries = Object.values(state.duelPlayers || {});
+      const entries = getRoomEntries();
       if (entries.length < 4 || entries.length > 12) {
         await tx(paths.public, (data) => ({ ...data, phase: 'setup', phaseEndsAtMs: 0, winner: '', voteSummary: {}, revealRoles: {}, actionSeq: 0, nightSubmittedBy: {}, nightResolveLock: null, voteResolveLock: null, lastLogs: ['รีเซ็ตเกม: จำนวนผู้เล่นไม่พอ กรุณารอ Host เริ่มใหม่'], updatedAtMs: Date.now() }));
       } else {
@@ -1290,7 +1319,7 @@ async function initCloud() {
     const mode = String(room?.modeConfig?.gameMode || '');
     const status = String(room?.status || room?.state?.status || 'lobby');
     if (mode === 'pob' && status === 'playing' && state.isHost && !state.publicState) {
-      const entries = Object.values(state.duelPlayers || {});
+      const entries = getRoomEntries();
       if (entries.length >= 4 && entries.length <= 12) {
         void seedGameFromEntries(entries, state.uid).catch(() => {});
       }
