@@ -26,6 +26,7 @@ import {
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import {
   getDatabase,
+  onDisconnect,
   onValue,
   ref as rtdbRef,
   runTransaction as runRtdbTransaction,
@@ -92,6 +93,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAINTENANCE_STORAGE_KEY = 'duel_weekly_maintenance_at';
 const DUEL_GAME_PLAY_COUNT_DOC_ID = 'duel_game_play_counts';
 const DUEL_OPEN_ROOM_CARDS_COLLECTION = 'duel_open_room_cards';
+const duelPresenceByRoom = new Map();
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
@@ -964,6 +966,23 @@ async function removeOpenDuelRoomCard(roomId = '') {
   await deleteDoc(docRef);
 }
 
+function bindDuelPresenceOnDisconnect(roomId, uid) {
+  const safeRoomId = normalizeDuelRoomId(roomId);
+  if (!safeRoomId || !uid) return;
+  const playerRef = rtdbRef(rtdb, `rooms/${safeRoomId}/players/${uid}`);
+  try {
+    const handle = onDisconnect(playerRef);
+    handle.update({
+      online: false,
+      disconnectedAtMs: Date.now(),
+      updatedAt: Date.now(),
+    });
+    duelPresenceByRoom.set(safeRoomId, handle);
+  } catch (_) {
+    // non-blocking: disconnect hook should not block room create/join
+  }
+}
+
 
 function pickTopTargetUids(players, actorUid, targetCount) {
   const aliveOpponents = Object.entries(players)
@@ -1068,6 +1087,7 @@ export async function createDuelRoom(payload) {
           name: hostPlayer.name,
           joinedAt: nowMs,
           online: true,
+          disconnectedAtMs: null,
           team: null,
           isHost: true,
         };
@@ -1109,6 +1129,7 @@ export async function createDuelRoom(payload) {
       } catch (_error) {
         // non-blocking: room card sync should not block room create
       }
+      bindDuelPresenceOnDisconnect(roomId, uid);
       return { roomId, uid };
     } catch (error) {
       lastError = error;
@@ -1157,6 +1178,7 @@ export async function joinDuelRoom(roomId, playerName) {
           ...players[uid],
           name: sanitizeDuelName(playerName, players[uid].name || 'ผู้เล่น'),
           online: true,
+          disconnectedAtMs: null,
           updatedAt: Date.now(),
         } : {
           ...buildDuelPlayerPayload(playerName),
@@ -1164,6 +1186,7 @@ export async function joinDuelRoom(roomId, playerName) {
           name: sanitizeDuelName(playerName),
           joinedAt: Date.now(),
           online: true,
+          disconnectedAtMs: null,
           team: null,
           isHost: false,
         },
@@ -1186,8 +1209,76 @@ export async function joinDuelRoom(roomId, playerName) {
   } catch (_error) {
     // non-blocking: room card sync should not block join room
   }
+  bindDuelPresenceOnDisconnect(safeRoomId, uid);
 
   return { roomId: safeRoomId, uid };
+}
+
+export async function leaveDuelRoom(roomId) {
+  await ensureWriteAccess();
+  const uid = getDuelActorUid();
+  const safeRoomId = normalizeDuelRoomId(roomId);
+  if (safeRoomId.length !== DUEL_ROOM_ID_LENGTH) return { roomId: safeRoomId, left: false };
+
+  const roomRef = rtdbRef(rtdb, `rooms/${safeRoomId}`);
+  let tx;
+  try {
+    tx = await runRtdbTransaction(roomRef, (data) => {
+      if (!data || typeof data !== 'object') return data;
+      const players = { ...(data.players || {}) };
+      if (!players[uid]) return data;
+      delete players[uid];
+
+      const remainingEntries = Object.entries(players);
+      if (!remainingEntries.length) return null;
+
+      const previousHostUid = String(data.hostUid || '');
+      const nextHostUid = players[previousHostUid] ? previousHostUid : remainingEntries[0][0];
+      const nextHostName = players[nextHostUid]?.name || data.hostName || 'Host';
+      const nowMs = Date.now();
+      const nextPlayers = remainingEntries.reduce((acc, [playerUid, player]) => {
+        acc[playerUid] = {
+          ...player,
+          isHost: playerUid === nextHostUid,
+          updatedAt: nowMs,
+        };
+        return acc;
+      }, {});
+
+      return {
+        ...syncDuelRoomShape(data),
+        players: nextPlayers,
+        hostUid: nextHostUid,
+        hostName: nextHostName,
+        updatedAtMs: nowMs,
+      };
+    });
+  } catch (error) {
+    throw toDuelPermissionDeniedError(error);
+  }
+
+  const presenceHandle = duelPresenceByRoom.get(safeRoomId);
+  if (presenceHandle) {
+    try { presenceHandle.cancel(); } catch (_) {}
+    duelPresenceByRoom.delete(safeRoomId);
+  }
+
+  if (!tx?.committed) return { roomId: safeRoomId, left: false };
+  const nextRoom = tx.snapshot?.val();
+  if (!nextRoom) {
+    try {
+      await removeOpenDuelRoomCard(safeRoomId);
+    } catch (_) {
+      // non-blocking
+    }
+    return { roomId: safeRoomId, left: true, deleted: true };
+  }
+  try {
+    await syncOpenDuelRoomCard(nextRoom);
+  } catch (_) {
+    // non-blocking
+  }
+  return { roomId: safeRoomId, left: true, deleted: false };
 }
 
 export async function startDuelRoom(roomId) {
