@@ -52,6 +52,12 @@ const state = {
   voteModalOpen: false,
 };
 
+function pickRandomEntry(entries = []) {
+  const list = (Array.isArray(entries) ? entries : []).filter((entry) => entry !== null && entry !== undefined && String(entry).trim());
+  if (!list.length) return '';
+  return String(list[Math.floor(Math.random() * list.length)] || '').trim();
+}
+
 function getPlayers() {
   return Object.entries(state.duel?.players || {})
     .sort((a, b) => Number(a?.[1]?.joinedAt || 0) - Number(b?.[1]?.joinedAt || 0))
@@ -150,6 +156,7 @@ function ui() {
   const duelPlayersByUid = state.duel?.players || {};
   const game = state.game || { status: 'lobby', scores: {}, votes: {} };
   const phase = String(game.status || 'lobby');
+  if (phase !== 'vote' && state.voteModalOpen) state.voteModalOpen = false;
   const moderatorUid = getModeratorUid();
   const isMeModerator = canModerate();
   const roomHostUid = String(state.duel?.hostUid || '');
@@ -183,13 +190,18 @@ function ui() {
   });
 
   const optionsForDisplay = Array.isArray(game?.optionsForRound) ? game.optionsForRound : [];
-  const optionsHtml = `<div class=\"choice-list\">${optionsForDisplay.map((option) => `<div class=\"choice-item\"><b>${String(option?.value || '-')}</b><span>${String(option?.hint || '-')}</span></div>`).join('')}</div>`;
+  const namesHtml = `<div class=\"choice-list\">${optionsForDisplay.map((option) => `<div class=\"choice-item\"><b>${String(option?.value || '-')}</b></div>`).join('')}</div>`;
+  const roundRandomName = String(game?.roundRandomName || '-');
+  const roundRandomHint = String(game?.roundRandomHint || '-');
 
   el.secret.innerHTML = `
     <h3>โจทย์รอบนี้</h3>
     <p>เวลาที่เหลือ: <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
-    <p class="muted">เลือกคำที่คิดว่า “ต่างจากเพื่อน” โดยดูจากชื่อ + คำใบ้</p>
-    ${optionsHtml}
+    <p class="muted">รอบนี้ระบบสุ่มให้แค่ชื่อ 1 คำ + คำใบ้ 1 ข้อ เพื่อไม่เฉลยข้อมูลทั้งหมด</p>
+    <p><b>ชื่อที่สุ่มได้:</b> ${roundRandomName}</p>
+    <p><b>คำใบ้ที่สุ่มได้:</b> ${roundRandomHint}</p>
+    <h4>ตัวเลือกคำตอบ</h4>
+    ${namesHtml}
     ${isMeModerator ? '<button class="btn secondary" id="toDiscussionBtn">เริ่มช่วงพูดทันที</button>' : '<p>รอ Moderator พาเข้าช่วงพูด</p>'}
   `;
 
@@ -232,9 +244,8 @@ function ui() {
   const voteTargets = optionsForRound
     .map((option) => {
       const value = String(option?.value || '');
-      const hint = String(option?.hint || '');
       const selected = myVoteOption === value;
-      return `<button class="btn vote-target-btn ${selected ? 'secondary' : ''}" data-vote-target="${value}"><b>${value}</b>${hint ? `<small>${hint}</small>` : ''}${selected ? ' ✅' : ''}</button>`;
+      return `<button class="btn vote-target-btn ${selected ? 'secondary' : ''}" data-vote-target="${value}"><b>${value}</b>${selected ? ' ✅' : ''}</button>`;
     })
     .join('');
 
@@ -267,6 +278,11 @@ function ui() {
     state.voteModalOpen = false;
     ui();
   });
+  document.getElementById('voteModal')?.addEventListener('click', (event) => {
+    if (event.target?.id !== 'voteModal') return;
+    state.voteModalOpen = false;
+    ui();
+  });
   document.querySelectorAll('[data-vote-target]').forEach((targetButton) => {
     targetButton.addEventListener('click', () => {
       const targetUid = String(targetButton?.dataset?.voteTarget || '');
@@ -283,7 +299,10 @@ function ui() {
     <h3>Result</h3>
     <p><b>เฉลย:</b> ${correctAnswer}</p>
     <p>${reason}</p>
-    <div class="choice-list">${optionsForReveal.map((option) => `<div class="choice-item"><b>${String(option?.value || '-')}</b><span>${String(option?.hint || '-')}</span></div>`).join('')}</div>
+    <details>
+      <summary>แสดงชื่อ + คำใบ้ทั้งหมด</summary>
+      <div class="choice-list">${optionsForReveal.map((option) => `<div class="choice-item"><b>${String(option?.value || '-')}</b><span>${String(option?.hint || '-')}</span></div>`).join('')}</div>
+    </details>
     <p>กลับ Lobby อัตโนมัติใน <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
     ${players
       .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, player?.name || uid)}</b><span>ตอบ: ${String(game?.votes?.[uid] || '-')}</span><span>(+${Number(game?.roundScore?.[uid] || 0)} แต้ม)</span></div>`)
@@ -370,6 +389,8 @@ async function startRound(playerIds) {
   const setQuestion = pickQuestionSet(state.sets);
   const assignment = buildRoundAssignments(ids, setQuestion);
   const nowMs = Date.now();
+  const randomName = pickRandomEntry(assignment.optionsForRound.map((option) => option?.value));
+  const randomHint = pickRandomEntry(assignment.optionsForRound.map((option) => option?.hint));
 
   const updates = {
     hostUid: currentUid,
@@ -377,6 +398,8 @@ async function startRound(playerIds) {
     playerIds: ids,
     question: assignment.question,
     optionsForRound: assignment.optionsForRound,
+    roundRandomName: randomName || '-',
+    roundRandomHint: randomHint || '-',
     correctAnswer: assignment.correctAnswer,
     explanation: assignment.explanation,
     votes: {},
@@ -521,6 +544,8 @@ async function resetToLobby() {
     playerIds: null,
     question: null,
     optionsForRound: null,
+    roundRandomName: null,
+    roundRandomHint: null,
     correctAnswer: null,
     explanation: null,
     discussion: null,
