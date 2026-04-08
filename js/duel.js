@@ -4,6 +4,7 @@ import {
   finalizeDuelByTimeout,
   getQuestionsByCourse,
   joinDuelRoom,
+  leaveDuelRoom,
   startDuelRoom,
   submitDuelAnswer,
   subscribeAuthStatus,
@@ -685,6 +686,16 @@ function subscribeRoom(roomId) {
   state.unsubRoom = subscribeDuelRoom(roomId, handleRoomUpdate, () => setStatus('เชื่อมต่อห้องไม่สำเร็จ'));
 }
 
+async function leaveCurrentRoom() {
+  const roomId = normalizeRoomIdInput(state.roomId || '');
+  if (!roomId || !state.authReady) return;
+  try {
+    await leaveDuelRoom(roomId);
+  } catch (_) {
+    // non-blocking: best effort cleanup only
+  }
+}
+
 async function handleCreateRoom() {
   if (state.isCreatingRoom) return;
   const createButtonDefaultText = el.createRoomBtn?.dataset.defaultText
@@ -875,6 +886,10 @@ async function init() {
       return;
     }
     setStatus('เชื่อมรายการห้องรวมไม่สำเร็จ แต่ยังเข้าห้องด้วย PIN ได้');
+  });
+
+  window.addEventListener('pagehide', () => {
+    void leaveCurrentRoom();
   });
 }
 
