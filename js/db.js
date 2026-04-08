@@ -66,6 +66,7 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 
 let authInitPromise = null;
+let duelRoomCleanupIntervalId = null;
 
 
 function isPermissionDeniedError(error) {
@@ -158,6 +159,11 @@ export async function ensureDuelAuthReady() {
   await ensureAuthReady();
   void runWeeklyDuelMaintenance();
   void runDuelRoomCleanup();
+  if (!duelRoomCleanupIntervalId) {
+    duelRoomCleanupIntervalId = window.setInterval(() => {
+      void runDuelRoomCleanup();
+    }, DUEL_ROOM_CLEANUP_INTERVAL_MS);
+  }
 }
 
 export async function runWeeklyDuelMaintenance(options = {}) {
@@ -214,6 +220,12 @@ function shouldDeleteDuelRoom(room = {}, nowMs = Date.now()) {
   const roomAgeMs = nowMs - Math.max(createdAtMs, updatedAtMs);
   const onlinePlayerCount = countOnlineDuelPlayers(players);
   if (status === 'lobby' && onlinePlayerCount === 0 && roomAgeMs >= DUEL_ROOM_EMPTY_AUTO_DELETE_MS) {
+    return true;
+  }
+  if (status === 'lobby' && onlinePlayerCount > 0) {
+    return false;
+  }
+  if ((status === 'finished' || status === 'ended') && roomAgeMs >= DUEL_ROOM_AUTO_DELETE_MS) {
     return true;
   }
   return status === 'lobby' && roomAgeMs >= DUEL_ROOM_AUTO_DELETE_MS;
