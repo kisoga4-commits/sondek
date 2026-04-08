@@ -21,7 +21,7 @@ test('normalizeQuestionSets keeps only valid 4-option question entries', () => {
   assert.equal(normalized[0].answer, 'd');
 });
 
-test('buildRoundAssignments shuffles options and keeps correct answer', () => {
+test('buildRoundAssignments shuffles 4 options and keeps correct answer (even with 3 players)', () => {
   const randomSteps = [0.99, 0, 0.5, 0];
   const result = buildRoundAssignments(
     ['u1', 'u2', 'u3'],
@@ -34,7 +34,7 @@ test('buildRoundAssignments shuffles options and keeps correct answer', () => {
   );
 
   assert.equal(result.correctAnswer, 'odd');
-  assert.equal(result.optionsForRound.length, 3);
+  assert.equal(result.optionsForRound.length, 4);
   assert.equal(result.optionsForRound.some((entry) => entry.value === 'odd'), true);
 });
 

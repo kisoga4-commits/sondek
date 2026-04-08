@@ -83,11 +83,7 @@ export function buildRoundAssignments(playerIds = [], questionSet = {}, randomFn
     [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
   }
 
-  const optionCount = Math.max(3, Math.min(4, ids.length));
-  const optionsForRound = shuffledOptions.slice(0, optionCount);
-  if (!optionsForRound.some((option) => option.value === question.answer)) {
-    optionsForRound[optionCount - 1] = question.options.find((option) => option.value === question.answer);
-  }
+  const optionsForRound = shuffledOptions.slice(0, 4);
 
   return {
     question,

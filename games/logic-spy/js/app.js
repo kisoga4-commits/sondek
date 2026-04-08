@@ -52,10 +52,15 @@ const state = {
   voteModalOpen: false,
 };
 
-function pickRandomEntry(entries = []) {
-  const list = (Array.isArray(entries) ? entries : []).filter((entry) => entry !== null && entry !== undefined && String(entry).trim());
-  if (!list.length) return '';
-  return String(list[Math.floor(Math.random() * list.length)] || '').trim();
+function pickRandomOptionPair(options = []) {
+  const list = (Array.isArray(options) ? options : [])
+    .map((option) => ({
+      value: String(option?.value || '').trim(),
+      hint: String(option?.hint || '').trim(),
+    }))
+    .filter((option) => option.value);
+  if (!list.length) return { value: '', hint: '' };
+  return list[Math.floor(Math.random() * list.length)];
 }
 
 function getPlayers() {
@@ -389,8 +394,7 @@ async function startRound(playerIds) {
   const setQuestion = pickQuestionSet(state.sets);
   const assignment = buildRoundAssignments(ids, setQuestion);
   const nowMs = Date.now();
-  const randomName = pickRandomEntry(assignment.optionsForRound.map((option) => option?.value));
-  const randomHint = pickRandomEntry(assignment.optionsForRound.map((option) => option?.hint));
+  const randomOptionPair = pickRandomOptionPair(assignment.optionsForRound);
 
   const updates = {
     hostUid: currentUid,
@@ -398,8 +402,8 @@ async function startRound(playerIds) {
     playerIds: ids,
     question: assignment.question,
     optionsForRound: assignment.optionsForRound,
-    roundRandomName: randomName || '-',
-    roundRandomHint: randomHint || '-',
+    roundRandomName: randomOptionPair.value || '-',
+    roundRandomHint: randomOptionPair.hint || '-',
     correctAnswer: assignment.correctAnswer,
     explanation: assignment.explanation,
     votes: {},
