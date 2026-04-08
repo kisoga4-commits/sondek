@@ -263,7 +263,16 @@ async function readWithTimeout(pathRef, timeoutMs = 4000) {
 }
 
 async function ensureAuth() {
+  if (typeof auth.authStateReady === 'function') {
+    await auth.authStateReady();
+    if (auth.currentUser?.uid) {
+      state.uid = auth.currentUser.uid;
+      return;
+    }
+  }
+
   await new Promise((resolve, reject) => {
+    let signInStarted = false;
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         state.uid = user.uid;
@@ -271,13 +280,24 @@ async function ensureAuth() {
         resolve();
         return;
       }
+      if (signInStarted) return;
+      signInStarted = true;
       try {
         await signInAnonymously(auth);
       } catch (error) {
+        unsub();
         reject(error);
       }
     }, reject);
   });
+}
+
+async function ensureRoomMembership() {
+  const snap = await readWithTimeout(paths.duelRoom, 6000);
+  const room = snap.val() || {};
+  const players = room?.players || {};
+  if (players?.[state.uid]) return;
+  throw new Error('บัญชีผู้เล่นนี้ไม่ได้อยู่ในห้อง Duel (อาจเกิดจาก anonymous auth เปลี่ยน UID ระหว่างหน้า)');
 }
 
 function mountError(message) {
@@ -1311,6 +1331,13 @@ async function initCloud() {
   const topbar = document.querySelector('.topbar p');
   if (topbar) topbar.textContent = `Cloud Mode • PIN ${pin} • UID ${state.uid.slice(0, 8)}`;
   renderLoading();
+
+  try {
+    await ensureRoomMembership();
+  } catch (error) {
+    mountError(error.message || 'ตรวจสิทธิ์เข้าห้องไม่สำเร็จ');
+    return;
+  }
 
   onValue(paths.duelRoom, (snap) => {
     const room = snap.val() || {};
