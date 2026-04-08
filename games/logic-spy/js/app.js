@@ -68,6 +68,12 @@ function getPlayers() {
     .sort((a, b) => Number(a?.[1]?.joinedAt || 0) - Number(b?.[1]?.joinedAt || 0));
 }
 
+function isPlayerOnline(player = {}) {
+  if (!player || typeof player !== 'object') return false;
+  if (typeof player.online === 'boolean') return player.online;
+  return true;
+}
+
 function resolveRoomPlayerName(player = {}, uid = '') {
   const candidates = [
     player?.name,
@@ -88,11 +94,13 @@ function displayPlayerName(uid, fallbackName = '') {
 function getModeratorUid() {
   const players = getPlayers();
   if (!players.length) return '';
+  const onlinePlayers = players.filter(([, player]) => isPlayerOnline(player));
+  const candidates = onlinePlayers.length ? onlinePlayers : players;
   const hostUid = String(state.duel?.hostUid || '');
   const roomModeratorUid = String(state.duel?.moderatorUid || '');
-  if (roomModeratorUid && players.some(([uid]) => uid === roomModeratorUid)) return roomModeratorUid;
-  if (hostUid && players.some(([uid]) => uid === hostUid)) return hostUid;
-  return '';
+  if (roomModeratorUid && candidates.some(([uid]) => uid === roomModeratorUid)) return roomModeratorUid;
+  if (hostUid && candidates.some(([uid]) => uid === hostUid)) return hostUid;
+  return String(candidates[0]?.[0] || '');
 }
 
 function canModerate() {

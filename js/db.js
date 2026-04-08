@@ -1213,6 +1213,7 @@ export async function createDuelRoom(payload) {
 export async function joinDuelRoom(roomId, playerName) {
   await ensureWriteAccess();
   const uid = getDuelActorUid();
+  const requestedName = String(playerName || '').trim();
 
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== DUEL_ROOM_ID_LENGTH) throw new Error(`รหัสห้องต้องเป็นตัวเลข ${DUEL_ROOM_ID_LENGTH} หลัก`);
@@ -1232,19 +1233,24 @@ export async function joinDuelRoom(roomId, playerName) {
       if (!players[uid] && existingUids.length >= maxPlayers) {
         throw new Error('ห้องเต็มแล้ว');
       }
+      if (!players[uid] && !requestedName) {
+        throw new Error('กรุณากรอกชื่อผู้เล่นก่อนเข้าห้อง');
+      }
 
       const nextPlayers = {
         ...players,
         [uid]: players[uid] ? {
           ...players[uid],
-          name: sanitizeDuelName(playerName, players[uid].name || 'ผู้เล่น'),
+          name: requestedName
+            ? sanitizeDuelName(requestedName, players[uid].name || 'ผู้เล่น')
+            : sanitizeDuelName(players[uid].name, 'ผู้เล่น'),
           online: true,
           disconnectedAtMs: null,
           updatedAt: Date.now(),
         } : {
-          ...buildDuelPlayerPayload(playerName),
+          ...buildDuelPlayerPayload(requestedName),
           uid,
-          name: sanitizeDuelName(playerName),
+          name: sanitizeDuelName(requestedName),
           joinedAt: Date.now(),
           online: true,
           disconnectedAtMs: null,
