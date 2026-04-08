@@ -91,6 +91,7 @@ const DUEL_REVEAL_SECONDS = 0.8;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAINTENANCE_STORAGE_KEY = 'duel_weekly_maintenance_at';
 const DUEL_GAME_PLAY_COUNT_DOC_ID = 'duel_game_play_counts';
+const DUEL_OPEN_ROOM_CARDS_COLLECTION = 'duel_open_room_cards';
 
 function toDuelPermissionDeniedError(error, fallbackMessage) {
   if (!isPermissionDeniedError(error)) return error;
@@ -924,6 +925,45 @@ function buildDuelPlayerPayload(name) {
   };
 }
 
+function toOpenRoomCard(room = {}) {
+  const roomId = normalizeDuelRoomId(room?.roomId || room?.pin || room?.id || '');
+  if (!roomId) return null;
+  const players = room?.players && typeof room.players === 'object' ? room.players : {};
+  return {
+    roomId,
+    pin: roomId,
+    status: String(room?.status || 'lobby'),
+    hostUid: String(room?.hostUid || ''),
+    hostName: sanitizeDuelName(room?.hostName || 'Host', 'Host'),
+    modeConfig: room?.modeConfig && typeof room.modeConfig === 'object' ? room.modeConfig : {},
+    maxPlayers: Math.max(2, Number(room?.maxPlayers || 4)),
+    playerCount: Object.keys(players).length,
+    updatedAtMs: Number(room?.updatedAtMs || Date.now()),
+    createdAtMs: Number(room?.createdAtMs || Date.now()),
+  };
+}
+
+async function syncOpenDuelRoomCard(room = {}) {
+  const card = toOpenRoomCard(room);
+  if (!card) return;
+  const docRef = doc(db, DUEL_OPEN_ROOM_CARDS_COLLECTION, card.roomId);
+  if (card.status !== 'lobby') {
+    await deleteDoc(docRef);
+    return;
+  }
+  await setDoc(docRef, {
+    ...card,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+async function removeOpenDuelRoomCard(roomId = '') {
+  const safeRoomId = normalizeDuelRoomId(roomId);
+  if (!safeRoomId) return;
+  const docRef = doc(db, DUEL_OPEN_ROOM_CARDS_COLLECTION, safeRoomId);
+  await deleteDoc(docRef);
+}
+
 
 function pickTopTargetUids(players, actorUid, targetCount) {
   const aliveOpponents = Object.entries(players)
@@ -1064,6 +1104,11 @@ export async function createDuelRoom(payload) {
         collision.code = 'already-exists';
         throw collision;
       }
+      try {
+        await syncOpenDuelRoomCard(tx.snapshot?.val() || {});
+      } catch (_error) {
+        // non-blocking: room card sync should not block room create
+      }
       return { roomId, uid };
     } catch (error) {
       lastError = error;
@@ -1136,6 +1181,11 @@ export async function joinDuelRoom(roomId, playerName) {
     throw toDuelPermissionDeniedError(error);
   }
   if (!tx.committed) throw new Error('เข้าห้องดวลไม่สำเร็จ กรุณาลองอีกครั้ง');
+  try {
+    await syncOpenDuelRoomCard(tx.snapshot?.val() || {});
+  } catch (_error) {
+    // non-blocking: room card sync should not block join room
+  }
 
   return { roomId: safeRoomId, uid };
 }
@@ -1226,6 +1276,11 @@ export async function startDuelRoom(roomId) {
     throw toDuelPermissionDeniedError(error);
   }
   if (!tx.committed) throw new Error('เริ่มดวลไม่สำเร็จ กรุณาลองอีกครั้ง');
+  try {
+    await removeOpenDuelRoomCard(safeRoomId);
+  } catch (_error) {
+    // non-blocking: room card cleanup should not block start room
+  }
 
   try {
     const statsDocRef = doc(db, 'settings', DUEL_GAME_PLAY_COUNT_DOC_ID);
@@ -1267,14 +1322,37 @@ export function subscribeOpenDuelRooms(callback, onError) {
   let unsubscribe = () => {};
   ensureAuthReady()
     .then(() => {
-      const roomsRef = rtdbRef(rtdb, 'rooms');
-      unsubscribe = onValue(roomsRef, (snap) => {
-        if (!snap.exists()) {
+      const cardsQuery = query(
+        collection(db, DUEL_OPEN_ROOM_CARDS_COLLECTION),
+        orderBy('updatedAtMs', 'desc'),
+        limit(30),
+      );
+      unsubscribe = onSnapshot(cardsQuery, (snap) => {
+        if (!snap?.docs?.length) {
           callback([]);
           return;
         }
-        const rows = Object.entries(snap.val() || {})
-          .map(([id, room]) => ({ id, ...syncDuelRoomShape(room) }))
+        const rows = snap.docs
+          .map((rowDoc) => {
+            const room = rowDoc.data() || {};
+            const id = String(rowDoc.id || '');
+            return {
+              id,
+            ...syncDuelRoomShape({
+              roomId: room?.roomId || id,
+              pin: room?.pin || room?.roomId || id,
+              status: room?.status || 'lobby',
+              hostUid: room?.hostUid || '',
+              hostName: room?.hostName || 'Host',
+              maxPlayers: room?.maxPlayers || 4,
+              modeConfig: room?.modeConfig || {},
+              players: {},
+              updatedAtMs: room?.updatedAtMs || 0,
+              createdAtMs: room?.createdAtMs || 0,
+            }),
+            playerCount: Math.max(0, Number(room?.playerCount || 0)),
+            };
+          })
           .filter((room) => String(room?.status || 'lobby') === 'lobby')
           .sort((a, b) => Number(b?.updatedAtMs || 0) - Number(a?.updatedAtMs || 0))
           .slice(0, 12);
@@ -1593,5 +1671,10 @@ export async function finalizeDuelByTimeout(roomId) {
   if (finalizeReason) return { accepted: false, reason: finalizeReason };
   const nextData = tx.snapshot.val();
   if (!nextData || nextData.status !== 'finished') return { accepted: false, reason: 'room_not_active' };
+  try {
+    await removeOpenDuelRoomCard(normalizeDuelRoomId(roomId));
+  } catch (_error) {
+    // non-blocking: room card cleanup should not block finalize
+  }
   return { accepted: true, winnerUid: nextData.winnerUid || '', reason: nextData.winReason || '' };
 }
