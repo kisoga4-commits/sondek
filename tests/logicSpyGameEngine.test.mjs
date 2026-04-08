@@ -21,21 +21,31 @@ test('normalizeQuestionSets keeps only valid 4-option question entries', () => {
   assert.equal(normalized[0].answer, 'd');
 });
 
-test('buildRoundAssignments shuffles 4 options and keeps correct answer (even with 3 players)', () => {
+test('buildRoundAssignments matches option count to player count while keeping the correct answer', () => {
   const randomSteps = [0.99, 0, 0.5, 0];
-  const result = buildRoundAssignments(
+  const baseQuestion = {
+    options: [{ value: 'x', hint: 'hx' }, { value: 'y', hint: 'hy' }, { value: 'z', hint: 'hz' }, { value: 'odd', hint: 'ho' }],
+    answer: 'odd',
+    explanation: 'odd',
+  };
+
+  const result3Players = buildRoundAssignments(
     ['u1', 'u2', 'u3'],
-    {
-      options: [{ value: 'x', hint: 'hx' }, { value: 'y', hint: 'hy' }, { value: 'z', hint: 'hz' }, { value: 'odd', hint: 'ho' }],
-      answer: 'odd',
-      explanation: 'odd',
-    },
+    baseQuestion,
     () => randomSteps.shift() ?? 0,
   );
 
-  assert.equal(result.correctAnswer, 'odd');
-  assert.equal(result.optionsForRound.length, 4);
-  assert.equal(result.optionsForRound.some((entry) => entry.value === 'odd'), true);
+  assert.equal(result3Players.correctAnswer, 'odd');
+  assert.equal(result3Players.optionsForRound.length, 3);
+  assert.equal(result3Players.optionsForRound.some((entry) => entry.value === 'odd'), true);
+
+  const result5Players = buildRoundAssignments(
+    ['u1', 'u2', 'u3', 'u4', 'u5'],
+    baseQuestion,
+    () => 0,
+  );
+  assert.equal(result5Players.optionsForRound.length, 4);
+  assert.equal(result5Players.optionsForRound.some((entry) => entry.value === 'odd'), true);
 });
 
 test('pickQuestionSet returns one question set', () => {

@@ -194,19 +194,15 @@ function ui() {
     void startRound(players.map(([uid]) => uid));
   });
 
-  const optionsForDisplay = Array.isArray(game?.optionsForRound) ? game.optionsForRound : [];
-  const namesHtml = `<div class=\"choice-list\">${optionsForDisplay.map((option) => `<div class=\"choice-item\"><b>${String(option?.value || '-')}</b></div>`).join('')}</div>`;
   const roundRandomName = String(game?.roundRandomName || '-');
   const roundRandomHint = String(game?.roundRandomHint || '-');
 
   el.secret.innerHTML = `
     <h3>โจทย์รอบนี้</h3>
     <p>เวลาที่เหลือ: <b>${phaseRemainSeconds(game.phaseEndsAtMs)}s</b></p>
-    <p class="muted">รอบนี้ระบบสุ่มให้แค่ชื่อ 1 คำ + คำใบ้ 1 ข้อ เพื่อไม่เฉลยข้อมูลทั้งหมด</p>
+    <p class="muted">รอบนี้ระบบโชว์แค่ชื่อ 1 คำ + คำใบ้ 1 ข้อเท่านั้น (ยังไม่เปิดตัวเลือกคำตอบ)</p>
     <p><b>ชื่อที่สุ่มได้:</b> ${roundRandomName}</p>
     <p><b>คำใบ้ที่สุ่มได้:</b> ${roundRandomHint}</p>
-    <h4>ตัวเลือกคำตอบ</h4>
-    ${namesHtml}
     ${isMeModerator ? '<button class="btn secondary" id="toDiscussionBtn">เริ่มช่วงพูดทันที</button>' : '<p>รอ Moderator พาเข้าช่วงพูด</p>'}
   `;
 
