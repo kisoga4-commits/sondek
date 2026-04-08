@@ -51,19 +51,47 @@ const saveLogicSpyWordSetsBtn = document.getElementById('saveLogicSpyWordSetsBtn
 const logicSpyWordSetsStatus = document.getElementById('logicSpyWordSetsStatus');
 
 function parseLogicSpySetsFromTextarea(value) {
+  const parseOption = (raw = '') => {
+    const [name = '', ...hintParts] = String(raw || '').split(',');
+    return {
+      value: String(name || '').trim(),
+      hint: hintParts.join(',').trim(),
+    };
+  };
+
   return String(value || '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => line.split('|').map((word) => word.trim()).filter(Boolean))
-    .filter((entry) => entry.length === 4);
+    .map((line) => {
+      const parts = line.split('|').map((part) => part.trim());
+      if (parts.length < 6) return null;
+      const options = parts.slice(0, 4).map(parseOption);
+      const answer = String(parts[4] || '').trim();
+      const explanation = String(parts[5] || '').trim();
+      const uniqueValues = [...new Set(options.map((option) => option.value).filter(Boolean))];
+      if (uniqueValues.length !== 4) return null;
+      if (!answer || !uniqueValues.includes(answer)) return null;
+      return { options, answer, explanation };
+    })
+    .filter(Boolean);
 }
 
 function formatLogicSpySetsForTextarea(sets) {
   if (!Array.isArray(sets)) return '';
   return sets
-    .filter((entry) => Array.isArray(entry) && entry.length === 4)
-    .map((entry) => entry.map((word) => String(word || '').trim()).join('|'))
+    .map((entry) => {
+      if (Array.isArray(entry) && entry.length === 4) {
+        return entry.map((word) => `${String(word || '').trim()},`).join('|') + `|${String(entry[3] || '').trim()}|`;
+      }
+      const options = Array.isArray(entry?.options) ? entry.options : [];
+      if (options.length !== 4) return null;
+      const optionText = options
+        .map((option) => `${String(option?.value || '').trim()},${String(option?.hint || '').trim()}`)
+        .join('|');
+      return `${optionText}|${String(entry?.answer || '').trim()}|${String(entry?.explanation || '').trim()}`;
+    })
+    .filter(Boolean)
     .join('\n');
 }
 
@@ -83,7 +111,7 @@ async function onSaveLogicSpyWordSets() {
   if (!logicSpyWordSetsInput) return;
   const sets = parseLogicSpySetsFromTextarea(logicSpyWordSetsInput.value);
   if (!sets.length) {
-    alert('กรุณากรอกอย่างน้อย 1 ชุดคำ (4 คำต่อบรรทัด)');
+    alert('กรุณากรอกอย่างน้อย 1 ข้อ ตามรูปแบบ: ตัวเลือก,คำใบ้|...|คำตอบที่ถูก|คำอธิบายเฉลย');
     return;
   }
   try {
