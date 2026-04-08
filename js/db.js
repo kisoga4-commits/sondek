@@ -89,8 +89,11 @@ const DUEL_MAX_HP = 10;
 const DUEL_ROOM_ID_LENGTH = 6;
 const DUEL_QUESTION_SECONDS = 10;
 const DUEL_REVEAL_SECONDS = 0.8;
+const DUEL_ROOM_AUTO_DELETE_MS = 60 * 60 * 1000;
+const DUEL_ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAINTENANCE_STORAGE_KEY = 'duel_weekly_maintenance_at';
+const DUEL_ROOM_CLEANUP_STORAGE_KEY = 'duel_room_cleanup_at';
 const DUEL_GAME_PLAY_COUNT_DOC_ID = 'duel_game_play_counts';
 const DUEL_OPEN_ROOM_CARDS_COLLECTION = 'duel_open_room_cards';
 const duelPresenceByRoom = new Map();
@@ -153,6 +156,7 @@ async function ensureAuthReady() {
 export async function ensureDuelAuthReady() {
   await ensureAuthReady();
   void runWeeklyDuelMaintenance();
+  void runDuelRoomCleanup();
 }
 
 export async function runWeeklyDuelMaintenance(options = {}) {
@@ -191,6 +195,63 @@ export async function runWeeklyDuelMaintenance(options = {}) {
 
   window.localStorage.setItem(MAINTENANCE_STORAGE_KEY, String(nowMs));
   return { skipped: false, removed: summary };
+}
+
+function shouldDeleteDuelRoom(room = {}, nowMs = Date.now()) {
+  if (!room || typeof room !== 'object') return true;
+  const players = room?.players && typeof room.players === 'object' ? room.players : {};
+  const playerUids = Object.keys(players);
+  if (!playerUids.length) return true;
+
+  const hostUid = String(room?.hostUid || '');
+  const hostExists = Boolean(hostUid) && Boolean(players[hostUid]);
+  if (!hostExists) return true;
+
+  const status = String(room?.status || 'lobby').toLowerCase();
+  const createdAtMs = Number(room?.createdAtMs || 0);
+  const updatedAtMs = Number(room?.updatedAtMs || room?.endedAtMs || createdAtMs || 0);
+  const roomAgeMs = nowMs - Math.max(createdAtMs, updatedAtMs);
+  return status === 'lobby' && roomAgeMs >= DUEL_ROOM_AUTO_DELETE_MS;
+}
+
+export async function runDuelRoomCleanup(options = {}) {
+  await ensureAuthReady();
+  const nowMs = Number(options.nowMs || Date.now());
+  const force = Boolean(options.force);
+  const lastRunMs = Number(window.localStorage.getItem(DUEL_ROOM_CLEANUP_STORAGE_KEY) || 0);
+  if (!force && lastRunMs > 0 && (nowMs - lastRunMs) < DUEL_ROOM_CLEANUP_INTERVAL_MS) {
+    return { skipped: true, removed: 0 };
+  }
+
+  const roomsRef = rtdbRef(rtdb, 'rooms');
+  let removedCount = 0;
+  const removedRoomIds = [];
+  try {
+    await runRtdbTransaction(roomsRef, (rooms) => {
+      if (!rooms || typeof rooms !== 'object') return rooms;
+      const nextRooms = { ...rooms };
+      Object.entries(rooms).forEach(([roomId, room]) => {
+        if (!shouldDeleteDuelRoom(room, nowMs)) return;
+        delete nextRooms[roomId];
+        removedCount += 1;
+        removedRoomIds.push(roomId);
+      });
+      return nextRooms;
+    });
+  } catch (_) {
+    return { skipped: false, removed: -1 };
+  }
+
+  await Promise.all(removedRoomIds.map(async (roomId) => {
+    try {
+      await removeOpenDuelRoomCard(roomId);
+    } catch (_) {
+      // non-blocking
+    }
+  }));
+
+  window.localStorage.setItem(DUEL_ROOM_CLEANUP_STORAGE_KEY, String(nowMs));
+  return { skipped: false, removed: removedCount };
 }
 
 async function ensureWriteAccess() {

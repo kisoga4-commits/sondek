@@ -83,7 +83,16 @@ export function buildRoundAssignments(playerIds = [], questionSet = {}, randomFn
     [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
   }
 
-  const optionsForRound = shuffledOptions.slice(0, 4);
+  const desiredOptionCount = Math.max(3, Math.min(4, ids.length));
+  const correctEntry = shuffledOptions.find((option) => option.value === question.answer) || null;
+  const distractors = shuffledOptions.filter((option) => option.value !== question.answer);
+  const selectedDistractors = distractors.slice(0, Math.max(0, desiredOptionCount - 1));
+  const optionsForRoundRaw = correctEntry ? [...selectedDistractors, correctEntry] : [...shuffledOptions.slice(0, desiredOptionCount)];
+  const optionsForRound = [...optionsForRoundRaw];
+  for (let i = optionsForRound.length - 1; i > 0; i -= 1) {
+    const j = pickRandomIndex(i + 1, randomFn);
+    [optionsForRound[i], optionsForRound[j]] = [optionsForRound[j], optionsForRound[i]];
+  }
 
   return {
     question,
