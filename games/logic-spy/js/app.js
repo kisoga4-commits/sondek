@@ -65,12 +65,23 @@ function pickRandomOptionPair(options = []) {
 
 function getPlayers() {
   return Object.entries(state.duel?.players || {})
-    .sort((a, b) => Number(a?.[1]?.joinedAt || 0) - Number(b?.[1]?.joinedAt || 0))
-    .slice(0, 5);
+    .sort((a, b) => Number(a?.[1]?.joinedAt || 0) - Number(b?.[1]?.joinedAt || 0));
 }
 
-function displayPlayerName(uid, fallbackName = 'ผู้เล่น') {
-  const baseName = String(fallbackName || uid || 'ผู้เล่น');
+function resolveRoomPlayerName(player = {}, uid = '') {
+  const candidates = [
+    player?.name,
+    player?.displayName,
+    player?.studentName,
+    player?.nickname,
+    player?.nickName,
+  ];
+  const picked = candidates.map((value) => String(value || '').trim()).find((value) => value.length > 0);
+  return picked || String(uid || '').trim() || 'ไม่ทราบชื่อ';
+}
+
+function displayPlayerName(uid, fallbackName = '') {
+  const baseName = String(fallbackName || uid || 'ไม่ทราบชื่อ');
   return uid === state.uid ? `${baseName} 🫵` : baseName;
 }
 
@@ -167,14 +178,15 @@ function ui() {
   const roomHostUid = String(state.duel?.hostUid || '');
 
   const chips = players
-    .map(([uid, player]) => `<span class="chip">${displayPlayerName(uid, player?.name || 'ผู้เล่น')}${uid === moderatorUid ? ' 👑' : ''}</span>`)
+    .map(([uid, player]) => `<span class="chip">${displayPlayerName(uid, resolveRoomPlayerName(player, uid))}${uid === moderatorUid ? ' 👑' : ''}</span>`)
     .join('');
 
   const scoreRows = players
-    .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, player?.name || uid)}</b><span>${Number(game?.scores?.[uid] || 0)} แต้ม</span></div>`)
+    .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, resolveRoomPlayerName(player, uid))}</b><span>${Number(game?.scores?.[uid] || 0)} แต้ม</span></div>`)
     .join('');
 
-  el.status.innerHTML = `<div>ห้อง: <b>${roomId || '-'}</b> • ผู้เล่น: ${players.length}/5 • สถานะ: <b>${phase}</b></div>`;
+  const roomMaxPlayers = Math.max(5, Number(state.duel?.maxPlayers || 5));
+  el.status.innerHTML = `<div>ห้อง: <b>${roomId || '-'}</b> • ผู้เล่น: ${players.length}/${roomMaxPlayers} • สถานะ: <b>${phase}</b></div>`;
   updateVisibleSections(phase);
 
   el.lobby.innerHTML = `
