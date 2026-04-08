@@ -172,6 +172,7 @@ const state = {
   audioCtx: null,
   audioUnlocked: false,
   openRooms: [],
+  openRoomsUnavailable: false,
   isJoiningRoom: false,
   isCreatingRoom: false,
 };
@@ -483,6 +484,10 @@ function renderLobbyMeta(room) {
 
 function renderOpenRooms() {
   if (!el.openRoomsList) return;
+  if (state.openRoomsUnavailable) {
+    el.openRoomsList.innerHTML = '<div class="duel-empty-state">ตอนนี้ไม่สามารถแสดงรายการห้องรวมได้ กรุณาเข้าด้วย PIN</div>';
+    return;
+  }
   const rooms = (Array.isArray(state.openRooms) ? state.openRooms : []).filter((room) => {
     const status = roomStatus(room);
     const playerCount = Number.isFinite(Number(room?.playerCount))
@@ -490,7 +495,8 @@ function renderOpenRooms() {
       : Object.keys(room?.players || {}).length;
     const maxPlayers = Math.max(2, Number(room?.maxPlayers || 4));
     const isFull = playerCount >= maxPlayers;
-    return status === 'lobby' && !isFull;
+    const isMyOwnRoom = String(room?.hostUid || '') === String(state.uid || '');
+    return status === 'lobby' && !isFull && !isMyOwnRoom;
   });
   if (!rooms.length) {
     el.openRoomsList.innerHTML = '<div class="duel-empty-state">ยังไม่มีห้องที่เปิดรอผู้เล่น</div>';
@@ -618,7 +624,7 @@ function handleRoomUpdate(room) {
   }
 
   el.entrySection.classList.add('hidden');
-  el.openRoomsSection?.classList.toggle('hidden', roomStatus(room) !== 'lobby');
+  el.openRoomsSection?.classList.toggle('hidden', roomStatus(room) !== 'lobby' || isHost);
   el.lobbySection.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.battleSection.classList.toggle('hidden', roomStatus(room) === 'lobby');
 
@@ -855,13 +861,15 @@ async function init() {
   }
 
   subscribeOpenDuelRooms((rooms) => {
+    state.openRoomsUnavailable = false;
     state.openRooms = mergeOpenRooms(rooms, state.openRooms);
     persistOpenRoomsCache(state.openRooms);
     renderOpenRooms();
   }, (error) => {
     const message = String(error?.message || '');
     if (message.toLowerCase().includes('permission_denied')) {
-      setStatus('อ่านรายชื่อห้องรวมไม่ได้ (สิทธิ์ read) แต่ยังสร้าง/เข้าห้องด้วย PIN ได้ตามปกติ');
+      state.openRoomsUnavailable = true;
+      renderOpenRooms();
       return;
     }
     setStatus('เชื่อมรายการห้องรวมไม่สำเร็จ แต่ยังเข้าห้องด้วย PIN ได้');
