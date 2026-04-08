@@ -454,7 +454,9 @@ function renderOpenRooms() {
     const hostName = String(room?.hostName || 'Host');
     const gameMode = String(room?.modeConfig?.gameMode || 'quick');
     const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[gameMode]?.label || 'ตอบไว');
-    const currentPlayers = Object.keys(room?.players || {}).length;
+    const currentPlayers = Number.isFinite(Number(room?.playerCount))
+      ? Math.max(0, Number(room.playerCount))
+      : Object.keys(room?.players || {}).length;
     const minPlayers = getMinimumPlayers(room?.modeConfig || {});
     const playCount = getModePlayCount(gameMode);
     return `
