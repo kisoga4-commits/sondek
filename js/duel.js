@@ -776,7 +776,8 @@ async function handleJoinRoom() {
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
     if (roomId.length !== ROOM_ID_LENGTH) throw new Error('PIN ไม่ถูกต้อง');
-    const nextName = String(el.joinNameInput.value || '').trim() || 'ผู้เล่น';
+    const nextName = String(el.joinNameInput.value || '').trim();
+    if (!nextName) throw new Error('กรุณากรอกชื่อผู้เล่นก่อนเข้าห้อง');
     const joined = await joinDuelRoom(roomId, nextName);
     state.roomId = joined.roomId;
     closeModal(el.joinModal);
