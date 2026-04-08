@@ -540,7 +540,7 @@ function handleRoomUpdate(room) {
   }
 
   el.entrySection.classList.add('hidden');
-  el.openRoomsSection?.classList.add('hidden');
+  el.openRoomsSection?.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.lobbySection.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.battleSection.classList.toggle('hidden', roomStatus(room) === 'lobby');
 

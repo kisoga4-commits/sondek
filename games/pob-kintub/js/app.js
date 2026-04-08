@@ -583,6 +583,7 @@ async function advanceIdentityToVoteByHost() {
     return {
       ...data,
       phase: 'vote',
+      voteSummary: {},
       phaseEndsAtMs: Date.now() + phaseDurationMs('vote'),
       lastLogs: ['เช้าแรก: เริ่มโหวตผู้ต้องสงสัย'],
       updatedAtMs: Date.now(),
@@ -672,6 +673,10 @@ async function submitNightAction(targetId, acted = true) {
       : `บันทึกแล้ว: คุณเลือก${actionLabel} ${targetName}`;
     if (myRole === 'shaman' && normalizedTarget) {
       message = `บันทึกแล้ว: คุณเชื่อมจิต ${targetName} (ผลตรวจจะสรุปตอนเช้า หากเลือกคนเดิมครบ 2 คืน)`;
+      state.mePrivate = {
+        ...(state.mePrivate || {}),
+        nightNotice: `คุณเชื่อมจิต ${targetName} แล้ว`,
+      };
     }
     if (myRole === 'madman' && normalizedTarget) {
       message = `บันทึกแล้ว: คุณพยายามปิดกั้น ${targetName} (ใช้ได้ครั้งเดียวทั้งเกม)`;
@@ -939,6 +944,7 @@ function renderMorning() {
     await tx(paths.public, (data) => ({
       ...(data || {}),
       phase: 'vote',
+      voteSummary: {},
       phaseEndsAtMs: Date.now() + phaseDurationMs('vote'),
       updatedAtMs: Date.now(),
     }));
@@ -952,6 +958,7 @@ async function advanceMorningToVoteByHost() {
     return {
       ...data,
       phase: 'vote',
+      voteSummary: {},
       phaseEndsAtMs: Date.now() + phaseDurationMs('vote'),
       updatedAtMs: Date.now(),
     };
@@ -967,10 +974,6 @@ async function submitVote(targetId) {
   }
   if (!isAlive()) {
     openPopup({ title: 'โหวตไม่ได้', message: 'ผู้เล่นที่ตายแล้วไม่สามารถโหวตได้' });
-    return;
-  }
-  if (String(state.mePrivate?.role || '') === 'madman') {
-    openPopup({ title: 'โหวตไม่ได้', message: 'คนบ้าไม่มีสิทธิ์โหวตในช่วงกลางวัน' });
     return;
   }
   if (!state.publicState?.players?.[normalizedTarget]?.alive) {
@@ -1018,10 +1021,11 @@ async function finalizeVoteByHost() {
   await tx(paths.public, (data) => {
     if (String(data?.phase || '') !== 'vote') return data;
     if (String(data?.voteResolveLock?.by || '') && String(data?.voteResolveLock?.by || '') !== state.uid) return data;
+    const voteSummaryRows = Object.entries(voteResult.voteSummary || {}).map(([name, score]) => `${name}: ${score} คะแนน`);
     return {
       ...data,
       players: voteResult.players,
-      voteSummary: {},
+      voteSummary: voteResult.voteSummary || {},
       phase: voteResult.winner ? 'end' : 'night',
       phaseEndsAtMs: voteResult.winner ? 0 : (Date.now() + phaseDurationMs('night')),
       actionSeq: voteResult.winner ? Number(data?.actionSeq || 0) : 0,
@@ -1034,9 +1038,12 @@ async function finalizeVoteByHost() {
       nightSubmittedBy: {},
       nightResolveLock: null,
       voteResolveLock: null,
-      lastLogs: outUid
-        ? [`${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} โดนขับไล่ออกจากหมู่บ้าน (ตาย)`]
-        : ['ไม่มีใครโดนขับไล่ออกจากหมู่บ้าน'],
+      lastLogs: [
+        outUid
+          ? `${voteResult.players?.[outUid]?.name || 'ผู้เล่น'} โดนขับไล่ออกจากหมู่บ้าน (ตาย)`
+          : 'ไม่มีใครโดนขับไล่ออกจากหมู่บ้าน',
+        ...(voteSummaryRows.length ? ['สรุปคะแนนโหวตรอบล่าสุด', ...voteSummaryRows] : ['สรุปคะแนนโหวตรอบล่าสุด: ไม่มีคะแนน']),
+      ],
       updatedAtMs: Date.now(),
     };
   });
@@ -1077,8 +1084,7 @@ async function claimVoteResolveLock(reason = 'auto') {
 function renderVote() {
   const alive = alivePlayers();
   const myVote = state.mePrivate?.voteTarget || '';
-  const isMadmanRole = String(state.mePrivate?.role || '') === 'madman';
-  const canVote = isAlive() && !isMadmanRole;
+  const canVote = isAlive();
   const requiredVotes = Math.floor(alive.length / 2) + 1;
 
   const stepLabel = state.publicState?.isFirstDayVote ? 'Step 2' : 'Step 5';
@@ -1092,7 +1098,7 @@ function renderVote() {
     <h2>${titleText}</h2>
     ${phaseMetaHtml()}
     <p class="muted">คะแนนจะรวมแบบไม่บอกว่าใครโหวตใคร และจะขับออกเมื่อได้เสียงเกินครึ่งของผู้รอดชีวิต (${requiredVotes} เสียงขึ้นไป)</p>
-    <p class="muted">${state.isHost ? `สถานะโหวต ${votesSubmitted}/${alive.length} คน` : (isMadmanRole ? 'คุณเป็นคนบ้า จึงไม่มีสิทธิ์โหวต' : `คุณ${myVote ? 'โหวตแล้ว ✅' : 'ยังไม่โหวต ⬜'}`)}</p>
+    <p class="muted">${state.isHost ? `สถานะโหวต ${votesSubmitted}/${alive.length} คน` : `คุณ${myVote ? 'โหวตแล้ว ✅' : 'ยังไม่โหวต ⬜'}`}</p>
     ${personalNightNoticeHtml()}
     <div class="secret-wrapper">
       ${deadOverlayHtml()}

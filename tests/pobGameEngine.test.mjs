@@ -192,6 +192,26 @@ test('resolveVote makes madman win immediately when voted out in daytime', () =>
   assert.equal(result.winner, 'madman');
 });
 
+test('madman can cast vote in daytime and vote is counted', () => {
+  const pub = {
+    players: {
+      a: { uid: 'a', name: 'A', alive: true },
+      b: { uid: 'b', name: 'B', alive: true },
+      c: { uid: 'c', name: 'C', alive: true },
+      d: { uid: 'd', name: 'D', alive: true },
+    },
+  };
+  const priv = {
+    a: { role: 'villager', voteTarget: 'd' },
+    b: { role: 'madman', voteTarget: 'd' },
+    c: { role: 'villager', voteTarget: 'd' },
+    d: { role: 'pob', voteTarget: 'a' },
+  };
+  const result = resolveVote(pub, priv);
+  assert.equal(result.eliminatedUid, 'd');
+  assert.equal(result.voteSummary.D, 3);
+});
+
 test('madman does not win if eliminated by night kill', () => {
   const pub = {
     day: 2,
