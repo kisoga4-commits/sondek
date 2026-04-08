@@ -93,7 +93,6 @@ export function resolveVote(publicState, privateState) {
   const tally = {};
 
   alive.forEach((p) => {
-    if (String(priv?.[p.uid]?.role || '') === 'madman') return;
     const target = String(priv[p.uid]?.voteTarget || '').trim();
     if (!target || !pub.players?.[target]?.alive || target === p.uid) return;
     tally[target] = (tally[target] || 0) + 1;
