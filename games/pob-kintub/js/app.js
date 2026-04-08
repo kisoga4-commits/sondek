@@ -44,6 +44,7 @@ const ROLE_ACTION_CONFIG = {
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
 const pin = String(params.get('pin') || roomId).trim();
+const requestedPlayerName = String(params.get('player') || '').trim();
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -297,6 +298,46 @@ async function ensureRoomMembership() {
   const room = snap.val() || {};
   const players = room?.players || {};
   if (players?.[state.uid]) return;
+
+  const normalizedRequestedName = requestedPlayerName.toLowerCase();
+  if (normalizedRequestedName) {
+    const matchedEntries = Object.entries(players)
+      .filter(([uid, player]) => uid !== state.uid && String(player?.name || '').trim().toLowerCase() === normalizedRequestedName);
+    if (matchedEntries.length === 1) {
+      const [legacyUid] = matchedEntries[0];
+      const tx = await runTransaction(paths.duelRoom, (data) => {
+        if (!data || typeof data !== 'object') return data;
+        const currentPlayers = data?.players && typeof data.players === 'object' ? data.players : {};
+        if (currentPlayers[state.uid]) return data;
+        const legacyPlayer = currentPlayers[legacyUid];
+        if (!legacyPlayer) return data;
+        const legacyName = String(legacyPlayer?.name || '').trim().toLowerCase();
+        if (legacyName !== normalizedRequestedName) return data;
+
+        const now = Date.now();
+        const nextPlayers = { ...currentPlayers };
+        delete nextPlayers[legacyUid];
+        nextPlayers[state.uid] = {
+          ...legacyPlayer,
+          uid: state.uid,
+          online: true,
+          disconnectedAtMs: null,
+          updatedAt: now,
+        };
+
+        return {
+          ...data,
+          players: nextPlayers,
+          hostUid: String(data?.hostUid || '') === legacyUid ? state.uid : data?.hostUid,
+          updatedAtMs: now,
+        };
+      });
+
+      const recoveredRoom = tx?.snapshot?.val() || {};
+      if (recoveredRoom?.players?.[state.uid]) return;
+    }
+  }
+
   throw new Error('บัญชีผู้เล่นนี้ไม่ได้อยู่ในห้อง Duel (อาจเกิดจาก anonymous auth เปลี่ยน UID ระหว่างหน้า)');
 }
 
