@@ -8,7 +8,6 @@ import {
   submitDuelAnswer,
   subscribeAuthStatus,
   subscribeCourses,
-  subscribeDuelGamePlayCounts,
   subscribeOpenDuelRooms,
   subscribeDuelRoom,
 } from './duelDb.js';
@@ -168,8 +167,8 @@ const state = {
   audioCtx: null,
   audioUnlocked: false,
   openRooms: [],
-  duelPlayStats: {},
   isJoiningRoom: false,
+  isCreatingRoom: false,
 };
 
 const roomStatus = (room) => String(room?.status || room?.state?.status || 'lobby');
@@ -436,15 +435,17 @@ function renderLobbyMeta(room) {
   el.lobbyMeta.innerHTML = items.map((item) => `<div class="duel-lobby-chip">${item}</div>`).join('');
 }
 
-function getModePlayCount(mode) {
-  const modeKey = String(mode || 'quick');
-  const byMode = state.duelPlayStats?.playCountByMode || {};
-  return Math.max(0, Number(byMode?.[modeKey] || 0));
-}
-
 function renderOpenRooms() {
   if (!el.openRoomsList) return;
-  const rooms = Array.isArray(state.openRooms) ? state.openRooms : [];
+  const rooms = (Array.isArray(state.openRooms) ? state.openRooms : []).filter((room) => {
+    const status = roomStatus(room);
+    const playerCount = Number.isFinite(Number(room?.playerCount))
+      ? Math.max(0, Number(room.playerCount))
+      : Object.keys(room?.players || {}).length;
+    const maxPlayers = Math.max(2, Number(room?.maxPlayers || 4));
+    const isFull = playerCount >= maxPlayers;
+    return status === 'lobby' && !isFull;
+  });
   if (!rooms.length) {
     el.openRoomsList.innerHTML = '<div class="duel-empty-state">ยังไม่มีห้องที่เปิดรอผู้เล่น</div>';
     return;
@@ -452,22 +453,19 @@ function renderOpenRooms() {
   el.openRoomsList.innerHTML = rooms.map((room) => {
     const roomId = String(room?.pin || room?.roomId || room?.id || '');
     const hostName = String(room?.hostName || 'Host');
-    const gameMode = String(room?.modeConfig?.gameMode || 'quick');
-    const gameLabel = String(room?.modeConfig?.gameLabel || GAME_DEFINITIONS[gameMode]?.label || 'ตอบไว');
     const currentPlayers = Number.isFinite(Number(room?.playerCount))
       ? Math.max(0, Number(room.playerCount))
       : Object.keys(room?.players || {}).length;
-    const minPlayers = getMinimumPlayers(room?.modeConfig || {});
-    const playCount = getModePlayCount(gameMode);
+    const maxPlayers = Math.max(2, Number(room?.maxPlayers || 4));
+    const statusLabel = roomStatus(room) === 'lobby' ? 'เปิดรับผู้เล่น' : 'ปิดรับผู้เล่น';
     return `
       <article class="duel-open-room-item">
         <div class="duel-open-room-main">
-          <p class="duel-open-room-title">${gameLabel} • PIN ${roomId}</p>
-          <p class="muted">Host: ${hostName}</p>
+          <p class="duel-open-room-title">รหัสห้อง ${roomId}</p>
           <div class="duel-lobby-meta">
-            <span class="duel-lobby-chip">ผู้เล่น ${currentPlayers} คน</span>
-            <span class="duel-lobby-chip">อย่างน้อย ${minPlayers} คน</span>
-            <span class="duel-lobby-chip">เล่นแล้ว ${playCount} ครั้ง</span>
+            <span class="duel-lobby-chip">เจ้าของ ${hostName}</span>
+            <span class="duel-lobby-chip">ผู้เล่น ${currentPlayers}/${maxPlayers}</span>
+            <span class="duel-lobby-chip">สถานะ ${statusLabel}</span>
           </div>
         </div>
         <button
@@ -642,17 +640,35 @@ function subscribeRoom(roomId) {
 }
 
 async function handleCreateRoom() {
+  if (state.isCreatingRoom) return;
+  const hostButtonDefaultText = el.showHostSetupBtn?.dataset.defaultText
+    || el.showHostSetupBtn?.textContent
+    || 'Host';
+  if (el.showHostSetupBtn && !el.showHostSetupBtn.dataset.defaultText) {
+    el.showHostSetupBtn.dataset.defaultText = hostButtonDefaultText;
+  }
   try {
+    state.isCreatingRoom = true;
+    if (el.showHostSetupBtn) {
+      el.showHostSetupBtn.disabled = true;
+      el.showHostSetupBtn.textContent = 'กำลังสร้างห้อง...';
+    }
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
     const gameMode = getSelectedGameMode();
     const gameDef = GAME_DEFINITIONS[gameMode] || GAME_DEFINITIONS.quick;
     const modeConfig = gameDef.getConfig();
     const isSpecialMode = isExternalGameMode(gameMode);
-    const courseId = String(el.courseIdInput.value || '').trim();
+    let courseId = String(el.courseIdInput.value || '').trim();
     let questionSequence = [];
 
     if (!isSpecialMode) {
-      if (!courseId) throw new Error('เลือกบททดสอบก่อน');
+      if (!courseId) {
+        const firstCourseOption = [...(el.courseIdInput?.options || [])]
+          .find((option) => String(option?.value || '').trim());
+        courseId = String(firstCourseOption?.value || '').trim();
+        if (courseId && el.courseIdInput) el.courseIdInput.value = courseId;
+      }
+      if (!courseId) throw new Error('ยังไม่มีบททดสอบให้สร้างห้อง');
       await loadQuestionBank(courseId);
       questionSequence = buildQuestionLoop(state.questionBank, { loopQuestionCount: LOOP_QUESTION_COUNT, shuffleFn: (ids) => pickRandomQuestions(ids, ids.length) });
     }
@@ -683,10 +699,15 @@ async function handleCreateRoom() {
     });
     state.roomId = created.roomId;
     rememberCreatedRoom(created.roomId, hostName, gameDef, modeConfig);
-    closeModal(el.hostModal);
     subscribeRoom(created.roomId);
   } catch (error) {
     setStatus(error.message || 'สร้างห้องไม่สำเร็จ');
+  } finally {
+    state.isCreatingRoom = false;
+    if (el.showHostSetupBtn) {
+      el.showHostSetupBtn.disabled = false;
+      el.showHostSetupBtn.textContent = hostButtonDefaultText;
+    }
   }
 }
 
@@ -750,7 +771,7 @@ async function handleStartGame() {
 
 async function init() {
   setStatus('กำลังเชื่อมต่อระบบ...');
-  el.showHostSetupBtn.addEventListener('click', () => { syncHostModeOptions(); openModal(el.hostModal); });
+  el.showHostSetupBtn.addEventListener('click', () => { void handleCreateRoom(); });
   el.showJoinSetupBtn.addEventListener('click', () => openModal(el.joinModal));
   document.addEventListener('pointerdown', unlockAudio, { once: true });
   document.addEventListener('keydown', unlockAudio, { once: true });
@@ -790,10 +811,6 @@ async function init() {
 
   subscribeOpenDuelRooms((rooms) => {
     state.openRooms = rooms;
-    renderOpenRooms();
-  }, () => {});
-  subscribeDuelGamePlayCounts((stats) => {
-    state.duelPlayStats = stats || {};
     renderOpenRooms();
   }, () => {});
 }
