@@ -52,6 +52,7 @@ const el = {
   quickTeamSizeInput: document.getElementById('duelQuickTeamSize'),
   quickTeamSizeLabel: document.getElementById('duelQuickTeamSizeLabel'),
   finishDistanceInput: document.getElementById('duelFinishDistance'),
+  hostModalTitle: document.getElementById('hostModalTitle'),
   roomIdInput: document.getElementById('duelRoomId'),
   createRoomBtn: document.getElementById('createRoomBtn'),
   joinRoomBtn: document.getElementById('joinRoomBtn'),
@@ -127,6 +128,10 @@ const getSelectedGameMode = () => {
 
 function syncHostModeOptions() {
   const mode = getSelectedGameMode();
+  const modeLabel = GAME_DEFINITIONS[mode]?.label || 'Duel';
+  if (el.hostModalTitle) {
+    el.hostModalTitle.textContent = `ตั้งค่าห้อง ${modeLabel}`;
+  }
   el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
   el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob');
@@ -641,17 +646,17 @@ function subscribeRoom(roomId) {
 
 async function handleCreateRoom() {
   if (state.isCreatingRoom) return;
-  const hostButtonDefaultText = el.showHostSetupBtn?.dataset.defaultText
-    || el.showHostSetupBtn?.textContent
-    || 'Host';
-  if (el.showHostSetupBtn && !el.showHostSetupBtn.dataset.defaultText) {
-    el.showHostSetupBtn.dataset.defaultText = hostButtonDefaultText;
+  const createButtonDefaultText = el.createRoomBtn?.dataset.defaultText
+    || el.createRoomBtn?.textContent
+    || 'สร้างห้อง';
+  if (el.createRoomBtn && !el.createRoomBtn.dataset.defaultText) {
+    el.createRoomBtn.dataset.defaultText = createButtonDefaultText;
   }
   try {
     state.isCreatingRoom = true;
-    if (el.showHostSetupBtn) {
-      el.showHostSetupBtn.disabled = true;
-      el.showHostSetupBtn.textContent = 'กำลังสร้างห้อง...';
+    if (el.createRoomBtn) {
+      el.createRoomBtn.disabled = true;
+      el.createRoomBtn.textContent = 'กำลังสร้างห้อง...';
     }
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
     const gameMode = getSelectedGameMode();
@@ -698,15 +703,16 @@ async function handleCreateRoom() {
       questionAnswerKey,
     });
     state.roomId = created.roomId;
+    closeModal(el.hostModal);
     rememberCreatedRoom(created.roomId, hostName, gameDef, modeConfig);
     subscribeRoom(created.roomId);
   } catch (error) {
     setStatus(error.message || 'สร้างห้องไม่สำเร็จ');
   } finally {
     state.isCreatingRoom = false;
-    if (el.showHostSetupBtn) {
-      el.showHostSetupBtn.disabled = false;
-      el.showHostSetupBtn.textContent = hostButtonDefaultText;
+    if (el.createRoomBtn) {
+      el.createRoomBtn.disabled = false;
+      el.createRoomBtn.textContent = createButtonDefaultText;
     }
   }
 }
@@ -771,7 +777,7 @@ async function handleStartGame() {
 
 async function init() {
   setStatus('กำลังเชื่อมต่อระบบ...');
-  el.showHostSetupBtn.addEventListener('click', () => { void handleCreateRoom(); });
+  el.showHostSetupBtn.addEventListener('click', () => openModal(el.hostModal));
   el.showJoinSetupBtn.addEventListener('click', () => openModal(el.joinModal));
   document.addEventListener('pointerdown', unlockAudio, { once: true });
   document.addEventListener('keydown', unlockAudio, { once: true });
