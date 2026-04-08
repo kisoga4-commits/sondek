@@ -482,6 +482,46 @@ function renderOpenRooms() {
   });
 }
 
+function rememberCreatedRoom(roomId, hostName, gameDef, modeConfig) {
+  const safeRoomId = normalizeRoomIdInput(roomId || '');
+  if (!safeRoomId) return;
+  const createdRoom = {
+    id: safeRoomId,
+    roomId: safeRoomId,
+    pin: safeRoomId,
+    hostUid: state.uid,
+    hostName: String(hostName || 'Host'),
+    status: 'lobby',
+    updatedAtMs: Date.now(),
+    createdAtMs: Date.now(),
+    modeConfig: {
+      gameMode: getSelectedGameMode(),
+      gameLabel: String(gameDef?.label || 'ตอบไว'),
+      matchType: String(modeConfig?.matchType || 'solo'),
+      teamSize: Number(modeConfig?.teamSize || 2),
+      finishDistance: Number(modeConfig?.finishDistance || 10),
+    },
+    players: state.uid ? {
+      [state.uid]: {
+        uid: state.uid,
+        name: String(hostName || 'Host'),
+        isHost: true,
+      },
+    } : {},
+  };
+  const nextRooms = [createdRoom, ...(Array.isArray(state.openRooms) ? state.openRooms : [])]
+    .reduce((acc, room) => {
+      const key = normalizeRoomIdInput(room?.pin || room?.roomId || room?.id || '');
+      if (!key) return acc;
+      if (acc.some((entry) => normalizeRoomIdInput(entry?.pin || entry?.roomId || entry?.id || '') === key)) return acc;
+      acc.push(room);
+      return acc;
+    }, [])
+    .slice(0, 12);
+  state.openRooms = nextRooms;
+  renderOpenRooms();
+}
+
 function ensureTimer(room) {
   if (state.timerId) window.clearInterval(state.timerId);
   const tick = () => {
@@ -625,8 +665,9 @@ async function handleCreateRoom() {
       });
     }
 
+    const hostName = String(el.hostNameInput.value || '').trim() || 'Host';
     const created = await createDuelRoom({
-      hostName: String(el.hostNameInput.value || '').trim() || 'Host',
+      hostName,
       courseId: isSpecialMode ? '' : courseId,
       gameMode,
       gameLabel: gameDef.label,
@@ -639,6 +680,7 @@ async function handleCreateRoom() {
       questionAnswerKey,
     });
     state.roomId = created.roomId;
+    rememberCreatedRoom(created.roomId, hostName, gameDef, modeConfig);
     closeModal(el.hostModal);
     subscribeRoom(created.roomId);
   } catch (error) {
