@@ -1322,37 +1322,39 @@ export function subscribeOpenDuelRooms(callback, onError) {
   let unsubscribe = () => {};
   ensureAuthReady()
     .then(() => {
-      const cardsQuery = query(
-        collection(db, DUEL_OPEN_ROOM_CARDS_COLLECTION),
-        orderBy('updatedAtMs', 'desc'),
-        limit(30),
-      );
-      unsubscribe = onSnapshot(cardsQuery, (snap) => {
-        if (!snap?.docs?.length) {
+      // Use RTDB rooms directly so OPEN ROOMS is truly realtime for everyone,
+      // even when Firestore read rules for duel_open_room_cards are restricted.
+      const roomsRef = rtdbRef(rtdb, 'rooms');
+      unsubscribe = onValue(roomsRef, (snap) => {
+        const roomsData = snap.val();
+        if (!roomsData || typeof roomsData !== 'object') {
           callback([]);
           return;
         }
-        const rows = snap.docs
-          .map((rowDoc) => {
-            const room = rowDoc.data() || {};
-            const id = String(rowDoc.id || '');
+
+        const rows = Object.entries(roomsData)
+          .map(([roomId, room]) => {
+            const safeRoomId = normalizeDuelRoomId(room?.roomId || room?.pin || roomId);
+            if (!safeRoomId) return null;
+            const players = (room?.players && typeof room.players === 'object') ? room.players : {};
             return {
-              id,
-            ...syncDuelRoomShape({
-              roomId: room?.roomId || id,
-              pin: room?.pin || room?.roomId || id,
-              status: room?.status || 'lobby',
-              hostUid: room?.hostUid || '',
-              hostName: room?.hostName || 'Host',
-              maxPlayers: room?.maxPlayers || 4,
-              modeConfig: room?.modeConfig || {},
-              players: {},
-              updatedAtMs: room?.updatedAtMs || 0,
-              createdAtMs: room?.createdAtMs || 0,
-            }),
-            playerCount: Math.max(0, Number(room?.playerCount || 0)),
+              id: safeRoomId,
+              ...syncDuelRoomShape({
+                roomId: safeRoomId,
+                pin: room?.pin || safeRoomId,
+                status: room?.status || 'lobby',
+                hostUid: room?.hostUid || '',
+                hostName: room?.hostName || 'Host',
+                maxPlayers: room?.maxPlayers || 4,
+                modeConfig: room?.modeConfig || {},
+                players: {},
+                updatedAtMs: room?.updatedAtMs || 0,
+                createdAtMs: room?.createdAtMs || 0,
+              }),
+              playerCount: Math.max(0, Object.keys(players).length),
             };
           })
+          .filter(Boolean)
           .filter((room) => String(room?.status || 'lobby') === 'lobby')
           .sort((a, b) => Number(b?.updatedAtMs || 0) - Number(a?.updatedAtMs || 0))
           .slice(0, 12);
