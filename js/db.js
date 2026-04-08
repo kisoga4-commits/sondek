@@ -91,6 +91,7 @@ const DUEL_QUESTION_SECONDS = 10;
 const DUEL_REVEAL_SECONDS = 0.8;
 const DUEL_ROOM_AUTO_DELETE_MS = 60 * 60 * 1000;
 const DUEL_ROOM_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const DUEL_ROOM_EMPTY_AUTO_DELETE_MS = 10 * 60 * 1000;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAINTENANCE_STORAGE_KEY = 'duel_weekly_maintenance_at';
 const DUEL_ROOM_CLEANUP_STORAGE_KEY = 'duel_room_cleanup_at';
@@ -211,7 +212,16 @@ function shouldDeleteDuelRoom(room = {}, nowMs = Date.now()) {
   const createdAtMs = Number(room?.createdAtMs || 0);
   const updatedAtMs = Number(room?.updatedAtMs || room?.endedAtMs || createdAtMs || 0);
   const roomAgeMs = nowMs - Math.max(createdAtMs, updatedAtMs);
+  const onlinePlayerCount = countOnlineDuelPlayers(players);
+  if (status === 'lobby' && onlinePlayerCount === 0 && roomAgeMs >= DUEL_ROOM_EMPTY_AUTO_DELETE_MS) {
+    return true;
+  }
   return status === 'lobby' && roomAgeMs >= DUEL_ROOM_AUTO_DELETE_MS;
+}
+
+function countOnlineDuelPlayers(players = {}) {
+  if (!players || typeof players !== 'object') return 0;
+  return Object.values(players).reduce((count, player) => (player?.online ? count + 1 : count), 0);
 }
 
 export async function runDuelRoomCleanup(options = {}) {
@@ -992,6 +1002,7 @@ function toOpenRoomCard(room = {}) {
   const roomId = normalizeDuelRoomId(room?.roomId || room?.pin || room?.id || '');
   if (!roomId) return null;
   const players = room?.players && typeof room.players === 'object' ? room.players : {};
+  const onlinePlayerCount = countOnlineDuelPlayers(players);
   return {
     roomId,
     pin: roomId,
@@ -1000,7 +1011,7 @@ function toOpenRoomCard(room = {}) {
     hostName: sanitizeDuelName(room?.hostName || 'Host', 'Host'),
     modeConfig: room?.modeConfig && typeof room.modeConfig === 'object' ? room.modeConfig : {},
     maxPlayers: Math.max(2, Number(room?.maxPlayers || 4)),
-    playerCount: Object.keys(players).length,
+    playerCount: onlinePlayerCount,
     updatedAtMs: Number(room?.updatedAtMs || Date.now()),
     createdAtMs: Number(room?.createdAtMs || Date.now()),
   };
@@ -1515,6 +1526,7 @@ export function subscribeOpenDuelRooms(callback, onError) {
         .map((docSnap) => toRoomRowFromCard({ id: docSnap.id, ...(docSnap.data() || {}) }))
         .filter(Boolean)
         .filter((room) => String(room?.status || 'lobby') === 'lobby')
+        .filter((room) => Number(room?.playerCount || 0) > 0)
         .slice(0, 12);
       callback(rows);
     }, onError);
@@ -1537,6 +1549,7 @@ export function subscribeOpenDuelRooms(callback, onError) {
             const safeRoomId = normalizeDuelRoomId(room?.roomId || room?.pin || roomId);
             if (!safeRoomId) return null;
             const players = (room?.players && typeof room.players === 'object') ? room.players : {};
+            const onlinePlayerCount = countOnlineDuelPlayers(players);
             return {
               id: safeRoomId,
               ...syncDuelRoomShape({
@@ -1551,11 +1564,12 @@ export function subscribeOpenDuelRooms(callback, onError) {
                 updatedAtMs: room?.updatedAtMs || 0,
                 createdAtMs: room?.createdAtMs || 0,
               }),
-              playerCount: Math.max(0, Object.keys(players).length),
+              playerCount: Math.max(0, onlinePlayerCount),
             };
           })
           .filter(Boolean)
           .filter((room) => String(room?.status || 'lobby') === 'lobby')
+          .filter((room) => Number(room?.playerCount || 0) > 0)
           .sort((a, b) => Number(b?.updatedAtMs || 0) - Number(a?.updatedAtMs || 0))
           .slice(0, 12);
         callback(rows);
