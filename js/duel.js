@@ -624,7 +624,9 @@ function handleRoomUpdate(room) {
   }
 
   el.entrySection.classList.add('hidden');
-  el.openRoomsSection?.classList.toggle('hidden', roomStatus(room) !== 'lobby' || isHost);
+  // Keep OPEN ROOMS visible in lobby for both host and guests.
+  // We already filter out "my own room" inside renderOpenRooms().
+  el.openRoomsSection?.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.lobbySection.classList.toggle('hidden', roomStatus(room) !== 'lobby');
   el.battleSection.classList.toggle('hidden', roomStatus(room) === 'lobby');
 

@@ -1320,6 +1320,48 @@ export function subscribeDuelRoom(roomId, callback, onError) {
 
 export function subscribeOpenDuelRooms(callback, onError) {
   let unsubscribe = () => {};
+  let unsubscribeFallback = () => {};
+  let usingFallback = false;
+
+  const toRoomRowFromCard = (card = {}) => {
+    const safeRoomId = normalizeDuelRoomId(card?.roomId || card?.pin || card?.id || '');
+    if (!safeRoomId) return null;
+    return {
+      id: safeRoomId,
+      ...syncDuelRoomShape({
+        roomId: safeRoomId,
+        pin: card?.pin || safeRoomId,
+        status: card?.status || 'lobby',
+        hostUid: card?.hostUid || '',
+        hostName: card?.hostName || 'Host',
+        maxPlayers: card?.maxPlayers || 4,
+        modeConfig: card?.modeConfig || {},
+        players: {},
+        updatedAtMs: card?.updatedAtMs || 0,
+        createdAtMs: card?.createdAtMs || 0,
+      }),
+      playerCount: Math.max(0, Number(card?.playerCount || 0)),
+    };
+  };
+
+  const subscribeOpenRoomCardsFallback = () => {
+    if (usingFallback) return;
+    usingFallback = true;
+    const cardsRef = query(
+      collection(db, DUEL_OPEN_ROOM_CARDS_COLLECTION),
+      orderBy('updatedAtMs', 'desc'),
+      limit(24),
+    );
+    unsubscribeFallback = onSnapshot(cardsRef, (snap) => {
+      const rows = (snap?.docs || [])
+        .map((docSnap) => toRoomRowFromCard({ id: docSnap.id, ...(docSnap.data() || {}) }))
+        .filter(Boolean)
+        .filter((room) => String(room?.status || 'lobby') === 'lobby')
+        .slice(0, 12);
+      callback(rows);
+    }, onError);
+  };
+
   ensureAuthReady()
     .then(() => {
       // Use RTDB rooms directly so OPEN ROOMS is truly realtime for everyone,
@@ -1359,12 +1401,22 @@ export function subscribeOpenDuelRooms(callback, onError) {
           .sort((a, b) => Number(b?.updatedAtMs || 0) - Number(a?.updatedAtMs || 0))
           .slice(0, 12);
         callback(rows);
-      }, onError);
+      }, (error) => {
+        const message = String(error?.message || '').toLowerCase();
+        if (message.includes('permission_denied')) {
+          subscribeOpenRoomCardsFallback();
+          return;
+        }
+        if (onError) onError(error);
+      });
     })
     .catch((error) => {
       if (onError) onError(error);
     });
-  return () => unsubscribe();
+  return () => {
+    unsubscribe();
+    unsubscribeFallback();
+  };
 }
 
 export function subscribeDuelGamePlayCounts(callback, onError) {
