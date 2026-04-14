@@ -46,6 +46,7 @@ const roomId = String(params.get('roomId') || '').trim();
 const pin = String(params.get('pin') || roomId).trim();
 const requestedUid = String(params.get('uid') || '').trim();
 const requestedPlayerName = String(params.get('player') || '').trim();
+const ROOM_UID_CACHE_PREFIX = 'pob_room_uid_v1:';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -298,38 +299,18 @@ async function ensureRoomMembership() {
   const snap = await readWithTimeout(paths.duelRoom, 6000);
   const room = snap.val() || {};
   const players = room?.players || {};
-  if (players?.[state.uid]) return;
+  if (players?.[state.uid]) {
+    cacheRoomUid(state.uid);
+    return;
+  }
 
-  const normalizedRequestedUid = requestedUid.trim();
-  if (normalizedRequestedUid && normalizedRequestedUid !== state.uid && players?.[normalizedRequestedUid]) {
-    const tx = await runTransaction(paths.duelRoom, (data) => {
-      if (!data || typeof data !== 'object') return data;
-      const currentPlayers = data?.players && typeof data.players === 'object' ? data.players : {};
-      if (currentPlayers[state.uid]) return data;
-      const legacyPlayer = currentPlayers[normalizedRequestedUid];
-      if (!legacyPlayer) return data;
-
-      const now = Date.now();
-      const nextPlayers = { ...currentPlayers };
-      delete nextPlayers[normalizedRequestedUid];
-      nextPlayers[state.uid] = {
-        ...legacyPlayer,
-        uid: state.uid,
-        online: true,
-        disconnectedAtMs: null,
-        updatedAt: now,
-      };
-
-      return {
-        ...data,
-        players: nextPlayers,
-        hostUid: String(data?.hostUid || '') === normalizedRequestedUid ? state.uid : data?.hostUid,
-        updatedAtMs: now,
-      };
-    });
-
-    const recoveredRoom = tx?.snapshot?.val() || {};
-    if (recoveredRoom?.players?.[state.uid]) return;
+  const uidCandidates = buildLegacyUidCandidates(players);
+  for (const candidateUid of uidCandidates) {
+    const recovered = await migrateLegacyPlayerUid(candidateUid);
+    if (recovered) {
+      cacheRoomUid(state.uid);
+      return;
+    }
   }
 
   const normalizedRequestedName = requestedPlayerName.toLowerCase();
@@ -367,11 +348,76 @@ async function ensureRoomMembership() {
       });
 
       const recoveredRoom = tx?.snapshot?.val() || {};
-      if (recoveredRoom?.players?.[state.uid]) return;
+      if (recoveredRoom?.players?.[state.uid]) {
+        cacheRoomUid(state.uid);
+        return;
+      }
     }
   }
 
   throw new Error('บัญชีผู้เล่นนี้ไม่ได้อยู่ในห้อง Duel (อาจเกิดจาก anonymous auth เปลี่ยน UID ระหว่างหน้า)');
+}
+
+function getRoomUidCacheKey() {
+  return `${ROOM_UID_CACHE_PREFIX}${roomId}`;
+}
+
+function readCachedRoomUid() {
+  try {
+    return String(window.localStorage.getItem(getRoomUidCacheKey()) || '').trim();
+  } catch (_error) {
+    return '';
+  }
+}
+
+function cacheRoomUid(uid) {
+  const normalizedUid = String(uid || '').trim();
+  if (!normalizedUid) return;
+  try {
+    window.localStorage.setItem(getRoomUidCacheKey(), normalizedUid);
+  } catch (_error) {
+    // ignore storage error (private mode / quota)
+  }
+}
+
+function buildLegacyUidCandidates(players = {}) {
+  const fromQuery = String(requestedUid || '').trim();
+  const fromCache = readCachedRoomUid();
+  return [...new Set([fromQuery, fromCache])]
+    .filter((uid) => uid && uid !== state.uid && Boolean(players?.[uid]));
+}
+
+async function migrateLegacyPlayerUid(legacyUid) {
+  const normalizedLegacyUid = String(legacyUid || '').trim();
+  if (!normalizedLegacyUid || normalizedLegacyUid === state.uid) return false;
+  const tx = await runTransaction(paths.duelRoom, (data) => {
+    if (!data || typeof data !== 'object') return data;
+    const currentPlayers = data?.players && typeof data.players === 'object' ? data.players : {};
+    if (currentPlayers[state.uid]) return data;
+    const legacyPlayer = currentPlayers[normalizedLegacyUid];
+    if (!legacyPlayer) return data;
+
+    const now = Date.now();
+    const nextPlayers = { ...currentPlayers };
+    delete nextPlayers[normalizedLegacyUid];
+    nextPlayers[state.uid] = {
+      ...legacyPlayer,
+      uid: state.uid,
+      online: true,
+      disconnectedAtMs: null,
+      updatedAt: now,
+    };
+
+    return {
+      ...data,
+      players: nextPlayers,
+      hostUid: String(data?.hostUid || '') === normalizedLegacyUid ? state.uid : data?.hostUid,
+      updatedAtMs: now,
+    };
+  });
+
+  const recoveredRoom = tx?.snapshot?.val() || {};
+  return Boolean(recoveredRoom?.players?.[state.uid]);
 }
 
 function mountError(message) {
