@@ -1,4 +1,17 @@
 export const EXTERNAL_GAME_MODES = {
+  pob_v2: {
+    label: 'ปอบจกตับ V2',
+    minPlayers: 4,
+    requiresQuestionBank: false,
+    redirectPath: 'games/pob-joktab-v2/index.html',
+    buildRedirectParams: ({ roomId, pin, uid, isHost, playerName }) => ({
+      roomId,
+      pin,
+      uid,
+      role: isHost ? 'host' : 'join',
+      player: playerName,
+    }),
+  },
   pob: {
     label: 'ปอบกินตับ',
     minPlayers: 4,

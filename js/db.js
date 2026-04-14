@@ -1117,9 +1117,82 @@ function pickDuelWinner(playersByUid = {}) {
   return { winnerUid: hasClearWinner ? winnerUid : '', reason: hasClearWinner ? 'distance' : 'draw' };
 }
 
+async function cleanupStaleDuelMembership(actorUid, keepRoomId = '') {
+  const safeActorUid = String(actorUid || '').trim();
+  if (!safeActorUid) return;
+  const safeKeepRoomId = normalizeDuelRoomId(keepRoomId);
+  const changedRoomIds = new Set();
+  const deletedRoomIds = new Set();
+
+  try {
+    await runRtdbTransaction(rtdbRef(rtdb, 'rooms'), (rooms) => {
+      if (!rooms || typeof rooms !== 'object') return rooms;
+      const nextRooms = { ...rooms };
+      const nowMs = Date.now();
+
+      Object.entries(rooms).forEach(([roomId, room]) => {
+        const normalizedRoomId = normalizeDuelRoomId(roomId);
+        if (!normalizedRoomId || normalizedRoomId === safeKeepRoomId) return;
+        const players = room?.players && typeof room.players === 'object' ? room.players : null;
+        if (!players || !players[safeActorUid]) return;
+
+        const isActorHost = String(room?.hostUid || '') === safeActorUid;
+        if (isActorHost) {
+          delete nextRooms[roomId];
+          changedRoomIds.add(normalizedRoomId);
+          deletedRoomIds.add(normalizedRoomId);
+          return;
+        }
+
+        const nextPlayers = { ...players };
+        delete nextPlayers[safeActorUid];
+        if (!Object.keys(nextPlayers).length) {
+          delete nextRooms[roomId];
+          changedRoomIds.add(normalizedRoomId);
+          deletedRoomIds.add(normalizedRoomId);
+          return;
+        }
+
+        const remainingEntries = Object.entries(nextPlayers);
+        const previousHostUid = String(room?.hostUid || '');
+        const nextHostUid = nextPlayers[previousHostUid] ? previousHostUid : remainingEntries[0][0];
+        const nextHostName = nextPlayers[nextHostUid]?.name || room?.hostName || 'Host';
+        nextRooms[roomId] = syncDuelRoomShape({
+          ...room,
+          players: remainingEntries.reduce((acc, [uid, player]) => {
+            acc[uid] = {
+              ...player,
+              isHost: uid === nextHostUid,
+              updatedAt: nowMs,
+            };
+            return acc;
+          }, {}),
+          hostUid: nextHostUid,
+          hostName: nextHostName,
+          updatedAtMs: nowMs,
+        });
+        changedRoomIds.add(normalizedRoomId);
+      });
+
+      return nextRooms;
+    });
+  } catch (_error) {
+    return;
+  }
+
+  await Promise.all([...changedRoomIds].map(async (roomId) => {
+    try {
+      await removeOpenDuelRoomCard(roomId);
+    } catch (_) {
+      // non-blocking
+    }
+  }));
+}
+
 export async function createDuelRoom(payload) {
   await ensureWriteAccess();
   const uid = getDuelActorUid();
+  await cleanupStaleDuelMembership(uid);
   const preferredRoomId = normalizeDuelRoomId(payload?.roomId);
   const maxAttempts = preferredRoomId ? 1 : 8;
   const durationSecondsRaw = Number(payload?.durationSeconds || 120);
@@ -1240,6 +1313,7 @@ export async function joinDuelRoom(roomId, playerName) {
 
   const safeRoomId = normalizeDuelRoomId(roomId);
   if (safeRoomId.length !== DUEL_ROOM_ID_LENGTH) throw new Error(`รหัสห้องต้องเป็นตัวเลข ${DUEL_ROOM_ID_LENGTH} หลัก`);
+  await cleanupStaleDuelMembership(uid, safeRoomId);
 
   const roomRef = rtdbRef(rtdb, `rooms/${safeRoomId}`);
   let tx;
@@ -1315,6 +1389,10 @@ export async function leaveDuelRoom(roomId) {
   try {
     tx = await runRtdbTransaction(roomRef, (data) => {
       if (!data || typeof data !== 'object') return data;
+      const hostUid = String(data.hostUid || '');
+      if (hostUid && hostUid === uid) {
+        return null;
+      }
       const players = { ...(data.players || {}) };
       if (!players[uid]) return data;
       delete players[uid];

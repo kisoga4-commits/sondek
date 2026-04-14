@@ -39,6 +39,7 @@
         <div id="duelLobbyMeta" class="duel-lobby-meta"></div>
         <div id="duelLobbyPlayers" class="duel-lobby-players"></div>
         <div class="quiz-actions">
+          <button id="leaveRoomBtn" class="btn btn-secondary" type="button">ออกจากห้อง</button>
           <button id="startGameBtn" class="btn hidden" type="button">เริ่มเกม</button>
         </div>
       </section>
@@ -52,7 +53,7 @@
           <div class="duel-topbar-stats">
             <span class="duel-state-badge" id="duelRoundText">รอเริ่ม</span>
             <span id="duelTimerText" class="duel-time-badge">00:00</span>
-            <a class="btn duel-ghost-btn duel-exit-btn" href="duel.html">ออก</a>
+            <button id="duelExitRoomBtn" class="btn duel-ghost-btn duel-exit-btn" type="button">ออก</button>
           </div>
         </header>
 
@@ -85,6 +86,7 @@
             <select id="duelGameMode">
               <option value="quick">ตอบไว</option>
               <option value="worm">หนอนกระดื้บ</option>
+              <option value="pob_v2">ปอบจกตับ V2</option>
               <option value="pob">ปอบกินตับ</option>
               <option value="logic_spy">ใครต่างจากเพื่อน</option>
             </select>

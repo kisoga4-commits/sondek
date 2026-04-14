@@ -57,6 +57,8 @@ const el = {
   roomIdInput: document.getElementById('duelRoomId'),
   createRoomBtn: document.getElementById('createRoomBtn'),
   joinRoomBtn: document.getElementById('joinRoomBtn'),
+  leaveRoomBtn: document.getElementById('leaveRoomBtn'),
+  exitRoomBtn: document.getElementById('duelExitRoomBtn'),
   startGameBtn: document.getElementById('startGameBtn'),
   statusText: document.getElementById('duelStatusText'),
   openRoomsSection: document.getElementById('duelOpenRoomsSection'),
@@ -108,6 +110,15 @@ const GAME_DEFINITIONS = {
       durationSeconds: Number(el.durationInput?.value || 300),
     }),
   },
+  pob_v2: {
+    label: 'ปอบจกตับ V2',
+    getConfig: () => ({
+      matchType: 'solo',
+      teamSize: 2,
+      finishDistance: 10,
+      durationSeconds: Number(el.durationInput?.value || 300),
+    }),
+  },
   logic_spy: {
     label: 'ใครต่างจากเพื่อน',
     getConfig: () => ({
@@ -135,9 +146,9 @@ function syncHostModeOptions() {
   }
   el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
-  el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob');
+  el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob' && mode !== 'pob_v2');
   const courseLabel = el.courseIdInput?.closest('label');
-  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'logic_spy');
+  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2' || mode === 'logic_spy');
   syncWormMatchOptions();
 }
 
@@ -696,6 +707,43 @@ async function leaveCurrentRoom() {
   }
 }
 
+function resetToEntryView(message = '') {
+  state.room = null;
+  state.roomId = '';
+  state.shownFinishMarker = '';
+  state.pobRedirectMarker = '';
+  state.optimisticAnsweredRound = -1;
+  if (state.unsubRoom) {
+    state.unsubRoom();
+    state.unsubRoom = null;
+  }
+  if (state.timerId) {
+    window.clearInterval(state.timerId);
+    state.timerId = null;
+  }
+  closeModal(el.finishModal);
+  el.entrySection.classList.remove('hidden');
+  el.openRoomsSection?.classList.remove('hidden');
+  el.lobbySection.classList.add('hidden');
+  el.battleSection.classList.add('hidden');
+  setStatus(message || 'ออกจากห้องแล้ว');
+}
+
+async function handleLeaveRoom() {
+  if (!state.roomId) {
+    resetToEntryView('ยังไม่ได้อยู่ในห้อง');
+    return;
+  }
+  const confirmed = window.confirm('ต้องการออกจากห้องนี้ใช่ไหม?');
+  if (!confirmed) return;
+  try {
+    await leaveCurrentRoom();
+    resetToEntryView('ออกจากห้องแล้ว');
+  } catch (_error) {
+    resetToEntryView('ออกจากห้องแล้ว');
+  }
+}
+
 async function handleCreateRoom() {
   if (state.isCreatingRoom) return;
   const createButtonDefaultText = el.createRoomBtn?.dataset.defaultText
@@ -711,6 +759,9 @@ async function handleCreateRoom() {
       el.createRoomBtn.textContent = 'กำลังสร้างห้อง...';
     }
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
+    await leaveCurrentRoom();
+    state.roomId = '';
+    state.room = null;
     const gameMode = getSelectedGameMode();
     const gameDef = GAME_DEFINITIONS[gameMode] || GAME_DEFINITIONS.quick;
     const modeConfig = gameDef.getConfig();
@@ -774,6 +825,9 @@ async function handleJoinRoom() {
   try {
     state.isJoiningRoom = true;
     if (!state.authReady) throw new Error('ยังไม่พร้อมใช้งาน');
+    await leaveCurrentRoom();
+    state.roomId = '';
+    state.room = null;
     const roomId = normalizeRoomIdInput(el.roomIdInput.value);
     if (roomId.length !== ROOM_ID_LENGTH) throw new Error('PIN ไม่ถูกต้อง');
     let nextName = String(el.joinNameInput.value || '').trim();
@@ -843,6 +897,8 @@ async function init() {
   document.addEventListener('keydown', unlockAudio, { once: true });
   el.createRoomBtn.addEventListener('click', () => void handleCreateRoom());
   el.joinRoomBtn.addEventListener('click', () => void handleJoinRoom());
+  el.leaveRoomBtn?.addEventListener('click', () => void handleLeaveRoom());
+  el.exitRoomBtn?.addEventListener('click', () => void handleLeaveRoom());
   el.gameModeInput?.addEventListener('change', syncHostModeOptions);
   el.matchTypeInput?.addEventListener('change', syncWormMatchOptions);
   el.quickMatchTypeInput?.addEventListener('change', syncQuickMatchOptions);
@@ -896,9 +952,9 @@ async function init() {
     setStatus('เชื่อมรายการห้องรวมไม่สำเร็จ แต่ยังเข้าห้องด้วย PIN ได้');
   });
 
-  window.addEventListener('pagehide', () => {
-    void leaveCurrentRoom();
-  });
+  // Do not auto-leave on pagehide: host refresh/back-forward cache would
+  // otherwise be interpreted as "host intentionally left", which can delete room.
+  // Stale room membership is already cleaned up before create/join actions.
 }
 
 void init();
