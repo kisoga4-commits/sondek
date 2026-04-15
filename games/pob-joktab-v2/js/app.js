@@ -74,6 +74,7 @@ const state = {
   isResolvingMorning: false,
   isResolvingVote: false,
   privateAllUnsub: null,
+  privateMineUnsub: null,
   roleSheetRevealed: false,
   isAdvancingPhase: false,
   isSubmittingNightAction: false,
@@ -572,10 +573,12 @@ function bindTap(target, handler) {
 function renderSetup() {
   const players = getRoomEntries();
   const canStart = state.isHost && players.length >= 4 && players.length <= 24;
+  const uidMismatch = Boolean(preferredPlayerUid && preferredPlayerUid !== state.uid);
   els.setup.innerHTML = `
     <h2>Step 1: เริ่มเกม (รอ Host กดเริ่ม)</h2>
     <p class="muted">PIN ${pin} • ห้องต้องมีผู้เล่น 4-24 คน</p>
     <p class="muted">สมาชิกในห้องตอนนี้: ${players.length} คน</p>
+    ${uidMismatch ? '<p class="muted">ℹ️ UID ในลิงก์ไม่ตรงกับผู้เล่นที่อยู่ในห้องตอนนี้ ระบบจึงสลับเป็นผู้เล่นที่หาเจอในห้องให้อัตโนมัติ</p>' : ''}
     ${phaseMetaHtml()}
     <div class="player-list">${players.map((p) => `<div class="tag">${resolvePlayerName(p, p.uid)} ${p.uid === state.uid ? '👤' : ''}</div>`).join('')}</div>
     ${state.isHost ? `<button id="startCloudGame" class="btn" ${canStart ? '' : 'disabled'}>เริ่มเกมปอบกินตับ V2</button>` : '<p class="muted">รอ Host เริ่มเกม...</p>'}
@@ -584,14 +587,14 @@ function renderSetup() {
 
   const btn = document.getElementById('startCloudGame');
   if (btn) {
-    btn.onclick = async () => {
+    bindTap(btn, async () => {
       try {
         const entries = getRoomEntries();
         await seedGameFromEntries(entries, state.uid);
       } catch (error) {
         window.alert(error.message || 'เริ่มเกมไม่สำเร็จ');
       }
-    };
+    });
   }
   document.getElementById('leaveRoomBtn')?.addEventListener('click', () => { void leaveRoom(); });
 }
@@ -1328,6 +1331,18 @@ function ensurePrivateAllListener() {
   });
 }
 
+function subscribePrivateMine() {
+  if (!state.uid) return;
+  if (typeof state.privateMineUnsub === 'function') {
+    state.privateMineUnsub();
+    state.privateMineUnsub = null;
+  }
+  state.privateMineUnsub = onValue(paths.privateMine(), (snap) => {
+    state.mePrivate = snap.val() || {};
+    mountByPhase();
+  }, () => mountError('อ่านข้อมูล private ของตนเองไม่ได้ (ตรวจ rules RTDB)'));
+}
+
 function ensurePhaseTicker() {
   if (state.timerId) clearInterval(state.timerId);
   state.timerId = window.setInterval(() => {
@@ -1406,6 +1421,21 @@ async function initCloud() {
   onValue(paths.duelRoom, (snap) => {
     const room = snap.val() || {};
     state.duelPlayers = room.players || {};
+    const preferredInRoom = Boolean(preferredPlayerUid && state.duelPlayers?.[preferredPlayerUid]);
+    const authInRoom = Boolean(state.authUid && state.duelPlayers?.[state.authUid]);
+    const nextUid = preferredInRoom
+      ? preferredPlayerUid
+      : (authInRoom ? state.authUid : (preferredPlayerUid || state.authUid));
+    if (nextUid && nextUid !== state.uid) {
+      state.uid = nextUid;
+      state.mePrivate = {};
+      subscribePrivateMine();
+      const topbarInner = document.querySelector('.topbar p');
+      if (topbarInner) {
+        const authTag = state.authUid ? ` • AUTH ${state.authUid.slice(0, 6)}` : '';
+        topbarInner.textContent = `Cloud Mode • PIN ${pin} • PLAYER ${state.uid.slice(0, 8)}${authTag}`;
+      }
+    }
     state.isHost = String(room.hostUid || '') === state.uid;
     const mode = String(room?.modeConfig?.gameMode || '');
     const status = String(room?.status || room?.state?.status || 'lobby');
@@ -1440,15 +1470,13 @@ async function initCloud() {
     mountByPhase();
   }, () => mountError('อ่านข้อมูล public ไม่ได้ (ตรวจ rules RTDB)'));
 
-  onValue(paths.privateMine(), (snap) => {
-    state.mePrivate = snap.val() || {};
-    mountByPhase();
-  }, () => mountError('อ่านข้อมูล private ของตนเองไม่ได้ (ตรวจ rules RTDB)'));
+  subscribePrivateMine();
 
   ensurePhaseTicker();
   window.addEventListener('beforeunload', () => {
     if (state.timerId) clearInterval(state.timerId);
     if (typeof state.privateAllUnsub === 'function') state.privateAllUnsub();
+    if (typeof state.privateMineUnsub === 'function') state.privateMineUnsub();
   });
 }
 
