@@ -1,4 +1,5 @@
 import {
+  getAllCourses,
   getCourse,
   getLeaderboard,
   getPlayCountByCourse,
@@ -62,6 +63,8 @@ const homeHubHomeLink = document.getElementById('homeHubHomeLink');
 const homeHubQuizLink = document.getElementById('homeHubQuizLink');
 const homeHubTopLink = document.getElementById('homeHubTopLink');
 const homeHubProfileLink = document.getElementById('homeHubProfileLink');
+const quizPickerSection = document.getElementById('quizPickerSection');
+const quizPickerList = document.getElementById('quizPickerList');
 
 const state = {
   course: null,
@@ -245,6 +248,47 @@ function getQuestionTypeLabel(type) {
   return 'คำถาม';
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function renderQuizPicker(courses = []) {
+  if (!quizPickerSection || !quizPickerList) return;
+  quizPickerSection.classList.remove('hidden');
+  quizPickerList.innerHTML = '';
+
+  const validCourses = (Array.isArray(courses) ? courses : [])
+    .filter((course) => String(course?.status || '').toLowerCase() !== 'deleted');
+
+  if (!validCourses.length) {
+    quizPickerList.innerHTML = '<p class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-600">ยังไม่มีบททดสอบให้เลือกตอนนี้</p>';
+    return;
+  }
+
+  const baseUrl = getBasePathUrl(window.location.pathname);
+  validCourses.forEach((course) => {
+    const card = document.createElement('article');
+    card.className = 'rounded-2xl border border-indigo-100 bg-gradient-to-b from-white to-indigo-50 p-4 shadow-sm';
+    const title = String(course?.title || 'บททดสอบ');
+    const description = String(course?.description || '').trim();
+    const questionCount = Number(course?.questionCount || 0);
+    const questionText = questionCount > 0 ? `${questionCount} ข้อ` : 'สุ่มข้อสอบตามระบบ';
+    const courseSlug = String(course?.courseId || course?.id || '').trim();
+    card.innerHTML = `
+      <h3 class="text-lg font-black text-indigo-700">${escapeHtml(title)}</h3>
+      <p class="mt-2 min-h-[44px] text-sm text-slate-600">${escapeHtml(description || 'เลือกการ์ดนี้เพื่อเริ่มทำบททดสอบของคอร์สนี้')}</p>
+      <p class="mt-3 inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-black text-indigo-700">จำนวนข้อ: ${escapeHtml(questionText)}</p>
+      <a class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-black text-white" href="${baseUrl}quiz.html?id=${encodeURIComponent(courseSlug)}">ทำบททดสอบนี้</a>
+    `;
+    quizPickerList.appendChild(card);
+  });
+}
+
 async function init() {
   const baseUrl = getBasePathUrl(window.location.pathname);
   if (homeHubHomeLink) homeHubHomeLink.href = `${baseUrl}index.html`;
@@ -263,8 +307,13 @@ async function init() {
   if (homeCourseCta) homeCourseCta.href = `${baseUrl}courses.html`;
 
   if (!courseId) {
-    courseInfo.textContent = 'ไม่พบรหัสแบบทดสอบในลิงก์ ตัวอย่าง: quiz.html?id=quiz_xxx';
-    playCountInfo.textContent = 'ไม่พบข้อมูลจำนวนผู้เล่น';
+    const courses = await getAllCourses();
+    renderQuizPicker(courses);
+    quizTitle.textContent = 'เลือกบททดสอบจากการ์ดด้านบน';
+    quizDescription.textContent = 'เมื่อเลือกบททดสอบ ระบบจะพาไปหน้าทำข้อสอบทันที';
+    courseInfo.textContent = 'ยังไม่ได้เลือกบททดสอบ';
+    playCountInfo.textContent = 'เลือกการ์ดบททดสอบก่อนเริ่มทำข้อสอบ';
+    if (entryForm) entryForm.classList.add('hidden');
     return;
   }
 
