@@ -5,15 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>คอร์สที่เปิดสอน</title>
     <link rel="stylesheet" href="css/style.css" />
+    <style>
+      .courses-hero {
+        background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 100%);
+        border: 1px solid #bae6fd;
+      }
+
+      .courses-board {
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      }
+
+      .public-course-list {
+        gap: 1rem;
+      }
+
+      .public-course-list .course-card {
+        border: 1px solid #dbeafe;
+        border-radius: 1rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        padding: 1rem;
+      }
+    </style>
   </head>
   <body>
     <main class="container">
-      <section class="card">
+      <section class="card courses-hero">
         <h1>คอร์สที่เปิดสอน</h1>
         <p class="muted">ดูคอร์สที่เปิดอยู่ แล้วส่งชื่อเพื่อรออนุมัติได้ทันที</p>
       </section>
 
-      <section class="card">
+      <section class="card courses-board">
         <div id="publicCourseList" class="course-list public-course-list scroll-list" aria-label="รายการคอร์สที่เปิดสอน">
           <p class="muted">กำลังโหลดคอร์ส...</p>
         </div>
