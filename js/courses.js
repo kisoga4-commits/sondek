@@ -121,21 +121,27 @@ function renderCourses(courseOffers) {
     card.className = `course-card ${isOpen ? 'is-open' : 'is-closed'}`;
     card.innerHTML = `
       <header class="course-card-head">
-        <div>
-          <h3>${escapeHtml(course?.title || 'ไม่ระบุชื่อคอร์ส')}</h3>
-          <p class="muted">วันเรียน: ${escapeHtml(course?.scheduleDetails || course?.day || '-')}</p>
-          <p class="muted">ราคา: ${escapeHtml(course?.price || '-')}</p>
-        </div>
+        <h3 class="course-card-title">${escapeHtml(course?.title || 'ไม่ระบุชื่อคอร์ส')}</h3>
         <span class="status-pill ${isOpen ? '' : 'status-closed'}">${isOpen ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}</span>
       </header>
-      <p class="muted">${escapeHtml(course?.content || 'ยังไม่ได้ระบุเนื้อหา')}</p>
+      <div class="course-meta-grid" aria-label="ข้อมูลคอร์ส">
+        <div class="course-meta-item">
+          <span class="course-meta-label">ตารางเรียน</span>
+          <p class="course-meta-value">${escapeHtml(course?.scheduleDetails || course?.day || '-')}</p>
+        </div>
+        <div class="course-meta-item">
+          <span class="course-meta-label">ราคา</span>
+          <p class="course-meta-value">${escapeHtml(course?.price || '-')}</p>
+        </div>
+      </div>
+      <p class="muted course-description">${escapeHtml(course?.content || 'ยังไม่ได้ระบุเนื้อหา')}</p>
       <form class="course-enroll-form ${isOpen ? '' : 'is-hidden'}" data-course-id="${escapeHtml(course?.courseId || '')}">
-        <p class="student-title">ส่งชื่อสมัครคอร์ส</p>
+        <p class="student-title">สมัครคอร์สนี้</p>
         <div class="form-split">
           <input type="text" name="studentName" placeholder="ชื่อของคุณ" required />
           <input type="tel" name="studentPhone" placeholder="เบอร์โทร" required />
         </div>
-        <button class="btn btn-compact" type="submit">ส่งชื่อสมัคร</button>
+        <button class="btn btn-compact" type="submit">สมัครตอนนี้</button>
       </form>
       ${isOpen ? '' : '<p class="muted">คอร์สนี้ปิดรับสมัครแล้ว</p>'}
       <div class="enrollment-admin-box">

@@ -7,23 +7,128 @@
     <link rel="stylesheet" href="css/style.css" />
     <style>
       .courses-hero {
-        background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 100%);
-        border: 1px solid #bae6fd;
+        background: linear-gradient(145deg, #ecfeff 0%, #f8fafc 55%, #ffffff 100%);
+        border: 1px solid #bfdbfe;
+        box-shadow: 0 12px 28px rgba(14, 116, 144, 0.1);
       }
 
       .courses-board {
         background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        border-color: #dbeafe;
       }
 
       .public-course-list {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
         gap: 1rem;
+        align-items: stretch;
       }
 
       .public-course-list .course-card {
         border: 1px solid #dbeafe;
         border-radius: 1rem;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
         padding: 1rem;
+        display: grid;
+        gap: 0.8rem;
+        height: 100%;
+        background: #fff;
+      }
+
+      .public-course-list .course-card.is-closed {
+        opacity: 0.9;
+      }
+
+      .public-course-list .course-card.is-closed .course-card-title {
+        text-decoration: none;
+      }
+
+      .course-card-head {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .course-card-title {
+        margin: 0;
+        font-size: 1.08rem;
+        line-height: 1.4;
+      }
+
+      .course-meta-grid {
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .course-meta-item {
+        display: grid;
+        gap: 0.15rem;
+        padding: 0.5rem 0.6rem;
+        border-radius: 0.75rem;
+        background: #f8fafc;
+      }
+
+      .course-meta-label {
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #0f766e;
+      }
+
+      .course-meta-value {
+        margin: 0;
+        color: #0f172a;
+        word-break: break-word;
+      }
+
+      .status-pill {
+        margin-top: 0;
+        width: fit-content;
+      }
+
+      .course-description {
+        margin: 0;
+        line-height: 1.55;
+      }
+
+      .course-enroll-form {
+        display: grid;
+        gap: 0.55rem;
+        padding: 0.75rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.8rem;
+      }
+
+      .form-split {
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      .course-enroll-form .btn {
+        width: 100%;
+      }
+
+      .enrollment-admin-box {
+        padding-top: 0.2rem;
+      }
+
+      .enrollment-item strong {
+        word-break: break-word;
+      }
+
+      @media (min-width: 720px) {
+        .public-course-list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 1.1rem;
+        }
+      }
+
+      @media (min-width: 1080px) {
+        .public-course-list {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 1.2rem;
+        }
       }
     </style>
   </head>
@@ -35,7 +140,7 @@
       </section>
 
       <section class="card courses-board">
-        <div id="publicCourseList" class="course-list public-course-list scroll-list" aria-label="รายการคอร์สที่เปิดสอน">
+        <div id="publicCourseList" class="course-list public-course-list" aria-label="รายการคอร์สที่เปิดสอน">
           <p class="muted">กำลังโหลดคอร์ส...</p>
         </div>
       </section>
