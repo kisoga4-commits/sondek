@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 
 import {
   buildExternalGameRedirectUrl,
+  getDefaultDuelGameLabel,
   getGameModeDefinition,
   getMinimumPlayers,
+  getRequiredPlayersToStart,
   isExternalGameMode,
+  normalizeDuelGameMode,
   requiresQuestionBank,
 } from '../js/duelGameModes.js';
 
@@ -57,4 +60,27 @@ test('builds redirect url for external games from shared room payload', () => {
 test('falls back to quick mode definition for unknown game mode', () => {
   const mode = getGameModeDefinition('unknown_mode_x');
   assert.equal(mode?.label, 'ตอบไว');
+});
+
+test('normalizes duel game mode and keeps existing core modes intact', () => {
+  assert.equal(normalizeDuelGameMode('pob_v2'), 'pob_v2');
+  assert.equal(normalizeDuelGameMode('quick'), 'quick');
+  assert.equal(normalizeDuelGameMode('worm'), 'worm');
+  assert.equal(normalizeDuelGameMode('logic_spy'), 'logic_spy');
+  assert.equal(normalizeDuelGameMode('something_else'), 'quick');
+});
+
+test('resolves default label by mode including pob_v2', () => {
+  assert.equal(getDefaultDuelGameLabel('pob_v2'), 'ปอบจกตับ V2');
+  assert.equal(getDefaultDuelGameLabel('pob'), 'ปอบกินตับ');
+  assert.equal(getDefaultDuelGameLabel('worm'), 'หนอนกระดื้บ');
+  assert.equal(getDefaultDuelGameLabel('unknown'), 'ตอบไว');
+});
+
+test('required players to start stays compatible and supports pob_v2', () => {
+  assert.equal(getRequiredPlayersToStart({ gameMode: 'pob_v2' }), 4);
+  assert.equal(getRequiredPlayersToStart({ gameMode: 'pob' }), 4);
+  assert.equal(getRequiredPlayersToStart({ gameMode: 'logic_spy' }), 3);
+  assert.equal(getRequiredPlayersToStart({ gameMode: 'quick', matchType: 'solo' }), 2);
+  assert.equal(getRequiredPlayersToStart({ gameMode: 'quick', matchType: 'party', teamSize: 3 }), 6);
 });

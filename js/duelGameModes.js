@@ -61,6 +61,16 @@ export function getGameModeDefinition(gameMode = 'quick') {
   return DUEL_GAME_MODES[key] || DUEL_GAME_MODES.quick;
 }
 
+export function normalizeDuelGameMode(gameMode = 'quick') {
+  const key = String(gameMode || '').toLowerCase();
+  return Object.prototype.hasOwnProperty.call(DUEL_GAME_MODES, key) ? key : 'quick';
+}
+
+export function getDefaultDuelGameLabel(gameMode = 'quick') {
+  const definition = getGameModeDefinition(gameMode);
+  return String(definition?.label || DUEL_GAME_MODES.quick.label || 'ตอบไว');
+}
+
 export function isExternalGameMode(gameMode = '') {
   return Object.prototype.hasOwnProperty.call(EXTERNAL_GAME_MODES, String(gameMode || ''));
 }
@@ -70,12 +80,19 @@ export function requiresQuestionBank(gameMode = '') {
 }
 
 export function getMinimumPlayers(modeConfig = {}) {
-  const gameMode = String(modeConfig?.gameMode || 'quick');
+  const gameMode = normalizeDuelGameMode(modeConfig?.gameMode || 'quick');
   const definition = getGameModeDefinition(gameMode);
   const minPlayers = typeof definition?.minPlayers === 'function'
     ? definition.minPlayers({ modeConfig })
     : Number(definition?.minPlayers || 2);
   return Math.max(2, Number(minPlayers || 2));
+}
+
+export function getRequiredPlayersToStart({ gameMode = 'quick', matchType = 'solo', teamSize = 2 } = {}) {
+  const mode = normalizeDuelGameMode(gameMode);
+  if (mode === 'pob' || mode === 'pob_v2') return 4;
+  if (mode === 'logic_spy') return 3;
+  return String(matchType || 'solo') === 'party' ? Math.max(2, Number(teamSize || 2)) * 2 : 2;
 }
 
 export function buildExternalGameRedirectUrl({ room, uid, isHost }) {
