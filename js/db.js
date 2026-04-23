@@ -48,6 +48,7 @@ import { normalizePublicImageUrl } from './imageUrl.js';
 import { getEffectiveFinishDistance, getWormWrongPenalty, pickWormComboTargetUid } from './duelRules.js';
 import { getRoomMaxPlayers, getStartPlayerCap } from './duelRoomRules.js';
 import { buildPersonalQuestionLoop, LOOP_QUESTION_COUNT } from './duelCore.js';
+import { getDefaultDuelGameLabel, getRequiredPlayersToStart, normalizeDuelGameMode } from './duelGameModes.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -1201,16 +1202,9 @@ export async function createDuelRoom(payload) {
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
   const requestedGameMode = String(payload?.gameMode || '').toLowerCase();
-  const gameMode = ['quick', 'worm', 'pob', 'logic_spy'].includes(requestedGameMode) ? requestedGameMode : 'quick';
+  const gameMode = normalizeDuelGameMode(requestedGameMode);
   const matchType = requestedMatchType;
-  const gameLabel = String(payload?.gameLabel || '').trim()
-    || (gameMode === 'worm'
-      ? 'หนอนกระดื้บ'
-      : gameMode === 'pob'
-        ? 'ปอบกินตับ'
-        : gameMode === 'logic_spy'
-          ? 'ใครต่างจากเพื่อน'
-          : 'ตอบไว');
+  const gameLabel = String(payload?.gameLabel || '').trim() || getDefaultDuelGameLabel(gameMode);
   const questionPoolIds = Array.isArray(payload?.questionPoolIds)
     ? [...new Set(payload.questionPoolIds.map((id) => String(id || '').trim()).filter(Boolean))]
     : [];
@@ -1468,9 +1462,7 @@ export async function startDuelRoom(roomId) {
       const gameMode = String(data?.modeConfig?.gameMode || 'quick');
       const matchType = String(data?.modeConfig?.matchType || 'solo');
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
-      const requiredPlayers = gameMode === 'pob'
-        ? 4
-        : (gameMode === 'logic_spy' ? 3 : (matchType === 'party' ? teamSize * 2 : 2));
+      const requiredPlayers = getRequiredPlayersToStart({ gameMode, matchType, teamSize });
       if (Object.keys(players).length < requiredPlayers) {
         throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${requiredPlayers} คนก่อนเริ่มดวล`);
       }

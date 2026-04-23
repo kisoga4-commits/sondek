@@ -482,7 +482,7 @@ function renderLobbyMeta(room) {
   const items = [
     `เกม: ${gameLabel}`,
     `ผู้เล่น: ${currentPlayers} / อย่างน้อย ${minPlayers} คน`,
-    ...(gameMode === 'pob' || gameMode === 'logic_spy'
+    ...(gameMode === 'pob' || gameMode === 'pob_v2' || gameMode === 'logic_spy'
       ? []
       : [
         `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
