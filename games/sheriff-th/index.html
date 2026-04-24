@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sheriff ตลาดไทย</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="card hero-card">
+        <div>
+          <h1>👮 Sheriff ตลาดไทย</h1>
+          <p class="muted">โหมดเสริมแบบแยกระบบจากเกมหลัก Duel: ใช้สำหรับบริหารรอบตำรวจ, การ์ด, แต้ม และกระดานกลางให้อ่านง่าย</p>
+        </div>
+        <div class="hero-actions">
+          <button type="button" class="btn btn-secondary" data-open-modal="stepsModal">ขั้นตอนการเล่น</button>
+          <button type="button" class="btn btn-secondary" data-open-modal="bonusModal">ระบบโบนัส</button>
+          <button type="button" class="btn btn-secondary" data-open-modal="cardsModal">รายละเอียดการ์ด</button>
+          <a class="btn" href="../../duel.html">กลับไป Duel</a>
+        </div>
+      </section>
+
+      <section class="card summary-card">
+        <h2>ข้อมูลห้องจาก Duel</h2>
+        <div id="roomSummary" class="summary-grid"></div>
+      </section>
+
+      <section class="card setup-card" id="setupCard">
+        <h2>ตั้งค่าโหมดเสริม</h2>
+        <p id="hostOnlyHint" class="muted"></p>
+        <div class="setup-grid">
+          <label>จำนวนรอบตำรวจต่อคน
+            <select id="roundsPerPlayerInput">
+              <option value="1">1 รอบ</option>
+              <option value="2">2 รอบ</option>
+            </select>
+          </label>
+          <label>รายชื่อผู้เล่น (คั่นด้วยบรรทัดใหม่)
+            <textarea id="playerNamesInput" rows="6" placeholder="เช่น\nแป้ง\nบอส\nฟ้า"></textarea>
+          </label>
+        </div>
+        <p class="muted">รองรับผู้เล่นต่ำสุด 3 คน สูงสุด 24 คน</p>
+        <div class="actions">
+          <button type="button" id="startGameBtn" class="btn">เริ่มโหมด Sheriff</button>
+        </div>
+        <p id="setupError" class="error hidden"></p>
+      </section>
+
+      <section class="card game-card hidden" id="gameCard">
+        <h2>กระดานกลาง</h2>
+        <div id="gameStatus" class="status-grid"></div>
+
+        <div class="toolbar">
+          <button type="button" id="nextSheriffBtn" class="btn">สุ่มตำรวจรอบถัดไป</button>
+          <button type="button" id="finishGameBtn" class="btn btn-danger">สรุปผลทันที</button>
+        </div>
+
+        <div class="card-manager">
+          <h3>ระบบทิ้งการ์ด / จับการ์ด</h3>
+          <div class="manager-grid">
+            <label>ผู้เล่น
+              <select id="cardPlayerInput"></select>
+            </label>
+            <label>การ์ด
+              <select id="cardTypeInput"></select>
+            </label>
+            <label>จำนวน
+              <input id="cardQtyInput" type="number" min="1" max="10" value="1" />
+            </label>
+            <button type="button" id="drawCardBtn" class="btn">จับการ์ดจากกองกลาง</button>
+            <button type="button" id="discardCardBtn" class="btn btn-secondary">ทิ้งการ์ดลงกองทิ้ง</button>
+          </div>
+          <div id="deckStatus" class="summary-grid"></div>
+          <p class="muted">ระบบจะคำนวณแต้มการ์ดอัตโนมัติจากการ์ดในมือ และใช้ข้อมูลนี้ไปคำนวณโบนัสตอนจบเกม</p>
+          <button type="button" id="reshuffleBtn" class="btn btn-secondary">สับกองทิ้งกลับเข้ากองกลาง</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ผู้เล่น</th>
+                <th>เงิน</th>
+                <th>แต้มการ์ด</th>
+                <th>โบนัส</th>
+                <th>รวม</th>
+                <th>ปรับเงิน</th>
+              </tr>
+            </thead>
+            <tbody id="playersTableBody"></tbody>
+          </table>
+        </div>
+
+        <p id="eventLog" class="muted event-log"></p>
+      </section>
+
+      <section class="card hidden" id="resultCard">
+        <h2>สรุปเกม</h2>
+        <p id="winnerText"></p>
+      </section>
+    </main>
+
+    <dialog id="stepsModal">
+      <h3>ขั้นตอนการเล่น (สั้น)</h3>
+      <ol>
+        <li>ใส่ชื่อผู้เล่น 3-24 คน และเลือกรอบตำรวจต่อคน 1 หรือ 2 รอบ</li>
+        <li>กดเริ่มเกม ระบบจะสุ่มลำดับตำรวจให้ครบทุกคนตามจำนวนรอบ</li>
+        <li>ในแต่ละรอบ บันทึกเงิน/การ์ดที่ได้ แล้วกดสุ่มตำรวจรอบถัดไป</li>
+        <li>ครบทุกรอบ ระบบสรุปคะแนนรวม + โบนัส แล้วประกาศผู้ชนะ</li>
+      </ol>
+      <form method="dialog"><button class="btn">ปิด</button></form>
+    </dialog>
+
+    <dialog id="bonusModal">
+      <h3>ระบบโบนัส</h3>
+      <ul>
+        <li>โบนัสเจ้าตลาดของปกติ (อันดับ 1/2): ข้าวสาร 15/10, ไข่ไก่ 12/8, ผักสด 10/6, ปลาทู 8/4</li>
+        <li>โบนัสของเถื่อนรวม: อันดับ 1 +10, อันดับ 2 +5</li>
+        <li>กรณีเสมอ จะได้โบนัสอันดับนั้นเท่ากัน</li>
+      </ul>
+      <form method="dialog"><button class="btn">ปิด</button></form>
+    </dialog>
+
+    <dialog id="cardsModal">
+      <h3>รายละเอียดการ์ด</h3>
+      <div id="cardsInfoList" class="cards-list"></div>
+      <form method="dialog"><button class="btn">ปิด</button></form>
+    </dialog>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
