@@ -69,8 +69,29 @@
         <div id="systemHealth" class="system-health"></div>
 
         <div class="toolbar">
-          <button type="button" id="nextSheriffBtn" class="btn">สุ่มตำรวจรอบถัดไป</button>
+          <button type="button" id="nextSheriffBtn" class="btn">จบรอบ/ไปตำรวจถัดไป</button>
           <button type="button" id="finishGameBtn" class="btn btn-danger">สรุปผลทันที</button>
+        </div>
+
+        <div class="card-manager">
+          <h3>ด่านตรวจตำรวจ (จ่ายส่วย)</h3>
+          <div id="inspectionSummary" class="summary-grid"></div>
+          <div id="inspectionPanel" class="manager-grid">
+            <label>พ่อค้าที่ต้องตัดสิน
+              <select id="inspectMerchantInput"></select>
+            </label>
+            <label>คำสั่งตำรวจ
+              <select id="inspectionActionInput">
+                <option value="inspect">ตรวจสอบกระเป๋า/ตะกร้า</option>
+                <option value="pass">ปล่อยผ่านไปขายตลาด</option>
+              </select>
+            </label>
+            <label>เงินจ่ายส่วย (ใช้เมื่อปล่อยผ่าน)
+              <input id="inspectionBribeInput" type="number" min="0" max="50" value="0" />
+            </label>
+            <button type="button" id="resolveInspectionBtn" class="btn">ยืนยันคำสั่งตำรวจ</button>
+          </div>
+          <p class="muted">ระบบจะแสดงการ์ดของพ่อค้าทุกคนพร้อมกัน และให้ตำรวจตัดสินใจทีละคนว่า “ตรวจ” หรือ “ปล่อยผ่าน” พร้อมบันทึกผลเงิน/แต้มอัตโนมัติ</p>
         </div>
 
         <div class="card-manager">
@@ -124,8 +145,9 @@
       <ul class="steps-list">
         <li><span>1️⃣</span> Host เลือกรอบตำรวจต่อคน (1 หรือ 2 รอบ)</li>
         <li><span>👥</span> ระบบดึงรายชื่อจาก Duel อัตโนมัติ</li>
-        <li><span>🚨</span> กดเริ่มเกม ระบบสุ่มตำรวจรอบแรก + คนเข้าตลาดทันที</li>
-        <li><span>🎴</span> เล่นรอบนั้น แล้วกดสุ่มรอบถัดไป</li>
+        <li><span>🚨</span> กดเริ่มเกม ระบบสุ่มตำรวจรอบแรกและแสดงกระเป๋าพ่อค้าทุกคนพร้อมกัน</li>
+        <li><span>🧺</span> ตำรวจกดตัดสินทีละคน: “ตรวจสอบ” หรือ “ปล่อยผ่าน + จ่ายส่วย”</li>
+        <li><span>🎴</span> ครบทุกคน = จบรอบ แล้วค่อยกดไปตำรวจรอบถัดไป</li>
         <li><span>🏁</span> ครบทุกรอบ ระบบสรุปผู้ชนะอัตโนมัติ</li>
       </ul>
       <form method="dialog"><button class="btn">ปิด</button></form>
