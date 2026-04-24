@@ -38,7 +38,7 @@ const ROOM_UID_CACHE_PREFIX = 'sheriff_th_room_uid_v1:';
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const roomRef = roomId ? ref(db, `sheriff_th_rooms/${roomId}`) : null;
+const roomRef = roomId ? ref(db, `sheriff_th_rooms/${roomId}/public`) : null;
 const duelRoomPlayersRef = roomId ? ref(db, `rooms/${roomId}/players`) : null;
 const duelRoomHostRef = roomId ? ref(db, `rooms/${roomId}/hostUid`) : null;
 
@@ -91,6 +91,11 @@ const el = {
   deckStatus: document.getElementById('deckStatus'),
   playersTableBody: document.getElementById('playersTableBody'),
   eventLog: document.getElementById('eventLog'),
+  inspectionSummary: document.getElementById('inspectionSummary'),
+  inspectMerchantInput: document.getElementById('inspectMerchantInput'),
+  inspectionActionInput: document.getElementById('inspectionActionInput'),
+  inspectionBribeInput: document.getElementById('inspectionBribeInput'),
+  resolveInspectionBtn: document.getElementById('resolveInspectionBtn'),
   nextSheriffBtn: document.getElementById('nextSheriffBtn'),
   finishGameBtn: document.getElementById('finishGameBtn'),
   resultCard: document.getElementById('resultCard'),
@@ -137,6 +142,60 @@ function pickMarketPlayerId(players = [], sheriffId = '') {
   if (!source.length) return '';
   const index = Math.floor(Math.random() * source.length);
   return String(source[index]?.id || '');
+}
+
+function getCurrentRoundInspection(room = state.room) {
+  const inspection = room?.inspection;
+  if (!inspection || typeof inspection !== 'object') return null;
+  const merchantIds = Array.isArray(inspection.merchantIds) ? inspection.merchantIds : [];
+  const resolvedMap = inspection?.resolvedMap && typeof inspection.resolvedMap === 'object' ? inspection.resolvedMap : {};
+  const resolvedCount = merchantIds.filter((id) => Boolean(resolvedMap[id])).length;
+  return {
+    ...inspection,
+    merchantIds,
+    resolvedMap,
+    resolvedCount,
+    isComplete: merchantIds.length > 0 && resolvedCount >= merchantIds.length,
+  };
+}
+
+function buildInspectionState(players = [], sheriffId = '') {
+  return {
+    sheriffId,
+    merchantIds: players.map((player) => String(player.id || '')).filter((id) => id && id !== sheriffId),
+    resolvedMap: {},
+    startedAtMs: Date.now(),
+    completedAtMs: null,
+  };
+}
+
+function sumFineByHand(hand = {}, type = 'all') {
+  return CARD_CATALOG.reduce((sum, card) => {
+    const qty = Math.max(0, Number(hand?.[card.id] || 0));
+    if (qty <= 0) return sum;
+    if (type === 'legal' && card.type !== 'legal') return sum;
+    if (type === 'contraband' && card.type !== 'contraband') return sum;
+    return sum + (Number(card.fine || 0) * qty);
+  }, 0);
+}
+
+function splitHandByType(hand = {}) {
+  const legal = createEmptyPile();
+  const contraband = createEmptyPile();
+  CARD_CATALOG.forEach((card) => {
+    const qty = Math.max(0, Number(hand?.[card.id] || 0));
+    if (card.type === 'legal') legal[card.id] = qty;
+    if (card.type === 'contraband') contraband[card.id] = qty;
+  });
+  return { legal, contraband };
+}
+
+function formatHandSummary(hand = {}) {
+  return CARD_CATALOG
+    .map((card) => ({ card, qty: Math.max(0, Number(hand?.[card.id] || 0)) }))
+    .filter((entry) => entry.qty > 0)
+    .map((entry) => `${getCardIcon(entry.card.id)} ${entry.card.name} x${entry.qty}`)
+    .join(' • ') || '-';
 }
 
 function renderRoomSummary() {
@@ -209,16 +268,16 @@ function renderGameStatus() {
   const players = getPlayers();
   const currentSheriffId = getCurrentSheriffId();
   const currentSheriff = players.find((player) => player.id === currentSheriffId)?.name || '-';
-  const marketPlayerId = String(state.room?.marketPlayerId || '');
-  const marketPlayer = players.find((player) => player.id === marketPlayerId)?.name || '-';
   const status = String(state.room?.status || 'setup');
   const me = players.find((player) => player.sourceUid && player.sourceUid === state.uid)?.name || '-';
+  const inspection = getCurrentRoundInspection();
+  const pendingCount = inspection ? Math.max(0, inspection.merchantIds.length - inspection.resolvedCount) : 0;
 
   el.gameStatus.innerHTML = [
     ['สถานะ', status === 'finished' ? 'จบเกม' : status === 'playing' ? 'กำลังเล่น' : 'ตั้งค่า'],
     ['รอบปัจจุบัน', `${Math.min(activeRound + 1, Math.max(queue.length, 1))}/${Math.max(queue.length, 1)}`],
     ['🚨 ตำรวจรอบนี้', currentSheriff],
-    ['🛒 คนเข้าตลาดรอบนี้', marketPlayer],
+    ['🧺 พ่อค้าที่รอตัดสิน', `${pendingCount} คน`],
     ['🙋 คุณคือ', me],
     ['รอบตำรวจต่อคน', `${normalizeRounds(state.room?.roundsPerPlayer || 1)} รอบ`],
     ['ผู้เล่นรวม', `${players.length} คน`],
@@ -272,7 +331,7 @@ function renderSystemHealth() {
   const queue = Array.isArray(room?.sheriffQueue) ? room.sheriffQueue : [];
   const rounds = normalizeRounds(room?.roundsPerPlayer || 1);
   const sheriffId = getCurrentSheriffId(room);
-  const marketId = String(room?.marketPlayerId || '');
+  const inspection = getCurrentRoundInspection(room);
   const checks = [
     {
       ok: players.length >= 3 && players.length <= 24,
@@ -291,8 +350,8 @@ function renderSystemHealth() {
       message: `🧮 การ์ดรวม ${totalDeck + totalDiscard + totalHands}/${expectedTotalCards}`,
     },
     {
-      ok: players.length <= 1 || !marketId || marketId !== sheriffId,
-      message: `🛒 ตลาด/ตำรวจ ${marketId && sheriffId && marketId === sheriffId ? 'ซ้ำกัน' : 'ไม่ซ้ำ'}`,
+      ok: !inspection || inspection.merchantIds.every((id) => id && id !== sheriffId),
+      message: `🧺 รายชื่อพ่อค้า ${inspection ? inspection.merchantIds.length : 0} คน`,
     },
   ];
   el.systemHealth.innerHTML = checks
@@ -304,21 +363,57 @@ function renderRoleStrip() {
   if (!el.playerRoleStrip) return;
   const players = getPlayers();
   const sheriffId = getCurrentSheriffId();
-  const marketPlayerId = String(state.room?.marketPlayerId || '');
   if (!players.length) {
     el.playerRoleStrip.innerHTML = '';
     return;
   }
   el.playerRoleStrip.innerHTML = players.map((player) => {
     const isSheriff = player.id === sheriffId;
-    const isMarket = player.id === marketPlayerId;
     const isYou = Boolean(player.sourceUid && player.sourceUid === state.uid);
     const classes = ['role-pill'];
     if (isSheriff) classes.push('is-sheriff');
-    if (isMarket) classes.push('is-market');
     if (isYou) classes.push('is-you');
-    return `<span class="${classes.join(' ')}">${isSheriff ? '🚨 ' : ''}${isMarket ? '🛒 ' : ''}${player.name}${isYou ? ' (คุณ)' : ''}</span>`;
+    return `<span class="${classes.join(' ')}">${isSheriff ? '🚨 ' : ''}${player.name}${isYou ? ' (คุณ)' : ''}</span>`;
   }).join('');
+}
+
+function renderInspectionBoard() {
+  if (!el.inspectionSummary) return;
+  const room = state.room || {};
+  const players = getPlayers(room);
+  const inspection = getCurrentRoundInspection(room);
+  const sheriffId = getCurrentSheriffId(room);
+  const sheriffName = players.find((player) => player.id === sheriffId)?.name || '-';
+
+  if (!inspection) {
+    el.inspectionSummary.innerHTML = '';
+    if (el.inspectMerchantInput) el.inspectMerchantInput.innerHTML = '';
+    return;
+  }
+
+  const unresolvedIds = inspection.merchantIds.filter((id) => !inspection.resolvedMap[id]);
+  if (el.inspectMerchantInput) {
+    el.inspectMerchantInput.innerHTML = unresolvedIds
+      .map((id) => `<option value="${id}">${players.find((player) => player.id === id)?.name || id}</option>`)
+      .join('');
+  }
+
+  const merchantCards = inspection.merchantIds.map((id) => {
+    const merchant = players.find((player) => player.id === id);
+    const resolved = inspection.resolvedMap[id];
+    const decision = resolved?.action === 'inspect'
+      ? '🔎 ตรวจสอบ'
+      : resolved?.action === 'pass'
+        ? '✅ ปล่อยผ่าน'
+        : '⏳ รอตัดสิน';
+    return `<div class="chip"><small>${merchant?.name || id} • ${decision}</small><strong>${formatHandSummary(merchant?.hand || {})}</strong></div>`;
+  }).join('');
+
+  el.inspectionSummary.innerHTML = [
+    `<div class="chip"><small>ตำรวจรอบนี้</small><strong>${sheriffName}</strong></div>`,
+    `<div class="chip"><small>สถานะการตัดสิน</small><strong>${inspection.resolvedCount}/${inspection.merchantIds.length} คน</strong></div>`,
+    merchantCards,
+  ].join('');
 }
 
 function renderTable() {
@@ -395,7 +490,10 @@ function setControlAvailability() {
 
   if (el.drawCardBtn) el.drawCardBtn.disabled = !isHost || !playing;
   if (el.discardCardBtn) el.discardCardBtn.disabled = !isHost || !playing;
-  if (el.nextSheriffBtn) el.nextSheriffBtn.disabled = !isHost || !playing;
+  const inspection = getCurrentRoundInspection();
+  const roundComplete = !playing || !inspection || inspection.isComplete;
+  if (el.nextSheriffBtn) el.nextSheriffBtn.disabled = !isHost || !playing || !roundComplete;
+  if (el.resolveInspectionBtn) el.resolveInspectionBtn.disabled = !isHost || !playing || roundComplete;
   if (el.finishGameBtn) el.finishGameBtn.disabled = !isHost || status === 'finished';
   if (el.reshuffleBtn) el.reshuffleBtn.disabled = !isHost || status === 'setup';
 }
@@ -408,6 +506,7 @@ function renderAll() {
   renderGameStatus();
   renderScoreHighlights();
   renderRoleStrip();
+  renderInspectionBoard();
   renderSystemHealth();
   renderTable();
   renderWinner();
@@ -486,7 +585,6 @@ async function startGame() {
     }));
     const queue = buildSheriffQueue(players.map((player) => player.id), rounds);
     const firstSheriffId = String(queue[0] || '');
-    const marketPlayerId = pickMarketPlayerId(players, firstSheriffId);
     const baseRoom = {
       players,
       deck: createInitialDeck(),
@@ -506,11 +604,12 @@ async function startGame() {
       roundsPerPlayer: rounds,
       players: readyPlayers,
       sheriffQueue: queue,
-      marketPlayerId,
+      marketPlayerId: pickMarketPlayerId(readyPlayers, firstSheriffId),
       activeRoundIndex: 0,
+      inspection: buildInspectionState(readyPlayers, firstSheriffId),
       deck: readyDeck,
       discard: createEmptyPile(),
-      lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • 🚨 ${readyPlayers.find((p) => p.id === firstSheriffId)?.name || '-'} • 🛒 ${readyPlayers.find((p) => p.id === marketPlayerId)?.name || '-'}`,
+      lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • 🚨 ${readyPlayers.find((p) => p.id === firstSheriffId)?.name || '-'} • แสดงกระเป๋าพ่อค้าทุกคนแล้ว`,
       startedAtMs: Date.now(),
     }));
   } catch (error) {
@@ -603,6 +702,13 @@ async function reshuffleDiscardToDeck() {
 async function nextSheriffRound() {
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
+    const inspection = getCurrentRoundInspection(room);
+    if (inspection && !inspection.isComplete) {
+      return {
+        ...room,
+        lastEvent: 'ยังจบรอบไม่ได้: ตำรวจต้องตัดสินพ่อค้าทุกคนก่อน (ตรวจ/ปล่อยผ่าน)',
+      };
+    }
     const queue = Array.isArray(room.sheriffQueue) ? room.sheriffQueue : [];
     const nextIndex = Number(room.activeRoundIndex || 0) + 1;
     if (nextIndex >= queue.length) {
@@ -616,13 +722,82 @@ async function nextSheriffRound() {
     }
     const nextSheriffId = String(queue[nextIndex] || '');
     const nextSheriffName = getPlayers(room).find((player) => player.id === nextSheriffId)?.name || '-';
-    const marketPlayerId = pickMarketPlayerId(getPlayers(room), nextSheriffId);
-    const marketPlayerName = getPlayers(room).find((player) => player.id === marketPlayerId)?.name || '-';
+    const nextPlayers = getPlayers(room);
     return {
       ...room,
-      marketPlayerId,
+      marketPlayerId: pickMarketPlayerId(nextPlayers, nextSheriffId),
       activeRoundIndex: nextIndex,
-      lastEvent: `เริ่มรอบ ${nextIndex + 1}: 🚨 ตำรวจคือ ${nextSheriffName} • 🛒 เข้าตลาดคือ ${marketPlayerName}`,
+      inspection: buildInspectionState(nextPlayers, nextSheriffId),
+      lastEvent: `เริ่มรอบ ${nextIndex + 1}: 🚨 ตำรวจคือ ${nextSheriffName} • รอตัดสินพ่อค้าทุกคน`,
+    };
+  });
+}
+
+async function resolveInspectionDecision() {
+  const merchantId = String(el.inspectMerchantInput?.value || '').trim();
+  const action = String(el.inspectionActionInput?.value || 'inspect').trim();
+  const bribe = Math.max(0, Number(el.inspectionBribeInput?.value || 0));
+  if (!merchantId) return;
+
+  await mutateRoom((room) => {
+    if (String(room.status || '') !== 'playing') return room;
+    const inspection = getCurrentRoundInspection(room);
+    if (!inspection) return room;
+    if (!inspection.merchantIds.includes(merchantId) || inspection.resolvedMap[merchantId]) return room;
+
+    const players = getPlayers(room).map((player) => ({ ...player, hand: { ...(player.hand || createEmptyPile()) } }));
+    const sheriffId = String(inspection.sheriffId || getCurrentSheriffId(room) || '');
+    const sheriff = players.find((player) => player.id === sheriffId);
+    const merchant = players.find((player) => player.id === merchantId);
+    if (!sheriff || !merchant) return room;
+
+    const resolvedMap = { ...inspection.resolvedMap };
+    const discard = { ...(room.discard || createEmptyPile()) };
+    let lastEvent = '';
+
+    if (action === 'pass') {
+      const paidBribe = Math.min(Math.max(0, Math.floor(bribe)), Math.max(0, Number(merchant.money || 0)));
+      merchant.money = Math.max(0, Number(merchant.money || 0) - paidBribe);
+      sheriff.money = Math.max(0, Number(sheriff.money || 0) + paidBribe);
+      resolvedMap[merchantId] = { action: 'pass', bribe: paidBribe, atMs: Date.now() };
+      lastEvent = `✅ ${sheriff.name} ปล่อยผ่าน ${merchant.name} (จ่ายส่วย ${paidBribe})`;
+    } else {
+      const { legal, contraband } = splitHandByType(merchant.hand || {});
+      const hasContraband = CARD_CATALOG.some((card) => card.type === 'contraband' && Number(contraband[card.id] || 0) > 0);
+      if (hasContraband) {
+        CARD_CATALOG.forEach((card) => {
+          if (card.type !== 'contraband') return;
+          const qty = Math.max(0, Number(merchant.hand?.[card.id] || 0));
+          if (qty <= 0) return;
+          merchant.hand[card.id] = 0;
+          discard[card.id] = Math.max(0, Number(discard[card.id] || 0) + qty);
+        });
+        const fine = Math.min(sumFineByHand(contraband, 'contraband'), Math.max(0, Number(merchant.money || 0)));
+        merchant.money = Math.max(0, Number(merchant.money || 0) - fine);
+        sheriff.money = Math.max(0, Number(sheriff.money || 0) + fine);
+        resolvedMap[merchantId] = { action: 'inspect', fine, confiscated: true, atMs: Date.now() };
+        lastEvent = `🔎 ${sheriff.name} ตรวจเจอของเถื่อนจาก ${merchant.name} • ปรับ ${fine} และยึดของเถื่อน`;
+      } else {
+        const compensation = Math.min(sumFineByHand(legal, 'legal'), Math.max(0, Number(sheriff.money || 0)));
+        sheriff.money = Math.max(0, Number(sheriff.money || 0) - compensation);
+        merchant.money = Math.max(0, Number(merchant.money || 0) + compensation);
+        resolvedMap[merchantId] = { action: 'inspect', compensation, confiscated: false, atMs: Date.now() };
+        lastEvent = `🔎 ${sheriff.name} ตรวจไม่เจอของเถื่อนของ ${merchant.name} • ตำรวจจ่ายชดเชย ${compensation}`;
+      }
+    }
+
+    const resolvedCount = inspection.merchantIds.filter((id) => Boolean(resolvedMap[id])).length;
+    const isComplete = inspection.merchantIds.length > 0 && resolvedCount >= inspection.merchantIds.length;
+    return {
+      ...room,
+      players,
+      discard,
+      inspection: {
+        ...inspection,
+        resolvedMap,
+        completedAtMs: isComplete ? Date.now() : null,
+      },
+      lastEvent: isComplete ? `${lastEvent} • ✅ จบรอบแล้ว` : lastEvent,
     };
   });
 }
@@ -641,6 +816,7 @@ function wireEvents() {
   el.drawCardBtn?.addEventListener('click', () => { void drawCardToPlayer(); });
   el.discardCardBtn?.addEventListener('click', () => { void discardCardFromPlayer(); });
   el.reshuffleBtn?.addEventListener('click', () => { void reshuffleDiscardToDeck(); });
+  el.resolveInspectionBtn?.addEventListener('click', () => { void resolveInspectionDecision(); });
   el.nextSheriffBtn?.addEventListener('click', () => { void nextSheriffRound(); });
   el.finishGameBtn?.addEventListener('click', () => { void finishGame(); });
 
