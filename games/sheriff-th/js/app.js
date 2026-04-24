@@ -28,7 +28,8 @@ const firebaseConfig = {
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
-const role = String(params.get('role') || 'join').trim().toLowerCase();
+const rawRole = String(params.get('role') || '').trim().toLowerCase();
+const role = rawRole || 'host';
 const isHostMode = role === 'host';
 
 
