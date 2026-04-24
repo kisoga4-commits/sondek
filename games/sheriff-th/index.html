@@ -49,11 +49,12 @@
               <option value="2">2 รอบ</option>
             </select>
           </label>
-          <label>รายชื่อผู้เล่น (ดึงจาก Duel อัตโนมัติ)
-            <textarea id="playerNamesInput" rows="6" placeholder="เช่น\nแป้ง\nบอส\nฟ้า"></textarea>
-          </label>
+          <div>
+            <strong>ผู้เล่นที่เข้าร่วม (จาก Duel)</strong>
+            <ul id="duelPlayersPreview" class="player-list"></ul>
+          </div>
         </div>
-        <p class="muted">ระบบจะใช้รายชื่อผู้เล่นจากห้อง Duel ก่อนเสมอ และยังแก้ไขรายชื่อเองได้ถ้าต้องการ</p>
+        <p class="muted">Host กดเริ่มได้ทันทีเมื่อผู้เล่นจากห้อง Duel ครบอย่างน้อย 3 คน</p>
         <div class="actions">
           <button type="button" id="startGameBtn" class="btn">เริ่มโหมดจ่ายส่วย</button>
         </div>
@@ -63,6 +64,9 @@
       <section class="card game-card hidden" id="gameCard">
         <h2>กระดานกลาง</h2>
         <div id="gameStatus" class="status-grid"></div>
+        <div id="scoreHighlights" class="score-highlight-grid"></div>
+        <div id="playerRoleStrip" class="role-strip"></div>
+        <div id="systemHealth" class="system-health"></div>
 
         <div class="toolbar">
           <button type="button" id="nextSheriffBtn" class="btn">สุ่มตำรวจรอบถัดไป</button>
@@ -94,10 +98,10 @@
             <thead>
               <tr>
                 <th>ผู้เล่น</th>
-                <th>เงิน</th>
-                <th>แต้มการ์ด</th>
-                <th>โบนัส</th>
-                <th>รวม</th>
+                <th>💰 เงิน</th>
+                <th>🃏 แต้มการ์ด</th>
+                <th>🎁 โบนัส</th>
+                <th>🏆 รวม</th>
                 <th>ปรับเงิน</th>
               </tr>
             </thead>
@@ -117,22 +121,22 @@
 
     <dialog id="stepsModal">
       <h3>ขั้นตอนการเล่น (สั้น)</h3>
-      <ol>
-        <li>Host เลือกรอบตำรวจต่อคน (1 หรือ 2 รอบ)</li>
-        <li>ระบบดึงผู้เล่นจากห้อง Duel อัตโนมัติ</li>
-        <li>กดเริ่มเกม ระบบจะสุ่มลำดับตำรวจให้ครบทุกคนตามจำนวนรอบ</li>
-        <li>ในแต่ละรอบ บันทึกเงิน/การ์ดที่ได้ แล้วกดสุ่มตำรวจรอบถัดไป</li>
-        <li>ครบทุกรอบ ระบบสรุปคะแนนรวม + โบนัส แล้วประกาศผู้ชนะ</li>
-      </ol>
+      <ul class="steps-list">
+        <li><span>1️⃣</span> Host เลือกรอบตำรวจต่อคน (1 หรือ 2 รอบ)</li>
+        <li><span>👥</span> ระบบดึงรายชื่อจาก Duel อัตโนมัติ</li>
+        <li><span>🚨</span> กดเริ่มเกม ระบบสุ่มตำรวจรอบแรก + คนเข้าตลาดทันที</li>
+        <li><span>🎴</span> เล่นรอบนั้น แล้วกดสุ่มรอบถัดไป</li>
+        <li><span>🏁</span> ครบทุกรอบ ระบบสรุปผู้ชนะอัตโนมัติ</li>
+      </ul>
       <form method="dialog"><button class="btn">ปิด</button></form>
     </dialog>
 
     <dialog id="bonusModal">
       <h3>ระบบโบนัส</h3>
-      <ul>
-        <li>โบนัสเจ้าตลาดของปกติ (อันดับ 1/2): ข้าวสาร 15/10, ไข่ไก่ 12/8, ผักสด 10/6, ปลาทู 8/4</li>
-        <li>โบนัสของเถื่อนรวม: อันดับ 1 +10, อันดับ 2 +5</li>
-        <li>กรณีเสมอ จะได้โบนัสอันดับนั้นเท่ากัน</li>
+      <ul class="steps-list">
+        <li><span>🌾🥚🥬🐟</span> เจ้าตลาดของปกติได้โบนัสอันดับ 1/2</li>
+        <li><span>🚬🍷🦐🌿</span> ของเถื่อนรวมโบนัส อันดับ 1 +10, อันดับ 2 +5</li>
+        <li><span>🤝</span> ถ้าแต้มเสมอ รับโบนัสอันดับนั้นเท่ากัน</li>
       </ul>
       <form method="dialog"><button class="btn">ปิด</button></form>
     </dialog>

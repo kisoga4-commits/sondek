@@ -84,6 +84,30 @@ h1, h2, h3 { margin: 0 0 8px; }
   gap: 8px;
 }
 
+.score-highlight-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.score-card {
+  border: 1px solid #dbe3fb;
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(180deg, #f9fbff 0%, #f2f6ff 100%);
+}
+
+.score-card small {
+  color: #556089;
+}
+
+.score-card strong {
+  display: block;
+  font-size: 1.05rem;
+  margin-top: 4px;
+}
+
 .chip {
   border: 1px solid #dbe3fb;
   border-radius: 12px;
@@ -194,6 +218,88 @@ td {
 
 .event-log {
   margin-top: 10px;
+}
+
+.player-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.player-list li {
+  border: 1px solid #dbe3fb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #f8faff;
+}
+
+.role-strip {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-pill {
+  border: 1px solid #dbe3fb;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #f8faff;
+  font-size: 0.95rem;
+}
+
+.role-pill.is-sheriff {
+  background: #eaf0ff;
+  border-color: #adc2ff;
+}
+
+.role-pill.is-market {
+  background: #ecfff3;
+  border-color: #a8ebc1;
+}
+
+.role-pill.is-you {
+  background: #fff9e8;
+  border-color: #f3d37f;
+}
+
+.system-health {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.health-item {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+
+.health-item.ok {
+  border: 1px solid #bae5cb;
+  background: #effcf4;
+  color: #1c5b34;
+}
+
+.health-item.warn {
+  border: 1px solid #f4d59b;
+  background: #fff8ea;
+  color: #8b5b00;
+}
+
+.steps-list {
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.steps-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .hidden { display: none !important; }

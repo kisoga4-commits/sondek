@@ -28,7 +28,7 @@ const firebaseConfig = {
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
-const role = String(params.get('role') || 'join').trim();
+const role = String(params.get('role') || 'join').trim().toLowerCase();
 const isHostMode = role === 'host';
 
 
@@ -41,8 +41,7 @@ const duelRoomPlayersRef = roomId ? ref(db, `rooms/${roomId}/players`) : null;
 const state = {
   uid: '',
   room: null,
-  duelPlayersPrefilled: false,
-  duelPlayerNames: [],
+  duelPlayers: [],
 };
 
 const CARD_ICON_BY_ID = {
@@ -59,12 +58,15 @@ const CARD_ICON_BY_ID = {
 const el = {
   hostOnlyHint: document.getElementById('hostOnlyHint'),
   roundsPerPlayerInput: document.getElementById('roundsPerPlayerInput'),
-  playerNamesInput: document.getElementById('playerNamesInput'),
+  duelPlayersPreview: document.getElementById('duelPlayersPreview'),
   startGameBtn: document.getElementById('startGameBtn'),
   setupError: document.getElementById('setupError'),
   setupCard: document.getElementById('setupCard'),
   gameCard: document.getElementById('gameCard'),
   gameStatus: document.getElementById('gameStatus'),
+  scoreHighlights: document.getElementById('scoreHighlights'),
+  playerRoleStrip: document.getElementById('playerRoleStrip'),
+  systemHealth: document.getElementById('systemHealth'),
   cardPlayerInput: document.getElementById('cardPlayerInput'),
   cardTypeInput: document.getElementById('cardTypeInput'),
   cardQtyInput: document.getElementById('cardQtyInput'),
@@ -86,22 +88,15 @@ function normalizeRounds(value) {
   return [1, 2].includes(Number(value)) ? Number(value) : 1;
 }
 
-function splitPlayerNames(raw = '') {
-  return [...new Set(
-    String(raw || '')
-      .split(/\n|,/)
-      .map((name) => String(name || '').trim())
-      .filter(Boolean),
-  )];
-}
-
-function getDuelPlayerNames(playersMap = {}) {
+function getDuelPlayerEntries(playersMap = {}) {
   if (!playersMap || typeof playersMap !== 'object') return [];
-  return [...new Set(
-    Object.values(playersMap)
-      .map((player) => String(player?.name || '').trim())
-      .filter(Boolean),
-  )];
+  return Object.entries(playersMap)
+    .map(([uid, player]) => ({
+      uid: String(uid || '').trim(),
+      name: String(player?.name || '').trim(),
+    }))
+    .filter((entry) => entry.uid && entry.name)
+    .slice(0, 24);
 }
 
 function getPlayers(room = state.room) {
@@ -114,6 +109,20 @@ function getCardIcon(cardId = '') {
 
 function canHostMutate() {
   return isHostMode;
+}
+
+function getCurrentSheriffId(room = state.room) {
+  const queue = Array.isArray(room?.sheriffQueue) ? room.sheriffQueue : [];
+  const activeRound = Math.max(0, Number(room?.activeRoundIndex || 0));
+  return String(queue[activeRound] || '');
+}
+
+function pickMarketPlayerId(players = [], sheriffId = '') {
+  const candidates = players.filter((player) => player.id !== sheriffId);
+  const source = candidates.length ? candidates : players;
+  if (!source.length) return '';
+  const index = Math.floor(Math.random() * source.length);
+  return String(source[index]?.id || '');
 }
 
 function renderRoomSummary() {
@@ -144,6 +153,18 @@ function renderPlayerSelects() {
   el.cardTypeInput.innerHTML = CARD_CATALOG.map((card) => `<option value="${card.id}">${getCardIcon(card.id)} ${card.name}</option>`).join('');
 }
 
+function renderDuelPlayersPreview() {
+  if (!el.duelPlayersPreview) return;
+  const players = state.duelPlayers;
+  if (!players.length) {
+    el.duelPlayersPreview.innerHTML = '<li>ยังไม่พบผู้เล่นจากห้อง Duel</li>';
+    return;
+  }
+  el.duelPlayersPreview.innerHTML = players
+    .map((player, index) => `<li>${index + 1}. ${player.name}</li>`)
+    .join('');
+}
+
 function renderDeckStatus() {
   if (!el.deckStatus) return;
   const deck = state.room?.deck || createInitialDeck();
@@ -163,18 +184,118 @@ function renderGameStatus() {
   const queue = Array.isArray(state.room?.sheriffQueue) ? state.room.sheriffQueue : [];
   const activeRound = Math.max(0, Number(state.room?.activeRoundIndex || 0));
   const players = getPlayers();
-  const currentSheriffId = String(queue[activeRound] || '');
+  const currentSheriffId = getCurrentSheriffId();
   const currentSheriff = players.find((player) => player.id === currentSheriffId)?.name || '-';
+  const marketPlayerId = String(state.room?.marketPlayerId || '');
+  const marketPlayer = players.find((player) => player.id === marketPlayerId)?.name || '-';
   const status = String(state.room?.status || 'setup');
+  const me = players.find((player) => player.sourceUid && player.sourceUid === state.uid)?.name || '-';
 
   el.gameStatus.innerHTML = [
     ['สถานะ', status === 'finished' ? 'จบเกม' : status === 'playing' ? 'กำลังเล่น' : 'ตั้งค่า'],
     ['รอบปัจจุบัน', `${Math.min(activeRound + 1, Math.max(queue.length, 1))}/${Math.max(queue.length, 1)}`],
-    ['ตำรวจรอบนี้', currentSheriff],
+    ['🚨 ตำรวจรอบนี้', currentSheriff],
+    ['🛒 คนเข้าตลาดรอบนี้', marketPlayer],
+    ['🙋 คุณคือ', me],
     ['รอบตำรวจต่อคน', `${normalizeRounds(state.room?.roundsPerPlayer || 1)} รอบ`],
     ['ผู้เล่นรวม', `${players.length} คน`],
     ['รอบที่เหลือ', `${Math.max(0, queue.length - activeRound - 1)} รอบ`],
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
+}
+
+function renderScoreHighlights() {
+  if (!el.scoreHighlights) return;
+  const ranked = computePlayerTotals(getPlayers()).sort((a, b) => b.total - a.total);
+  if (!ranked.length) {
+    el.scoreHighlights.innerHTML = '';
+    return;
+  }
+  const top = ranked.slice(0, 3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const highestMoney = [...ranked].sort((a, b) => b.money - a.money)[0];
+  el.scoreHighlights.innerHTML = [
+    ...top.map((player, index) => `
+      <article class="score-card">
+        <small>${medals[index] || '🏅'} อันดับ ${index + 1}</small>
+        <strong>${player.name} • ${player.total} แต้ม</strong>
+        <small>💰 ${player.money} + 🃏 ${player.cardPoints} + 🎁 ${player.bonus}</small>
+      </article>
+    `),
+    `<article class="score-card">
+      <small>💸 เงินมากสุดตอนนี้</small>
+      <strong>${highestMoney?.name || '-'} • ${highestMoney?.money || 0}</strong>
+      <small>ช่วยดูว่าระบบปรับเงินทำงานถูกต้องไหม</small>
+    </article>`,
+  ].join('');
+}
+
+function renderSystemHealth() {
+  if (!el.systemHealth) return;
+  const room = state.room;
+  const players = getPlayers(room);
+  if (!room || !players.length) {
+    el.systemHealth.innerHTML = '';
+    return;
+  }
+  const deck = room.deck || createInitialDeck();
+  const discard = room.discard || createEmptyPile();
+  const totalDeck = Object.values(deck).reduce((sum, value) => sum + Number(value || 0), 0);
+  const totalDiscard = Object.values(discard).reduce((sum, value) => sum + Number(value || 0), 0);
+  const totalHands = players.reduce((sum, player) => (
+    sum + Object.values(player?.hand || {}).reduce((inner, qty) => inner + Number(qty || 0), 0)
+  ), 0);
+  const expectedTotalCards = CARD_CATALOG.reduce((sum, card) => sum + Number(card.deckCount || 0), 0);
+  const activeRound = Number(room?.activeRoundIndex || 0);
+  const queue = Array.isArray(room?.sheriffQueue) ? room.sheriffQueue : [];
+  const rounds = normalizeRounds(room?.roundsPerPlayer || 1);
+  const sheriffId = getCurrentSheriffId(room);
+  const marketId = String(room?.marketPlayerId || '');
+  const checks = [
+    {
+      ok: players.length >= 3 && players.length <= 24,
+      message: `👥 จำนวนผู้เล่น ${players.length} คน`,
+    },
+    {
+      ok: String(room?.status || '') === 'setup' || queue.length === players.length * rounds,
+      message: `🚨 คิวตำรวจ ${queue.length}/${players.length * rounds} รอบ`,
+    },
+    {
+      ok: activeRound >= 0 && activeRound <= queue.length,
+      message: `🔁 ดัชนีรอบ ${activeRound + 1}/${Math.max(queue.length, 1)}`,
+    },
+    {
+      ok: totalDeck + totalDiscard + totalHands === expectedTotalCards,
+      message: `🧮 การ์ดรวม ${totalDeck + totalDiscard + totalHands}/${expectedTotalCards}`,
+    },
+    {
+      ok: players.length <= 1 || !marketId || marketId !== sheriffId,
+      message: `🛒 ตลาด/ตำรวจ ${marketId && sheriffId && marketId === sheriffId ? 'ซ้ำกัน' : 'ไม่ซ้ำ'}`,
+    },
+  ];
+  el.systemHealth.innerHTML = checks
+    .map((check) => `<div class="health-item ${check.ok ? 'ok' : 'warn'}">${check.ok ? '✅' : '⚠️'} ${check.message}</div>`)
+    .join('');
+}
+
+function renderRoleStrip() {
+  if (!el.playerRoleStrip) return;
+  const players = getPlayers();
+  const sheriffId = getCurrentSheriffId();
+  const marketPlayerId = String(state.room?.marketPlayerId || '');
+  if (!players.length) {
+    el.playerRoleStrip.innerHTML = '';
+    return;
+  }
+  el.playerRoleStrip.innerHTML = players.map((player) => {
+    const isSheriff = player.id === sheriffId;
+    const isMarket = player.id === marketPlayerId;
+    const isYou = Boolean(player.sourceUid && player.sourceUid === state.uid);
+    const classes = ['role-pill'];
+    if (isSheriff) classes.push('is-sheriff');
+    if (isMarket) classes.push('is-market');
+    if (isYou) classes.push('is-you');
+    return `<span class="${classes.join(' ')}">${isSheriff ? '🚨 ' : ''}${isMarket ? '🛒 ' : ''}${player.name}${isYou ? ' (คุณ)' : ''}</span>`;
+  }).join('');
 }
 
 function renderTable() {
@@ -183,10 +304,10 @@ function renderTable() {
   el.playersTableBody.innerHTML = ranked.map((player) => `
     <tr>
       <td>${player.name}</td>
-      <td>${player.money}</td>
-      <td>${player.cardPoints}</td>
-      <td>${player.bonus}</td>
-      <td><strong>${player.total}</strong></td>
+      <td><strong>${player.money}</strong></td>
+      <td><strong>${player.cardPoints}</strong></td>
+      <td><strong>${player.bonus}</strong></td>
+      <td><strong>🏆 ${player.total}</strong></td>
       <td>
         <span class="money-actions">
           <button type="button" data-money="-5" data-player-id="${player.id}" ${canHostMutate() ? '' : 'disabled'}>-5</button>
@@ -246,9 +367,13 @@ function setControlAvailability() {
 
 function renderAll() {
   renderRoomSummary();
+  renderDuelPlayersPreview();
   renderPlayerSelects();
   renderDeckStatus();
   renderGameStatus();
+  renderScoreHighlights();
+  renderRoleStrip();
+  renderSystemHealth();
   renderTable();
   renderWinner();
 
@@ -295,13 +420,8 @@ function buildInitialRoomState() {
 
 async function startGame() {
   const rounds = normalizeRounds(el.roundsPerPlayerInput?.value || 1);
-  const manualNames = splitPlayerNames(el.playerNamesInput?.value || '');
-  const duelNames = state.duelPlayerNames.slice(0, 24);
-  const names = manualNames.length >= 3 ? manualNames : duelNames;
-  if (!manualNames.length && names.length) {
-    el.playerNamesInput.value = names.join('\n');
-  }
-  if (names.length < 3 || names.length > 24) {
+  const duelEntries = state.duelPlayers.slice(0, 24);
+  if (duelEntries.length < 3 || duelEntries.length > 24) {
     if (el.setupError) {
       el.setupError.textContent = 'ยังมีผู้เล่นในห้องไม่พอ (ต้องมี 3 ถึง 24 คนจากห้อง Duel)';
       el.setupError.classList.remove('hidden');
@@ -310,8 +430,13 @@ async function startGame() {
   }
   el.setupError?.classList.add('hidden');
 
-  const players = names.map((name, index) => createPlayer(name, `p${index + 1}`));
+  const players = duelEntries.map((entry, index) => ({
+    ...createPlayer(entry.name, `p${index + 1}`),
+    sourceUid: entry.uid,
+  }));
   const queue = buildSheriffQueue(players.map((player) => player.id), rounds);
+  const firstSheriffId = String(queue[0] || '');
+  const marketPlayerId = pickMarketPlayerId(players, firstSheriffId);
   const baseRoom = {
     players,
     deck: createInitialDeck(),
@@ -331,10 +456,11 @@ async function startGame() {
     roundsPerPlayer: rounds,
     players: readyPlayers,
     sheriffQueue: queue,
+    marketPlayerId,
     activeRoundIndex: 0,
     deck: readyDeck,
     discard: createEmptyPile(),
-    lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • ตำรวจรอบแรก: ${readyPlayers.find((p) => p.id === queue[0])?.name || '-'}`,
+    lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • 🚨 ${readyPlayers.find((p) => p.id === firstSheriffId)?.name || '-'} • 🛒 ${readyPlayers.find((p) => p.id === marketPlayerId)?.name || '-'}`,
     startedAtMs: Date.now(),
   }));
 }
@@ -434,10 +560,13 @@ async function nextSheriffRound() {
     }
     const nextSheriffId = String(queue[nextIndex] || '');
     const nextSheriffName = getPlayers(room).find((player) => player.id === nextSheriffId)?.name || '-';
+    const marketPlayerId = pickMarketPlayerId(getPlayers(room), nextSheriffId);
+    const marketPlayerName = getPlayers(room).find((player) => player.id === marketPlayerId)?.name || '-';
     return {
       ...room,
+      marketPlayerId,
       activeRoundIndex: nextIndex,
-      lastEvent: `เริ่มรอบ ${nextIndex + 1}: ตำรวจคือ ${nextSheriffName}`,
+      lastEvent: `เริ่มรอบ ${nextIndex + 1}: 🚨 ตำรวจคือ ${nextSheriffName} • 🛒 เข้าตลาดคือ ${marketPlayerName}`,
     };
   });
 }
@@ -507,15 +636,13 @@ function subscribeRoom() {
 }
 
 function subscribeDuelPlayersForPrefill() {
-  if (!duelRoomPlayersRef || !el.playerNamesInput) return;
+  if (!duelRoomPlayersRef) return;
   onValue(duelRoomPlayersRef, (snapshot) => {
-    const names = getDuelPlayerNames(snapshot.val());
-    state.duelPlayerNames = names;
-    if (isHostMode && !state.duelPlayersPrefilled && names.length >= 3 && !String(el.playerNamesInput.value || '').trim()) {
-      el.playerNamesInput.value = names.slice(0, 24).join('\n');
-      state.duelPlayersPrefilled = true;
-    }
+    const playersRaw = snapshot.val();
+    const entries = getDuelPlayerEntries(playersRaw);
+    state.duelPlayers = entries;
     if (el.setupError) el.setupError.classList.add('hidden');
+    renderDuelPlayersPreview();
   });
 }
 
