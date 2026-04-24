@@ -28,8 +28,8 @@ const firebaseConfig = {
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
-const role = String(params.get('role') || 'join').trim().toLowerCase();
-const isHostMode = role === 'host';
+const rawRole = String(params.get('role') || '').trim().toLowerCase();
+const role = rawRole === 'host' || rawRole === 'join' ? rawRole : '';
 
 
 const app = initializeApp(firebaseConfig);
@@ -37,11 +37,13 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const roomRef = roomId ? ref(db, `sheriff_th_rooms/${roomId}`) : null;
 const duelRoomPlayersRef = roomId ? ref(db, `rooms/${roomId}/players`) : null;
+const duelRoomHostRef = roomId ? ref(db, `rooms/${roomId}/hostUid`) : null;
 
 const state = {
   uid: '',
   room: null,
   duelPlayers: [],
+  isHostMode: role ? role === 'host' : roomId ? null : true,
 };
 
 const CARD_ICON_BY_ID = {
@@ -107,7 +109,7 @@ function getCardIcon(cardId = '') {
 }
 
 function canHostMutate() {
-  return isHostMode;
+  return state.isHostMode === true;
 }
 
 function getCurrentSheriffId(room = state.room) {
@@ -125,10 +127,14 @@ function pickMarketPlayerId(players = [], sheriffId = '') {
 }
 
 function renderRoomSummary() {
+  const isHostMode = state.isHostMode === true;
+  const isJoinMode = state.isHostMode === false;
   if (el.hostOnlyHint) {
     el.hostOnlyHint.textContent = isHostMode
       ? 'คุณเป็น Host: ระบบจะดึงรายชื่อผู้เล่นจาก Duel ให้อัตโนมัติ และเริ่มเกมได้ทันทีเมื่อครบจำนวน'
-      : 'คุณเป็น Join: ไม่ต้องตั้งค่าเพิ่ม รอ Host เริ่มเกมแล้วกระดานจะอัปเดตแบบเรียลไทม์';
+      : isJoinMode
+        ? 'คุณเป็น Join: ไม่ต้องตั้งค่าเพิ่ม รอ Host เริ่มเกมแล้วกระดานจะอัปเดตแบบเรียลไทม์'
+        : 'กำลังตรวจสอบสิทธิ์ Host จากห้อง Duel...';
   }
 }
 
@@ -366,7 +372,9 @@ function setControlAvailability() {
   if (el.startGameBtn) {
     el.startGameBtn.disabled = !isHost || !canStartByPlayerCount;
     el.startGameBtn.title = !isHost
-      ? 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
+      ? state.isHostMode === null
+        ? 'กำลังตรวจสอบสิทธิ์ Host...'
+        : 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
       : canStartByPlayerCount
         ? ''
         : 'ต้องมีผู้เล่นจากห้อง Duel 3-24 คน';
@@ -392,7 +400,7 @@ function renderAll() {
   renderWinner();
 
   const status = String(state.room?.status || 'setup');
-  const shouldHideSetup = status !== 'setup' || !isHostMode;
+  const shouldHideSetup = status !== 'setup' || state.isHostMode !== true;
   el.setupCard?.classList.toggle('hidden', shouldHideSetup);
   el.gameCard?.classList.toggle('hidden', status === 'setup');
 
@@ -420,7 +428,7 @@ function buildInitialRoomState() {
   const rounds = normalizeRounds(params.get('sheriffRoundsPerPlayer'));
   return {
     createdAtMs: Date.now(),
-    createdByRole: role,
+    createdByRole: canHostMutate() ? 'host' : 'join',
     status: 'setup',
     roundsPerPlayer: rounds,
     players: [],
@@ -637,14 +645,28 @@ function subscribeRoom() {
   }
   onValue(roomRef, async (snapshot) => {
     const data = snapshot.val();
-    if (!data && isHostMode) {
+    if (!data && canHostMutate()) {
       await mutateRoom(() => buildInitialRoomState());
       return;
     }
     state.room = data || buildInitialRoomState();
-    if (!data && !isHostMode) {
+    if (!data && !canHostMutate()) {
       state.room.lastEvent = 'รอ Host เปิดเกมจ่ายส่วยในห้องนี้';
     }
+    renderAll();
+  });
+}
+
+function subscribeHostRoleFallback() {
+  if (role) return;
+  if (!duelRoomHostRef) {
+    state.isHostMode = true;
+    renderAll();
+    return;
+  }
+  onValue(duelRoomHostRef, (snapshot) => {
+    const hostUid = String(snapshot.val() || '').trim();
+    state.isHostMode = Boolean(hostUid) && Boolean(state.uid) && hostUid === state.uid;
     renderAll();
   });
 }
@@ -665,6 +687,7 @@ async function init() {
   renderRoomSummary();
   wireEvents();
   await ensureAuth();
+  subscribeHostRoleFallback();
   subscribeRoom();
   subscribeDuelPlayersForPrefill();
 }
