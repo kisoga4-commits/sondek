@@ -95,8 +95,7 @@ function getDuelPlayerEntries(playersMap = {}) {
       uid: String(uid || '').trim(),
       name: String(player?.name || '').trim(),
     }))
-    .filter((entry) => entry.uid && entry.name)
-    .slice(0, 24);
+    .filter((entry) => entry.uid && entry.name);
 }
 
 function getPlayers(room = state.room) {
@@ -160,9 +159,14 @@ function renderDuelPlayersPreview() {
     el.duelPlayersPreview.innerHTML = '<li>ยังไม่พบผู้เล่นจากห้อง Duel</li>';
     return;
   }
-  el.duelPlayersPreview.innerHTML = players
+  const shownPlayers = players.slice(0, 24);
+  const overflowCount = Math.max(0, players.length - shownPlayers.length);
+  el.duelPlayersPreview.innerHTML = shownPlayers
     .map((player, index) => `<li>${index + 1}. ${player.name}</li>`)
     .join('');
+  if (overflowCount > 0) {
+    el.duelPlayersPreview.innerHTML += `<li>…และอีก ${overflowCount} คน (ระบบรองรับสูงสุด 24 คน)</li>`;
+  }
 }
 
 function renderDeckStatus() {
@@ -352,11 +356,21 @@ function setControlAvailability() {
   const isHost = canHostMutate();
   const status = String(state.room?.status || 'setup');
   const playing = status === 'playing';
+  const duelPlayerCount = state.duelPlayers.length;
+  const canStartByPlayerCount = duelPlayerCount >= 3 && duelPlayerCount <= 24;
 
   [el.startGameBtn, el.drawCardBtn, el.discardCardBtn, el.reshuffleBtn, el.nextSheriffBtn, el.finishGameBtn].forEach((button) => {
     if (!button) return;
     button.disabled = !isHost;
   });
+  if (el.startGameBtn) {
+    el.startGameBtn.disabled = !isHost || !canStartByPlayerCount;
+    el.startGameBtn.title = !isHost
+      ? 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
+      : canStartByPlayerCount
+        ? ''
+        : 'ต้องมีผู้เล่นจากห้อง Duel 3-24 คน';
+  }
 
   if (el.drawCardBtn) el.drawCardBtn.disabled = !isHost || !playing;
   if (el.discardCardBtn) el.discardCardBtn.disabled = !isHost || !playing;
@@ -420,7 +434,7 @@ function buildInitialRoomState() {
 
 async function startGame() {
   const rounds = normalizeRounds(el.roundsPerPlayerInput?.value || 1);
-  const duelEntries = state.duelPlayers.slice(0, 24);
+  const duelEntries = state.duelPlayers;
   if (duelEntries.length < 3 || duelEntries.length > 24) {
     if (el.setupError) {
       el.setupError.textContent = 'ยังมีผู้เล่นในห้องไม่พอ (ต้องมี 3 ถึง 24 คนจากห้อง Duel)';
@@ -430,7 +444,7 @@ async function startGame() {
   }
   el.setupError?.classList.add('hidden');
 
-  const players = duelEntries.map((entry, index) => ({
+  const players = duelEntries.slice(0, 24).map((entry, index) => ({
     ...createPlayer(entry.name, `p${index + 1}`),
     sourceUid: entry.uid,
   }));
