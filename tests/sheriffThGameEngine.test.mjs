@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildWinnerSummary,
   buildSheriffQueue,
   computePlayerTotals,
   createEmptyPile,
@@ -69,4 +70,19 @@ test('computePlayerTotals includes bonus and totals', () => {
   assert.ok(second.bonus >= 10);
   assert.equal(typeof first.total, 'number');
   assert.equal(typeof second.total, 'number');
+});
+
+test('buildWinnerSummary sorts players by total and returns rank metadata', () => {
+  const p1 = createPlayer('A', 'p1');
+  const p2 = createPlayer('B', 'p2');
+  p1.money = 80;
+  p2.money = 50;
+  p2.hand.herb = 2;
+
+  const summary = buildWinnerSummary([p1, p2]);
+  assert.equal(summary.length, 2);
+  assert.equal(summary[0].rank, 1);
+  assert.equal(summary[1].rank, 2);
+  assert.equal(summary[0].name, 'A');
+  assert.equal(summary[0].total >= summary[1].total, true);
 });

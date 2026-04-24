@@ -139,3 +139,16 @@ export function reshuffleDiscard(room = {}) {
   });
   return { ...room, deck, discard };
 }
+
+export function buildWinnerSummary(players = []) {
+  const ranked = computePlayerTotals(players).sort((a, b) => b.total - a.total);
+  return ranked.map((player, index) => ({
+    rank: index + 1,
+    id: player.id,
+    name: player.name,
+    money: player.money,
+    cardPoints: player.cardPoints,
+    bonus: player.bonus,
+    total: player.total,
+  }));
+}

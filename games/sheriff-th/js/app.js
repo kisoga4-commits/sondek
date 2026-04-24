@@ -2,6 +2,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebas
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import { getDatabase, onValue, ref, runTransaction } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js';
 import {
+  buildWinnerSummary,
   buildSheriffQueue,
   CARD_CATALOG,
   computePlayerTotals,
@@ -63,6 +64,7 @@ const el = {
   finishGameBtn: document.getElementById('finishGameBtn'),
   resultCard: document.getElementById('resultCard'),
   winnerText: document.getElementById('winnerText'),
+  winnerDetail: document.getElementById('winnerDetail'),
   cardsInfoList: document.getElementById('cardsInfoList'),
 };
 
@@ -192,16 +194,23 @@ function renderTable() {
 }
 
 function renderWinner() {
-  const ranked = computePlayerTotals(getPlayers()).sort((a, b) => b.total - a.total);
+  const ranked = buildWinnerSummary(getPlayers());
   const winner = ranked[0];
   const status = String(state.room?.status || 'setup');
   if (status !== 'finished' || !winner) {
     el.resultCard?.classList.add('hidden');
+    if (el.winnerDetail) el.winnerDetail.innerHTML = '';
     return;
   }
   el.resultCard?.classList.remove('hidden');
   if (el.winnerText) {
     el.winnerText.textContent = `🏆 ผู้ชนะคือ ${winner.name} • รวม ${winner.total} (เงิน ${winner.money} + แต้มการ์ด ${winner.cardPoints} + โบนัส ${winner.bonus})`;
+  }
+  if (el.winnerDetail) {
+    el.winnerDetail.innerHTML = ranked
+      .slice(0, 5)
+      .map((player) => `${player.rank}. ${player.name} = ${player.total} คะแนน`)
+      .join('<br/>');
   }
 }
 
@@ -241,7 +250,13 @@ function renderAll() {
 }
 
 async function mutateRoom(mutator) {
-  if (!roomRef || !canHostMutate()) return;
+  if (!canHostMutate()) return;
+  if (!roomRef) {
+    const base = state.room && typeof state.room === 'object' ? state.room : buildInitialRoomState();
+    state.room = mutator(base);
+    renderAll();
+    return;
+  }
   await runTransaction(roomRef, (current) => {
     const base = current && typeof current === 'object' ? current : buildInitialRoomState();
     return mutator(base);
