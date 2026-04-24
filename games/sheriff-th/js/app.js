@@ -49,6 +49,16 @@ const state = {
   isHostMode: role ? role === 'host' : roomId ? null : true,
 };
 
+function isPermissionDenied(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code.includes('permission-denied')
+    || code.includes('permission_denied')
+    || message.includes('permission_denied')
+    || message.includes('permission denied')
+    || message.includes('missing or insufficient permissions');
+}
+
 const CARD_ICON_BY_ID = {
   rice: '🌾',
   egg: '🥚',
@@ -421,10 +431,24 @@ async function mutateRoom(mutator) {
     renderAll();
     return;
   }
-  await runTransaction(roomRef, (current) => {
-    const base = current && typeof current === 'object' ? current : buildInitialRoomState();
-    return mutator(base);
-  });
+  const applyMutation = async () => {
+    await runTransaction(roomRef, (current) => {
+      const base = current && typeof current === 'object' ? current : buildInitialRoomState();
+      return mutator(base);
+    });
+  };
+  try {
+    await applyMutation();
+  } catch (error) {
+    if (!isPermissionDenied(error)) throw error;
+    await ensureDuelMembershipForCurrentUser();
+    try {
+      await applyMutation();
+    } catch (retryError) {
+      if (!isPermissionDenied(retryError)) throw retryError;
+      throw new Error('ยังไม่มีสิทธิ์เริ่มเกมในห้องนี้ กรุณากลับหน้า Duel แล้วกดเข้าห้องใหม่ก่อนเริ่มเกม');
+    }
+  }
 }
 
 function buildInitialRoomState() {
@@ -691,6 +715,17 @@ function subscribeRoom() {
     state.room = data || buildInitialRoomState();
     if (!data && !canHostMutate()) {
       state.room.lastEvent = 'รอ Host เปิดเกมจ่ายส่วยในห้องนี้';
+    }
+    renderAll();
+  }, (error) => {
+    if (!isPermissionDenied(error)) return;
+    state.room = {
+      ...buildInitialRoomState(),
+      lastEvent: 'ยังไม่มีสิทธิ์เข้าห้องเกมจ่ายส่วย กรุณากลับหน้า Duel แล้วเข้าห้องใหม่',
+    };
+    if (el.setupError) {
+      el.setupError.textContent = 'ยังไม่มีสิทธิ์เข้าห้องเกมจ่ายส่วย กรุณากลับหน้า Duel แล้วเข้าห้องใหม่';
+      el.setupError.classList.remove('hidden');
     }
     renderAll();
   });
