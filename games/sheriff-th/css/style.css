@@ -41,6 +41,38 @@ body {
   align-items: flex-start;
 }
 
+.info-shortcuts-card h2 {
+  margin-bottom: 12px;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.shortcut-card {
+  border: 1px solid #dbe3fb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8faff;
+  color: #243065;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.shortcut-card .icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: #eaf0ff;
+  border-radius: 999px;
+}
+
 h1, h2, h3 { margin: 0 0 8px; }
 
 .muted { color: #5d627f; }
@@ -191,4 +223,20 @@ dialog {
   border-radius: 10px;
   padding: 8px;
   background: #f8faff;
+}
+
+.card-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #e8eeff;
+  display: grid;
+  place-items: center;
 }

@@ -42,10 +42,21 @@ const state = {
   uid: '',
   room: null,
   duelPlayersPrefilled: false,
+  duelPlayerNames: [],
+};
+
+const CARD_ICON_BY_ID = {
+  rice: '🌾',
+  egg: '🥚',
+  veg: '🥬',
+  mackerel: '🐟',
+  liquor: '🍷',
+  smoke: '🚬',
+  rare_sea: '🦐',
+  herb: '🌿',
 };
 
 const el = {
-  roomSummary: document.getElementById('roomSummary'),
   hostOnlyHint: document.getElementById('hostOnlyHint'),
   roundsPerPlayerInput: document.getElementById('roundsPerPlayerInput'),
   playerNamesInput: document.getElementById('playerNamesInput'),
@@ -70,11 +81,6 @@ const el = {
   winnerDetail: document.getElementById('winnerDetail'),
   cardsInfoList: document.getElementById('cardsInfoList'),
 };
-
-function safeParam(name, fallback = '-') {
-  const value = String(params.get(name) || '').trim();
-  return value || fallback;
-}
 
 function normalizeRounds(value) {
   return [1, 2].includes(Number(value)) ? Number(value) : 1;
@@ -102,37 +108,32 @@ function getPlayers(room = state.room) {
   return Array.isArray(room?.players) ? room.players : [];
 }
 
+function getCardIcon(cardId = '') {
+  return CARD_ICON_BY_ID[String(cardId || '')] || '🃏';
+}
+
 function canHostMutate() {
   return isHostMode;
 }
 
 function renderRoomSummary() {
-  const rows = [
-    ['Room', safeParam('roomId', '-')],
-    ['PIN', safeParam('pin', '-')],
-    ['สิทธิ์', isHostMode ? 'Host' : 'Join'],
-    ['ผู้เล่นจาก Duel', safeParam('player', 'ผู้เล่น')],
-    ['โหมด', 'จ่ายส่วย (ระบบเสริมแยกจาก Duel หลัก)'],
-    ['การเชื่อมต่อ', state.room ? 'Sync แล้ว' : 'กำลังรอข้อมูล...'],
-  ];
-
-  if (el.roomSummary) {
-    el.roomSummary.innerHTML = rows
-      .map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`)
-      .join('');
-  }
-
   if (el.hostOnlyHint) {
     el.hostOnlyHint.textContent = isHostMode
-      ? 'คุณเป็น Host: สามารถเริ่มเกม, จับ/ทิ้งการ์ด, ปรับเงิน และสรุปผลได้'
-      : 'คุณเป็น Join: ดูกระดานกลางแบบเรียลไทม์ได้ (สิทธิ์แก้ไขอยู่ที่ Host)';
+      ? 'คุณเป็น Host: ระบบจะดึงรายชื่อผู้เล่นจาก Duel ให้อัตโนมัติ และเริ่มเกมได้ทันทีเมื่อครบจำนวน'
+      : 'คุณเป็น Join: ไม่ต้องตั้งค่าเพิ่ม รอ Host เริ่มเกมแล้วกระดานจะอัปเดตแบบเรียลไทม์';
   }
 }
 
 function renderCardsInfo() {
   if (!el.cardsInfoList) return;
   el.cardsInfoList.innerHTML = CARD_CATALOG.map((card) => (
-    `<article class="card-item"><strong>${card.name}</strong><br><small>${card.type === 'legal' ? 'ของปกติ' : 'ของเถื่อน'} • แต้ม ${card.points} • ค่าปรับ ${card.fine} • ในกองกลาง ${card.deckCount}</small></article>`
+    `<article class="card-item">
+      <div class="card-item-head">
+        <span class="card-icon" aria-hidden="true">${getCardIcon(card.id)}</span>
+        <strong>${card.name}</strong>
+      </div>
+      <small>${card.type === 'legal' ? 'ของปกติ ✅' : 'ของเถื่อน ⚠️'} • แต้ม ${card.points} • ค่าปรับ ${card.fine} • ในกองกลาง ${card.deckCount}</small>
+    </article>`
   )).join('');
 }
 
@@ -140,7 +141,7 @@ function renderPlayerSelects() {
   const players = getPlayers();
   if (!el.cardPlayerInput || !el.cardTypeInput) return;
   el.cardPlayerInput.innerHTML = players.map((player) => `<option value="${player.id}">${player.name}</option>`).join('');
-  el.cardTypeInput.innerHTML = CARD_CATALOG.map((card) => `<option value="${card.id}">${card.name}</option>`).join('');
+  el.cardTypeInput.innerHTML = CARD_CATALOG.map((card) => `<option value="${card.id}">${getCardIcon(card.id)} ${card.name}</option>`).join('');
 }
 
 function renderDeckStatus() {
@@ -153,7 +154,7 @@ function renderDeckStatus() {
   el.deckStatus.innerHTML = [
     ['การ์ดในกองกลาง', `${totalDeck} ใบ`],
     ['การ์ดในกองทิ้ง', `${totalDiscard} ใบ`],
-    ...CARD_CATALOG.map((card) => [`${card.name}`, `กองกลาง ${Number(deck[card.id] || 0)} • ทิ้ง ${Number(discard[card.id] || 0)}`]),
+    ...CARD_CATALOG.map((card) => [`${getCardIcon(card.id)} ${card.name}`, `กองกลาง ${Number(deck[card.id] || 0)} • ทิ้ง ${Number(discard[card.id] || 0)}`]),
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
@@ -252,7 +253,8 @@ function renderAll() {
   renderWinner();
 
   const status = String(state.room?.status || 'setup');
-  el.setupCard?.classList.toggle('hidden', status !== 'setup');
+  const shouldHideSetup = status !== 'setup' || !isHostMode;
+  el.setupCard?.classList.toggle('hidden', shouldHideSetup);
   el.gameCard?.classList.toggle('hidden', status === 'setup');
 
   if (el.eventLog) {
@@ -293,10 +295,15 @@ function buildInitialRoomState() {
 
 async function startGame() {
   const rounds = normalizeRounds(el.roundsPerPlayerInput?.value || 1);
-  const names = splitPlayerNames(el.playerNamesInput?.value || '');
+  const manualNames = splitPlayerNames(el.playerNamesInput?.value || '');
+  const duelNames = state.duelPlayerNames.slice(0, 24);
+  const names = manualNames.length >= 3 ? manualNames : duelNames;
+  if (!manualNames.length && names.length) {
+    el.playerNamesInput.value = names.join('\n');
+  }
   if (names.length < 3 || names.length > 24) {
     if (el.setupError) {
-      el.setupError.textContent = 'กรุณาใส่ชื่อผู้เล่นตั้งแต่ 3 ถึง 24 คน';
+      el.setupError.textContent = 'ยังมีผู้เล่นในห้องไม่พอ (ต้องมี 3 ถึง 24 คนจากห้อง Duel)';
       el.setupError.classList.remove('hidden');
     }
     return;
@@ -364,7 +371,7 @@ async function drawCardToPlayer() {
     const players = getPlayers(result.room);
     const deck = result.room.deck;
     const drawnSummary = result.drawnCards
-      .map((id) => getCardById(id)?.name || id)
+      .map((id) => `${getCardIcon(id)} ${getCardById(id)?.name || id}`)
       .filter(Boolean)
       .join(', ');
 
@@ -396,7 +403,7 @@ async function discardCardFromPlayer() {
       ...room,
       players,
       discard,
-      lastEvent: `${players.find((player) => player.id === playerId)?.name || 'ผู้เล่น'} ทิ้ง ${getCardById(cardId)?.name || cardId} x${qty}`,
+      lastEvent: `${players.find((player) => player.id === playerId)?.name || 'ผู้เล่น'} ทิ้ง ${getCardIcon(cardId)} ${getCardById(cardId)?.name || cardId} x${qty}`,
     };
   });
 }
@@ -500,14 +507,14 @@ function subscribeRoom() {
 }
 
 function subscribeDuelPlayersForPrefill() {
-  if (!duelRoomPlayersRef || !isHostMode || !el.playerNamesInput || state.duelPlayersPrefilled) return;
+  if (!duelRoomPlayersRef || !el.playerNamesInput) return;
   onValue(duelRoomPlayersRef, (snapshot) => {
-    if (state.duelPlayersPrefilled) return;
     const names = getDuelPlayerNames(snapshot.val());
-    if (names.length < 3) return;
-    if (String(el.playerNamesInput.value || '').trim()) return;
-    el.playerNamesInput.value = names.join('\n');
-    state.duelPlayersPrefilled = true;
+    state.duelPlayerNames = names;
+    if (isHostMode && !state.duelPlayersPrefilled && names.length >= 3 && !String(el.playerNamesInput.value || '').trim()) {
+      el.playerNamesInput.value = names.slice(0, 24).join('\n');
+      state.duelPlayersPrefilled = true;
+    }
     if (el.setupError) el.setupError.classList.add('hidden');
   });
 }
