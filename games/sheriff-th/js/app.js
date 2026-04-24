@@ -30,6 +30,8 @@ const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
 const rawRole = String(params.get('role') || '').trim().toLowerCase();
 const role = rawRole === 'host' || rawRole === 'join' ? rawRole : '';
+const requestedUid = String(params.get('uid') || '').trim();
+const requestedPlayerName = String(params.get('player') || '').trim();
 
 
 const app = initializeApp(firebaseConfig);
@@ -441,50 +443,57 @@ function buildInitialRoomState() {
 }
 
 async function startGame() {
-  const rounds = normalizeRounds(el.roundsPerPlayerInput?.value || 1);
-  const duelEntries = state.duelPlayers;
-  if (duelEntries.length < 3 || duelEntries.length > 24) {
+  try {
+    const rounds = normalizeRounds(el.roundsPerPlayerInput?.value || 1);
+    const duelEntries = state.duelPlayers;
+    if (duelEntries.length < 3 || duelEntries.length > 24) {
+      if (el.setupError) {
+        el.setupError.textContent = 'ยังมีผู้เล่นในห้องไม่พอ (ต้องมี 3 ถึง 24 คนจากห้อง Duel)';
+        el.setupError.classList.remove('hidden');
+      }
+      return;
+    }
+    el.setupError?.classList.add('hidden');
+
+    const players = duelEntries.slice(0, 24).map((entry, index) => ({
+      ...createPlayer(entry.name, `p${index + 1}`),
+      sourceUid: entry.uid,
+    }));
+    const queue = buildSheriffQueue(players.map((player) => player.id), rounds);
+    const firstSheriffId = String(queue[0] || '');
+    const marketPlayerId = pickMarketPlayerId(players, firstSheriffId);
+    const baseRoom = {
+      players,
+      deck: createInitialDeck(),
+      discard: createEmptyPile(),
+    };
+    const dealt = dealInitialHands(baseRoom, { cardsPerPlayer: 6 });
+    const readyPlayers = getPlayers(dealt.room);
+    const readyDeck = dealt.room?.deck || createInitialDeck();
+    const dealtCards = Number(dealt.cardsPerPlayer || 0);
+    const dealWarning = dealtCards < 6
+      ? ` (การ์ดเริ่มต้นเฉลี่ยคนละ ${dealtCards} ใบ เพราะจำนวนผู้เล่นเยอะ)`
+      : '';
+
+    await mutateRoom((room) => ({
+      ...room,
+      status: 'playing',
+      roundsPerPlayer: rounds,
+      players: readyPlayers,
+      sheriffQueue: queue,
+      marketPlayerId,
+      activeRoundIndex: 0,
+      deck: readyDeck,
+      discard: createEmptyPile(),
+      lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • 🚨 ${readyPlayers.find((p) => p.id === firstSheriffId)?.name || '-'} • 🛒 ${readyPlayers.find((p) => p.id === marketPlayerId)?.name || '-'}`,
+      startedAtMs: Date.now(),
+    }));
+  } catch (error) {
     if (el.setupError) {
-      el.setupError.textContent = 'ยังมีผู้เล่นในห้องไม่พอ (ต้องมี 3 ถึง 24 คนจากห้อง Duel)';
+      el.setupError.textContent = `เริ่มเกมไม่สำเร็จ: ${String(error?.message || 'ลองใหม่อีกครั้ง')}`;
       el.setupError.classList.remove('hidden');
     }
-    return;
   }
-  el.setupError?.classList.add('hidden');
-
-  const players = duelEntries.slice(0, 24).map((entry, index) => ({
-    ...createPlayer(entry.name, `p${index + 1}`),
-    sourceUid: entry.uid,
-  }));
-  const queue = buildSheriffQueue(players.map((player) => player.id), rounds);
-  const firstSheriffId = String(queue[0] || '');
-  const marketPlayerId = pickMarketPlayerId(players, firstSheriffId);
-  const baseRoom = {
-    players,
-    deck: createInitialDeck(),
-    discard: createEmptyPile(),
-  };
-  const dealt = dealInitialHands(baseRoom, { cardsPerPlayer: 6 });
-  const readyPlayers = getPlayers(dealt.room);
-  const readyDeck = dealt.room?.deck || createInitialDeck();
-  const dealtCards = Number(dealt.cardsPerPlayer || 0);
-  const dealWarning = dealtCards < 6
-    ? ` (การ์ดเริ่มต้นเฉลี่ยคนละ ${dealtCards} ใบ เพราะจำนวนผู้เล่นเยอะ)`
-    : '';
-
-  await mutateRoom((room) => ({
-    ...room,
-    status: 'playing',
-    roundsPerPlayer: rounds,
-    players: readyPlayers,
-    sheriffQueue: queue,
-    marketPlayerId,
-    activeRoundIndex: 0,
-    deck: readyDeck,
-    discard: createEmptyPile(),
-    lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • 🚨 ${readyPlayers.find((p) => p.id === firstSheriffId)?.name || '-'} • 🛒 ${readyPlayers.find((p) => p.id === marketPlayerId)?.name || '-'}`,
-    startedAtMs: Date.now(),
-  }));
 }
 
 async function adjustMoney(playerId = '', delta = 0) {
@@ -682,11 +691,53 @@ function subscribeDuelPlayersForPrefill() {
   });
 }
 
+async function ensureDuelMembershipForCurrentUser() {
+  if (!roomId || !state.uid) return;
+  const duelRoomRef = ref(db, `rooms/${roomId}`);
+  await runTransaction(duelRoomRef, (current) => {
+    if (!current || typeof current !== 'object') return current;
+    const players = current?.players && typeof current.players === 'object' ? { ...current.players } : {};
+    const existingByRequestedUid = requestedUid ? players[requestedUid] : null;
+    const displayName = String(
+      players[state.uid]?.name
+      || requestedPlayerName
+      || existingByRequestedUid?.name
+      || `ผู้เล่น-${state.uid.slice(0, 4)}`
+    ).trim();
+
+    players[state.uid] = {
+      ...(players[state.uid] && typeof players[state.uid] === 'object' ? players[state.uid] : {}),
+      uid: state.uid,
+      name: displayName || 'ผู้เล่น',
+      online: true,
+      isHost: role === 'host',
+      joinedAt: Number(players[state.uid]?.joinedAt || Date.now()),
+      updatedAt: Date.now(),
+    };
+
+    const nextRoom = {
+      ...current,
+      players,
+      updatedAtMs: Date.now(),
+    };
+
+    if (role === 'host') {
+      const currentHostUid = String(current?.hostUid || '');
+      if (!currentHostUid || (requestedUid && currentHostUid === requestedUid)) {
+        nextRoom.hostUid = state.uid;
+        nextRoom.hostName = displayName || 'Host';
+      }
+    }
+    return nextRoom;
+  });
+}
+
 async function init() {
   renderCardsInfo();
   renderRoomSummary();
   wireEvents();
   await ensureAuth();
+  await ensureDuelMembershipForCurrentUser();
   subscribeHostRoleFallback();
   subscribeRoom();
   subscribeDuelPlayersForPrefill();
