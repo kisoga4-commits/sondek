@@ -44,8 +44,6 @@ const el = {
   quickOptionsWrap: document.getElementById('duelQuickOptions'),
   wormOptionsWrap: document.getElementById('duelWormOptions'),
   pobOptionsWrap: document.getElementById('duelPobOptions'),
-  sheriffOptionsWrap: document.getElementById('duelSheriffOptions'),
-  sheriffRoundsPerPlayerInput: document.getElementById('duelSheriffRoundsPerPlayer'),
   durationInput: document.getElementById('duelDuration'),
   quickDurationInput: document.getElementById('duelQuickDuration'),
   matchTypeInput: document.getElementById('duelMatchType'),
@@ -130,18 +128,6 @@ const GAME_DEFINITIONS = {
       durationSeconds: Number(el.durationInput?.value || 300),
     }),
   },
-  sheriff_th: {
-    label: 'Sheriff ตลาดไทย',
-    getConfig: () => ({
-      matchType: 'solo',
-      teamSize: 2,
-      finishDistance: 10,
-      durationSeconds: Number(el.durationInput?.value || 300),
-      sheriffRoundsPerPlayer: [1, 2].includes(Number(el.sheriffRoundsPerPlayerInput?.value || 1))
-        ? Number(el.sheriffRoundsPerPlayerInput?.value || 1)
-        : 1,
-    }),
-  },
 };
 
 const PRAISE_LINES = ['โคตรคม!', 'สุดจัด!', 'แม่นมาก!', 'เก่งเว่อร์!', 'เครื่องติดแล้ว!'];
@@ -161,9 +147,8 @@ function syncHostModeOptions() {
   el.quickOptionsWrap?.classList.toggle('hidden', mode !== 'quick');
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
   el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob' && mode !== 'pob_v2');
-  el.sheriffOptionsWrap?.classList.toggle('hidden', mode !== 'sheriff_th');
   const courseLabel = el.courseIdInput?.closest('label');
-  courseLabel?.classList.toggle('hidden', isExternalGameMode(mode));
+  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2' || mode === 'logic_spy');
   syncWormMatchOptions();
 }
 
@@ -497,10 +482,7 @@ function renderLobbyMeta(room) {
   const items = [
     `เกม: ${gameLabel}`,
     `ผู้เล่น: ${currentPlayers} / อย่างน้อย ${minPlayers} คน`,
-    ...(gameMode === 'sheriff_th'
-      ? [`ตำรวจต่อคน: ${Number(room?.modeConfig?.sheriffRoundsPerPlayer || 1)} รอบ`, 'จำนวนผู้เล่นรองรับ: 3-24 คน']
-      : []),
-    ...(isExternalGameMode(gameMode)
+    ...(gameMode === 'pob' || gameMode === 'pob_v2' || gameMode === 'logic_spy'
       ? []
       : [
         `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
@@ -582,9 +564,6 @@ function rememberCreatedRoom(roomId, hostName, gameDef, modeConfig) {
       matchType: String(modeConfig?.matchType || 'solo'),
       teamSize: Number(modeConfig?.teamSize || 2),
       finishDistance: Number(modeConfig?.finishDistance || 10),
-      sheriffRoundsPerPlayer: [1, 2].includes(Number(modeConfig?.sheriffRoundsPerPlayer || 1))
-        ? Number(modeConfig?.sheriffRoundsPerPlayer || 1)
-        : 1,
     },
     players: state.uid ? {
       [state.uid]: {
@@ -822,9 +801,6 @@ async function handleCreateRoom() {
       matchType: modeConfig.matchType,
       teamSize: Number(modeConfig.teamSize || 2),
       finishDistance: Number(modeConfig.finishDistance || 10),
-      sheriffRoundsPerPlayer: [1, 2].includes(Number(modeConfig.sheriffRoundsPerPlayer || 1))
-        ? Number(modeConfig.sheriffRoundsPerPlayer || 1)
-        : 1,
       questionSequence,
       questionPoolIds,
       questionAnswerKey,

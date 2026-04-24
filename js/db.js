@@ -1201,9 +1201,6 @@ export async function createDuelRoom(payload) {
   const requestedMatchType = String(payload?.matchType || '').toLowerCase() === 'party' ? 'party' : 'solo';
   const teamSize = [2, 3].includes(Number(payload?.teamSize || 2)) ? Number(payload?.teamSize || 2) : 2;
   const finishDistance = [10, 20].includes(Number(payload?.finishDistance || 10)) ? Number(payload?.finishDistance || 10) : 10;
-  const sheriffRoundsPerPlayer = [1, 2].includes(Number(payload?.sheriffRoundsPerPlayer || 1))
-    ? Number(payload?.sheriffRoundsPerPlayer || 1)
-    : 1;
   const requestedGameMode = String(payload?.gameMode || '').toLowerCase();
   const gameMode = normalizeDuelGameMode(requestedGameMode);
   const matchType = requestedMatchType;
@@ -1219,7 +1216,7 @@ export async function createDuelRoom(payload) {
     if (Number.isInteger(value) && value >= 0) acc[qid] = value;
     return acc;
   }, {});
-  const modeConfig = { gameMode, gameLabel, matchType, teamSize, finishDistance, sheriffRoundsPerPlayer };
+  const modeConfig = { gameMode, gameLabel, matchType, teamSize, finishDistance };
   const hostPlayer = buildDuelPlayerPayload(payload?.hostName || 'Host');
 
   let lastError = null;

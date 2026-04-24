@@ -98,7 +98,7 @@ function renderRoomSummary() {
     ['PIN', safeParam('pin', '-')],
     ['สิทธิ์', isHostMode ? 'Host' : 'Join'],
     ['ผู้เล่นจาก Duel', safeParam('player', 'ผู้เล่น')],
-    ['โหมด', 'Sheriff ตลาดไทย (ระบบเสริมแยกจาก Duel หลัก)'],
+    ['โหมด', 'จ่ายส่วย (ระบบเสริมแยกจาก Duel หลัก)'],
     ['การเชื่อมต่อ', state.room ? 'Sync แล้ว' : 'กำลังรอข้อมูล...'],
   ];
 
@@ -235,7 +235,7 @@ function renderAll() {
   el.gameCard?.classList.toggle('hidden', status === 'setup');
 
   if (el.eventLog) {
-    el.eventLog.textContent = String(state.room?.lastEvent || 'รอ Host เริ่มโหมด Sheriff');
+    el.eventLog.textContent = String(state.room?.lastEvent || 'รอ Host เริ่มโหมดจ่ายส่วย');
   }
   setControlAvailability();
 }
@@ -451,7 +451,7 @@ function subscribeRoom() {
     }
     state.room = data || buildInitialRoomState();
     if (!data && !isHostMode) {
-      state.room.lastEvent = 'รอ Host เปิดเกม Sheriff ในห้องนี้';
+      state.room.lastEvent = 'รอ Host เปิดเกมจ่ายส่วยในห้องนี้';
     }
     renderAll();
   });
