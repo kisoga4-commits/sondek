@@ -9,8 +9,9 @@ import {
   createEmptyPile,
   createInitialDeck,
   createPlayer,
+  dealInitialHands,
   discardCard,
-  drawCard,
+  drawRandomCards,
   getCardById,
   reshuffleDiscard,
 } from './gameEngine.js';
@@ -35,10 +36,12 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 const roomRef = roomId ? ref(db, `sheriff_th_rooms/${roomId}`) : null;
+const duelRoomPlayersRef = roomId ? ref(db, `rooms/${roomId}/players`) : null;
 
 const state = {
   uid: '',
   room: null,
+  duelPlayersPrefilled: false,
 };
 
 const el = {
@@ -82,6 +85,15 @@ function splitPlayerNames(raw = '') {
     String(raw || '')
       .split(/\n|,/)
       .map((name) => String(name || '').trim())
+      .filter(Boolean),
+  )];
+}
+
+function getDuelPlayerNames(playersMap = {}) {
+  if (!playersMap || typeof playersMap !== 'object') return [];
+  return [...new Set(
+    Object.values(playersMap)
+      .map((player) => String(player?.name || '').trim())
       .filter(Boolean),
   )];
 }
@@ -293,17 +305,29 @@ async function startGame() {
 
   const players = names.map((name, index) => createPlayer(name, `p${index + 1}`));
   const queue = buildSheriffQueue(players.map((player) => player.id), rounds);
+  const baseRoom = {
+    players,
+    deck: createInitialDeck(),
+    discard: createEmptyPile(),
+  };
+  const dealt = dealInitialHands(baseRoom, { cardsPerPlayer: 6 });
+  const readyPlayers = getPlayers(dealt.room);
+  const readyDeck = dealt.room?.deck || createInitialDeck();
+  const dealtCards = Number(dealt.cardsPerPlayer || 0);
+  const dealWarning = dealtCards < 6
+    ? ` (การ์ดเริ่มต้นเฉลี่ยคนละ ${dealtCards} ใบ เพราะจำนวนผู้เล่นเยอะ)`
+    : '';
 
   await mutateRoom((room) => ({
     ...room,
     status: 'playing',
     roundsPerPlayer: rounds,
-    players,
+    players: readyPlayers,
     sheriffQueue: queue,
     activeRoundIndex: 0,
-    deck: createInitialDeck(),
+    deck: readyDeck,
     discard: createEmptyPile(),
-    lastEvent: `เริ่มเกมแล้ว • ตำรวจรอบแรก: ${players.find((p) => p.id === queue[0])?.name || '-'}`,
+    lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • ตำรวจรอบแรก: ${readyPlayers.find((p) => p.id === queue[0])?.name || '-'}`,
     startedAtMs: Date.now(),
   }));
 }
@@ -327,25 +351,28 @@ async function adjustMoney(playerId = '', delta = 0) {
 
 async function drawCardToPlayer() {
   const playerId = String(el.cardPlayerInput?.value || '');
-  const cardId = String(el.cardTypeInput?.value || '');
   const qty = Math.max(1, Math.min(10, Number(el.cardQtyInput?.value || 1)));
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
-    const result = drawCard(room, { playerId, cardId, qty });
+    const result = drawRandomCards(room, { playerId, qty });
     if (!result.ok) {
       return {
         ...room,
-        lastEvent: `การ์ด ${getCardById(cardId)?.name || cardId} ในกองกลางไม่พอสำหรับจับ ${qty} ใบ`,
+        lastEvent: 'กองกลางไม่พอสำหรับการสุ่มจับการ์ด',
       };
     }
     const players = getPlayers(result.room);
     const deck = result.room.deck;
+    const drawnSummary = result.drawnCards
+      .map((id) => getCardById(id)?.name || id)
+      .filter(Boolean)
+      .join(', ');
 
     return {
       ...room,
       players,
       deck,
-      lastEvent: `${players.find((player) => player.id === playerId)?.name || 'ผู้เล่น'} จับ ${getCardById(cardId)?.name || cardId} x${qty}`,
+      lastEvent: `${players.find((player) => player.id === playerId)?.name || 'ผู้เล่น'} สุ่มจับ ${qty} ใบ: ${drawnSummary || '-'}`,
     };
   });
 }
@@ -472,12 +499,26 @@ function subscribeRoom() {
   });
 }
 
+function subscribeDuelPlayersForPrefill() {
+  if (!duelRoomPlayersRef || !isHostMode || !el.playerNamesInput || state.duelPlayersPrefilled) return;
+  onValue(duelRoomPlayersRef, (snapshot) => {
+    if (state.duelPlayersPrefilled) return;
+    const names = getDuelPlayerNames(snapshot.val());
+    if (names.length < 3) return;
+    if (String(el.playerNamesInput.value || '').trim()) return;
+    el.playerNamesInput.value = names.join('\n');
+    state.duelPlayersPrefilled = true;
+    if (el.setupError) el.setupError.classList.add('hidden');
+  });
+}
+
 async function init() {
   renderCardsInfo();
   renderRoomSummary();
   wireEvents();
   await ensureAuth();
   subscribeRoom();
+  subscribeDuelPlayersForPrefill();
 }
 
 void init();

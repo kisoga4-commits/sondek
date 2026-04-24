@@ -32,6 +32,19 @@ export const EXTERNAL_GAME_MODES = {
     redirectPath: 'games/logic-spy/index.html',
     buildRedirectParams: ({ roomId, pin }) => ({ roomId, pin }),
   },
+  sheriff_th: {
+    label: 'จ่ายส่วย',
+    minPlayers: 3,
+    requiresQuestionBank: false,
+    redirectPath: 'games/sheriff-th/index.html',
+    buildRedirectParams: ({ roomId, pin, uid, isHost, playerName }) => ({
+      roomId,
+      pin,
+      uid,
+      role: isHost ? 'host' : 'join',
+      player: playerName,
+    }),
+  },
 };
 
 export const DUEL_GAME_MODES = {
@@ -91,7 +104,7 @@ export function getMinimumPlayers(modeConfig = {}) {
 export function getRequiredPlayersToStart({ gameMode = 'quick', matchType = 'solo', teamSize = 2 } = {}) {
   const mode = normalizeDuelGameMode(gameMode);
   if (mode === 'pob' || mode === 'pob_v2') return 4;
-  if (mode === 'logic_spy') return 3;
+  if (mode === 'logic_spy' || mode === 'sheriff_th') return 3;
   return String(matchType || 'solo') === 'party' ? Math.max(2, Number(teamSize || 2)) * 2 : 2;
 }
 

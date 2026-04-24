@@ -40,7 +40,7 @@
             <textarea id="playerNamesInput" rows="6" placeholder="เช่น\nแป้ง\nบอส\nฟ้า"></textarea>
           </label>
         </div>
-        <p class="muted">รองรับผู้เล่นต่ำสุด 3 คน สูงสุด 24 คน</p>
+        <p class="muted">รองรับผู้เล่นต่ำสุด 3 คน สูงสุด 24 คน (Host จะดึงรายชื่อจากห้อง Duel มาเติมให้อัตโนมัติถ้าช่องยังว่าง)</p>
         <div class="actions">
           <button type="button" id="startGameBtn" class="btn">เริ่มโหมดจ่ายส่วย</button>
         </div>
@@ -62,13 +62,13 @@
             <label>ผู้เล่น
               <select id="cardPlayerInput"></select>
             </label>
-            <label>การ์ด
+            <label>การ์ด (ใช้ตอนทิ้งการ์ด)
               <select id="cardTypeInput"></select>
             </label>
             <label>จำนวน
               <input id="cardQtyInput" type="number" min="1" max="10" value="1" />
             </label>
-            <button type="button" id="drawCardBtn" class="btn">จับการ์ดจากกองกลาง</button>
+            <button type="button" id="drawCardBtn" class="btn">สุ่มจับการ์ดจากกองกลาง</button>
             <button type="button" id="discardCardBtn" class="btn btn-secondary">ทิ้งการ์ดลงกองทิ้ง</button>
           </div>
           <div id="deckStatus" class="summary-grid"></div>

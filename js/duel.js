@@ -128,6 +128,15 @@ const GAME_DEFINITIONS = {
       durationSeconds: Number(el.durationInput?.value || 300),
     }),
   },
+  sheriff_th: {
+    label: 'จ่ายส่วย',
+    getConfig: () => ({
+      matchType: 'solo',
+      teamSize: 2,
+      finishDistance: 10,
+      durationSeconds: Number(el.durationInput?.value || 300),
+    }),
+  },
 };
 
 const PRAISE_LINES = ['โคตรคม!', 'สุดจัด!', 'แม่นมาก!', 'เก่งเว่อร์!', 'เครื่องติดแล้ว!'];
@@ -148,7 +157,7 @@ function syncHostModeOptions() {
   el.wormOptionsWrap?.classList.toggle('hidden', mode !== 'worm');
   el.pobOptionsWrap?.classList.toggle('hidden', mode !== 'pob' && mode !== 'pob_v2');
   const courseLabel = el.courseIdInput?.closest('label');
-  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2' || mode === 'logic_spy');
+  courseLabel?.classList.toggle('hidden', mode === 'pob' || mode === 'pob_v2' || mode === 'logic_spy' || mode === 'sheriff_th');
   syncWormMatchOptions();
 }
 
@@ -482,7 +491,7 @@ function renderLobbyMeta(room) {
   const items = [
     `เกม: ${gameLabel}`,
     `ผู้เล่น: ${currentPlayers} / อย่างน้อย ${minPlayers} คน`,
-    ...(gameMode === 'pob' || gameMode === 'pob_v2' || gameMode === 'logic_spy'
+    ...(gameMode === 'pob' || gameMode === 'pob_v2' || gameMode === 'logic_spy' || gameMode === 'sheriff_th'
       ? []
       : [
         `โหมด: ${matchType === 'party' ? `Team x${teamSize}` : 'Solo'}`,
