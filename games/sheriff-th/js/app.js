@@ -656,7 +656,7 @@ function subscribeDuelPlayersForPrefill() {
     const entries = getDuelPlayerEntries(playersRaw);
     state.duelPlayers = entries;
     if (el.setupError) el.setupError.classList.add('hidden');
-    renderDuelPlayersPreview();
+    renderAll();
   });
 }
 
