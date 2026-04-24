@@ -8,8 +8,10 @@ import {
   createEmptyPile,
   createInitialDeck,
   createPlayer,
+  dealInitialHands,
   discardCard,
   drawCard,
+  drawRandomCards,
   reshuffleDiscard,
 } from '../games/sheriff-th/js/gameEngine.js';
 
@@ -39,6 +41,30 @@ test('draw and discard update deck/hand/discard correctly', () => {
   assert.equal(discarded.room.discard.rice, 1);
 });
 
+test('drawRandomCards picks cards from deck using weighted random and updates hand/deck', () => {
+  const base = {
+    players: [createPlayer('A', 'p1')],
+    deck: { ...createEmptyPile(), rice: 2, egg: 1 },
+    discard: createEmptyPile(),
+  };
+
+  const values = [0.0, 0.7, 0.0];
+  let idx = 0;
+  const randomFn = () => {
+    const val = values[idx] ?? 0;
+    idx += 1;
+    return val;
+  };
+
+  const result = drawRandomCards(base, { playerId: 'p1', qty: 3, randomFn });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.drawnCards, ['rice', 'egg', 'rice']);
+  assert.equal(result.room.players[0].hand.rice, 2);
+  assert.equal(result.room.players[0].hand.egg, 1);
+  assert.equal(result.room.deck.rice, 0);
+  assert.equal(result.room.deck.egg, 0);
+});
+
 test('reshuffleDiscard moves all discard cards back to deck', () => {
   const room = {
     players: [],
@@ -50,6 +76,42 @@ test('reshuffleDiscard moves all discard cards back to deck', () => {
   assert.equal(next.deck.egg, 2);
   assert.equal(next.discard.rice, 0);
   assert.equal(next.discard.egg, 0);
+});
+
+test('dealInitialHands distributes starter cards to every player within deck limit', () => {
+  const room = {
+    players: [createPlayer('A', 'p1'), createPlayer('B', 'p2'), createPlayer('C', 'p3')],
+    deck: { ...createEmptyPile(), rice: 6, egg: 3 },
+    discard: createEmptyPile(),
+  };
+
+  const values = [0.0, 0.8, 0.2, 0.0, 0.5, 0.0];
+  let idx = 0;
+  const randomFn = () => {
+    const val = values[idx] ?? 0;
+    idx += 1;
+    return val;
+  };
+
+  const dealt = dealInitialHands(room, { cardsPerPlayer: 2, randomFn });
+  assert.equal(dealt.ok, true);
+  assert.equal(dealt.cardsPerPlayer, 2);
+  const players = dealt.room.players;
+  assert.equal(players.every((player) => Object.values(player.hand).reduce((sum, qty) => sum + Number(qty || 0), 0) === 2), true);
+  assert.equal(dealt.room.deck.rice + dealt.room.deck.egg, 3);
+});
+
+test('dealInitialHands reduces starting cards when deck cannot support requested amount', () => {
+  const room = {
+    players: [createPlayer('A', 'p1'), createPlayer('B', 'p2'), createPlayer('C', 'p3'), createPlayer('D', 'p4')],
+    deck: { ...createEmptyPile(), rice: 6 },
+    discard: createEmptyPile(),
+  };
+
+  const dealt = dealInitialHands(room, { cardsPerPlayer: 3, randomFn: () => 0 });
+  assert.equal(dealt.ok, true);
+  assert.equal(dealt.cardsPerPlayer, 1);
+  assert.equal(dealt.room.deck.rice, 2);
 });
 
 test('computePlayerTotals includes bonus and totals', () => {

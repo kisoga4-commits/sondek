@@ -113,6 +113,95 @@ export function drawCard(room = {}, { playerId = '', cardId = '', qty = 1 } = {}
   return { ok: true, room: { ...room, players, deck } };
 }
 
+function pickRandomCardIdFromDeck(deck = {}, randomFn = Math.random) {
+  const totalCards = CARD_CATALOG.reduce((sum, card) => sum + Math.max(0, Number(deck[card.id] || 0)), 0);
+  if (totalCards <= 0) return '';
+  let cursor = Math.floor(randomFn() * totalCards);
+  for (const card of CARD_CATALOG) {
+    const count = Math.max(0, Number(deck[card.id] || 0));
+    if (count <= 0) continue;
+    if (cursor < count) return card.id;
+    cursor -= count;
+  }
+  return '';
+}
+
+export function drawRandomCards(room = {}, { playerId = '', qty = 1, randomFn = Math.random } = {}) {
+  const rounds = Math.max(1, Number(qty || 1));
+  let nextRoom = room;
+  const drawnCards = [];
+
+  for (let i = 0; i < rounds; i += 1) {
+    const nextCardId = pickRandomCardIdFromDeck(nextRoom?.deck || createInitialDeck(), randomFn);
+    if (!nextCardId) {
+      return {
+        ok: false,
+        room: nextRoom,
+        message: 'deck_empty',
+        drawnCards,
+      };
+    }
+    const step = drawCard(nextRoom, { playerId, cardId: nextCardId, qty: 1 });
+    if (!step.ok) {
+      return {
+        ok: false,
+        room: nextRoom,
+        message: step.message || 'draw_failed',
+        drawnCards,
+      };
+    }
+    nextRoom = step.room;
+    drawnCards.push(nextCardId);
+  }
+
+  return {
+    ok: true,
+    room: nextRoom,
+    drawnCards,
+  };
+}
+
+export function dealInitialHands(room = {}, { cardsPerPlayer = 6, randomFn = Math.random } = {}) {
+  const players = Array.isArray(room.players) ? room.players : [];
+  if (!players.length) {
+    return { ok: false, room, message: 'players_required', cardsPerPlayer: 0 };
+  }
+
+  const deck = room.deck || createInitialDeck();
+  const totalDeck = CARD_CATALOG.reduce((sum, card) => sum + Math.max(0, Number(deck[card.id] || 0)), 0);
+  const requestedCards = Math.max(1, Number(cardsPerPlayer || 1));
+  const maxCardsPerPlayer = Math.floor(totalDeck / players.length);
+  const effectiveCardsPerPlayer = Math.max(0, Math.min(requestedCards, maxCardsPerPlayer));
+
+  if (effectiveCardsPerPlayer <= 0) {
+    return { ok: false, room, message: 'deck_not_enough', cardsPerPlayer: 0 };
+  }
+
+  let nextRoom = room;
+  for (const player of players) {
+    const result = drawRandomCards(nextRoom, {
+      playerId: player.id,
+      qty: effectiveCardsPerPlayer,
+      randomFn,
+    });
+    if (!result.ok) {
+      return {
+        ok: false,
+        room: nextRoom,
+        message: result.message || 'deal_failed',
+        cardsPerPlayer: 0,
+      };
+    }
+    nextRoom = result.room;
+  }
+
+  return {
+    ok: true,
+    room: nextRoom,
+    cardsPerPlayer: effectiveCardsPerPlayer,
+  };
+}
+
 export function discardCard(room = {}, { playerId = '', cardId = '', qty = 1 } = {}) {
   const discard = { ...(room.discard || createEmptyPile()) };
   let success = false;

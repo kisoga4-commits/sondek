@@ -16,12 +16,14 @@ test('identifies external game modes and question bank requirements', () => {
   assert.equal(isExternalGameMode('pob_v2'), true);
   assert.equal(isExternalGameMode('pob'), true);
   assert.equal(isExternalGameMode('logic_spy'), true);
+  assert.equal(isExternalGameMode('sheriff_th'), true);
   assert.equal(isExternalGameMode('worm'), false);
 
   assert.equal(requiresQuestionBank('quick'), true);
   assert.equal(requiresQuestionBank('worm'), true);
   assert.equal(requiresQuestionBank('pob_v2'), false);
   assert.equal(requiresQuestionBank('pob'), false);
+  assert.equal(requiresQuestionBank('sheriff_th'), false);
 });
 
 test('returns min players by mode config', () => {
@@ -31,6 +33,7 @@ test('returns min players by mode config', () => {
   assert.equal(getMinimumPlayers({ gameMode: 'pob_v2' }), 4);
   assert.equal(getMinimumPlayers({ gameMode: 'pob' }), 4);
   assert.equal(getMinimumPlayers({ gameMode: 'logic_spy' }), 3);
+  assert.equal(getMinimumPlayers({ gameMode: 'sheriff_th' }), 3);
 });
 
 test('builds redirect url for external games from shared room payload', () => {
@@ -55,6 +58,9 @@ test('builds redirect url for external games from shared room payload', () => {
 
   const guestUrl = buildExternalGameRedirectUrl({ room: { ...room, modeConfig: { gameMode: 'logic_spy' } }, uid: 'u1', isHost: false });
   assert.equal(guestUrl, 'games/logic-spy/index.html?roomId=123456&pin=654321');
+
+  const sheriffUrl = buildExternalGameRedirectUrl({ room: { ...room, modeConfig: { gameMode: 'sheriff_th' } }, uid: 'u1', isHost: false });
+  assert.equal(sheriffUrl, 'games/sheriff-th/index.html?roomId=123456&pin=654321&uid=u1&role=join&player=Host+A');
 });
 
 test('falls back to quick mode definition for unknown game mode', () => {
@@ -67,12 +73,14 @@ test('normalizes duel game mode and keeps existing core modes intact', () => {
   assert.equal(normalizeDuelGameMode('quick'), 'quick');
   assert.equal(normalizeDuelGameMode('worm'), 'worm');
   assert.equal(normalizeDuelGameMode('logic_spy'), 'logic_spy');
+  assert.equal(normalizeDuelGameMode('sheriff_th'), 'sheriff_th');
   assert.equal(normalizeDuelGameMode('something_else'), 'quick');
 });
 
 test('resolves default label by mode including pob_v2', () => {
   assert.equal(getDefaultDuelGameLabel('pob_v2'), 'ปอบจกตับ V2');
   assert.equal(getDefaultDuelGameLabel('pob'), 'ปอบกินตับ');
+  assert.equal(getDefaultDuelGameLabel('sheriff_th'), 'จ่ายส่วย');
   assert.equal(getDefaultDuelGameLabel('worm'), 'หนอนกระดื้บ');
   assert.equal(getDefaultDuelGameLabel('unknown'), 'ตอบไว');
 });
@@ -81,6 +89,7 @@ test('required players to start stays compatible and supports pob_v2', () => {
   assert.equal(getRequiredPlayersToStart({ gameMode: 'pob_v2' }), 4);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'pob' }), 4);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'logic_spy' }), 3);
+  assert.equal(getRequiredPlayersToStart({ gameMode: 'sheriff_th' }), 3);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'quick', matchType: 'solo' }), 2);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'quick', matchType: 'party', teamSize: 3 }), 6);
 });
