@@ -26,6 +26,9 @@ const auth = getAuth(app);
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
+const requestedUid = String(params.get('uid') || '').trim();
+const requestedPlayerName = String(params.get('player') || '').trim();
+const ROOM_UID_CACHE_PREFIX = 'logic_spy_room_uid_v1:';
 const duelRoomPath = `rooms/${roomId}`;
 const gameRoomPath = `logic_spy_rooms/${roomId}`;
 const gamePublicPath = `${gameRoomPath}/public`;
@@ -149,6 +152,120 @@ async function ensureAuth() {
       }
     }, reject);
   });
+}
+
+function getRoomUidCacheKey() {
+  return `${ROOM_UID_CACHE_PREFIX}${roomId}`;
+}
+
+function readCachedRoomUid() {
+  try {
+    return String(window.localStorage.getItem(getRoomUidCacheKey()) || '').trim();
+  } catch (_error) {
+    return '';
+  }
+}
+
+function cacheRoomUid(uid) {
+  const safeUid = String(uid || '').trim();
+  if (!safeUid) return;
+  try {
+    window.localStorage.setItem(getRoomUidCacheKey(), safeUid);
+  } catch (_error) {
+    // ignore localStorage limitation
+  }
+}
+
+function buildLegacyUidCandidates(players = {}) {
+  const fromQuery = String(requestedUid || '').trim();
+  const fromCache = readCachedRoomUid();
+  return [...new Set([fromQuery, fromCache])]
+    .filter((uid) => uid && uid !== state.uid && Boolean(players?.[uid]));
+}
+
+async function ensureRoomMembership() {
+  if (!roomId || !state.uid) return;
+  const roomSnap = await new Promise((resolve, reject) => {
+    onValue(duelRef, (snap) => resolve(snap), reject, { onlyOnce: true });
+  });
+  const room = roomSnap.val() || {};
+  const players = room?.players && typeof room.players === 'object' ? room.players : {};
+  if (players?.[state.uid]) {
+    cacheRoomUid(state.uid);
+    return;
+  }
+
+  const normalizedRequestedUid = String(requestedUid || '').trim();
+  const legacyUid = buildLegacyUidCandidates(players)[0] || '';
+  const migrateSourceUid = legacyUid || normalizedRequestedUid;
+  if (migrateSourceUid) {
+    const tx = await runTransaction(duelRef, (current) => {
+      if (!current || typeof current !== 'object') return current;
+      const currentPlayers = current?.players && typeof current.players === 'object' ? { ...current.players } : {};
+      if (currentPlayers[state.uid]) return current;
+      const legacyPlayer = currentPlayers[migrateSourceUid];
+      if (!legacyPlayer) return current;
+      const now = Date.now();
+      delete currentPlayers[migrateSourceUid];
+      currentPlayers[state.uid] = {
+        ...legacyPlayer,
+        uid: state.uid,
+        online: true,
+        disconnectedAtMs: null,
+        updatedAt: now,
+      };
+      return {
+        ...current,
+        players: currentPlayers,
+        hostUid: String(current?.hostUid || '') === migrateSourceUid ? state.uid : current?.hostUid,
+        updatedAtMs: now,
+      };
+    });
+    const recoveredRoom = tx?.snapshot?.val() || {};
+    if (recoveredRoom?.players?.[state.uid]) {
+      cacheRoomUid(state.uid);
+      return;
+    }
+  }
+
+  const normalizedRequestedName = String(requestedPlayerName || '').trim().toLowerCase();
+  if (normalizedRequestedName) {
+    const matched = Object.entries(players)
+      .filter(([uid, player]) => uid !== state.uid && String(player?.name || '').trim().toLowerCase() === normalizedRequestedName);
+    if (matched.length === 1) {
+      const [matchedUid] = matched[0];
+      const tx = await runTransaction(duelRef, (current) => {
+        if (!current || typeof current !== 'object') return current;
+        const currentPlayers = current?.players && typeof current.players === 'object' ? { ...current.players } : {};
+        if (currentPlayers[state.uid]) return current;
+        const legacyPlayer = currentPlayers[matchedUid];
+        if (!legacyPlayer) return current;
+        if (String(legacyPlayer?.name || '').trim().toLowerCase() !== normalizedRequestedName) return current;
+        const now = Date.now();
+        delete currentPlayers[matchedUid];
+        currentPlayers[state.uid] = {
+          ...legacyPlayer,
+          uid: state.uid,
+          online: true,
+          disconnectedAtMs: null,
+          updatedAt: now,
+        };
+        return {
+          ...current,
+          players: currentPlayers,
+          hostUid: String(current?.hostUid || '') === matchedUid ? state.uid : current?.hostUid,
+          updatedAtMs: now,
+        };
+      });
+      const recoveredRoom = tx?.snapshot?.val() || {};
+      if (recoveredRoom?.players?.[state.uid]) {
+        cacheRoomUid(state.uid);
+        return;
+      }
+    }
+  }
+
+  throw new Error('บัญชีผู้เล่นนี้ไม่ได้อยู่ในห้อง Duel (อาจเกิดจาก anonymous auth เปลี่ยน UID ระหว่างหน้า)');
 }
 
 async function loadQuestionSets() {
@@ -609,6 +726,7 @@ async function init() {
   }
 
   await ensureAuth();
+  await ensureRoomMembership();
   await loadQuestionSets();
 
   console.info('[logic-spy][init] subscribe paths', {

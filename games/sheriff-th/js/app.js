@@ -32,6 +32,7 @@ const rawRole = String(params.get('role') || '').trim().toLowerCase();
 const role = rawRole === 'host' || rawRole === 'join' ? rawRole : '';
 const requestedUid = String(params.get('uid') || '').trim();
 const requestedPlayerName = String(params.get('player') || '').trim();
+const ROOM_UID_CACHE_PREFIX = 'sheriff_th_room_uid_v1:';
 
 
 const app = initializeApp(firebaseConfig);
@@ -628,6 +629,35 @@ function wireEvents() {
   });
 }
 
+function getRoomUidCacheKey() {
+  return `${ROOM_UID_CACHE_PREFIX}${roomId}`;
+}
+
+function readCachedRoomUid() {
+  try {
+    return String(window.localStorage.getItem(getRoomUidCacheKey()) || '').trim();
+  } catch (_error) {
+    return '';
+  }
+}
+
+function cacheRoomUid(uid) {
+  const safeUid = String(uid || '').trim();
+  if (!safeUid) return;
+  try {
+    window.localStorage.setItem(getRoomUidCacheKey(), safeUid);
+  } catch (_error) {
+    // ignore storage limitation
+  }
+}
+
+function buildLegacyUidCandidates(players = {}) {
+  const fromQuery = String(requestedUid || '').trim();
+  const fromCache = readCachedRoomUid();
+  return [...new Set([fromQuery, fromCache])]
+    .filter((uid) => uid && uid !== state.uid && Boolean(players?.[uid]));
+}
+
 async function ensureAuth() {
   await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -694,33 +724,125 @@ function subscribeDuelPlayersForPrefill() {
 async function ensureDuelMembershipForCurrentUser() {
   if (!roomId || !state.uid) return;
   const duelRoomRef = ref(db, `rooms/${roomId}`);
-  await runTransaction(duelRoomRef, (current) => {
+  const roomSnap = await new Promise((resolve, reject) => {
+    onValue(duelRoomRef, (snap) => resolve(snap), reject, { onlyOnce: true });
+  });
+  const room = roomSnap.val() || {};
+  const players = room?.players && typeof room.players === 'object' ? room.players : {};
+
+  if (players?.[state.uid]) {
+    cacheRoomUid(state.uid);
+    return;
+  }
+
+  const legacyCandidates = buildLegacyUidCandidates(players);
+  for (const legacyUid of legacyCandidates) {
+    const tx = await runTransaction(duelRoomRef, (current) => {
+      if (!current || typeof current !== 'object') return current;
+      const currentPlayers = current?.players && typeof current.players === 'object' ? { ...current.players } : {};
+      if (currentPlayers[state.uid]) return current;
+      const legacyPlayer = currentPlayers[legacyUid];
+      if (!legacyPlayer) return current;
+
+      const now = Date.now();
+      delete currentPlayers[legacyUid];
+      currentPlayers[state.uid] = {
+        ...legacyPlayer,
+        uid: state.uid,
+        online: true,
+        isHost: role === 'host',
+        disconnectedAtMs: null,
+        updatedAt: now,
+      };
+
+      const nextRoom = {
+        ...current,
+        players: currentPlayers,
+        hostUid: String(current?.hostUid || '') === legacyUid ? state.uid : current?.hostUid,
+        updatedAtMs: now,
+      };
+      if (role === 'host' && String(nextRoom.hostUid || '') === state.uid) {
+        nextRoom.hostName = String(legacyPlayer?.name || nextRoom.hostName || 'Host');
+      }
+      return nextRoom;
+    });
+
+    const recoveredRoom = tx?.snapshot?.val() || {};
+    if (recoveredRoom?.players?.[state.uid]) {
+      cacheRoomUid(state.uid);
+      return;
+    }
+  }
+
+  const normalizedRequestedName = String(requestedPlayerName || '').trim().toLowerCase();
+  if (normalizedRequestedName) {
+    const matchedEntries = Object.entries(players)
+      .filter(([uid, player]) => uid !== state.uid && String(player?.name || '').trim().toLowerCase() === normalizedRequestedName);
+    if (matchedEntries.length === 1) {
+      const [legacyUid] = matchedEntries[0];
+      const tx = await runTransaction(duelRoomRef, (current) => {
+        if (!current || typeof current !== 'object') return current;
+        const currentPlayers = current?.players && typeof current.players === 'object' ? { ...current.players } : {};
+        if (currentPlayers[state.uid]) return current;
+        const legacyPlayer = currentPlayers[legacyUid];
+        if (!legacyPlayer) return current;
+        if (String(legacyPlayer?.name || '').trim().toLowerCase() !== normalizedRequestedName) return current;
+
+        const now = Date.now();
+        delete currentPlayers[legacyUid];
+        currentPlayers[state.uid] = {
+          ...legacyPlayer,
+          uid: state.uid,
+          online: true,
+          isHost: role === 'host',
+          disconnectedAtMs: null,
+          updatedAt: now,
+        };
+
+        const nextRoom = {
+          ...current,
+          players: currentPlayers,
+          hostUid: String(current?.hostUid || '') === legacyUid ? state.uid : current?.hostUid,
+          updatedAtMs: now,
+        };
+        if (role === 'host' && String(nextRoom.hostUid || '') === state.uid) {
+          nextRoom.hostName = String(legacyPlayer?.name || nextRoom.hostName || 'Host');
+        }
+        return nextRoom;
+      });
+
+      const recoveredRoom = tx?.snapshot?.val() || {};
+      if (recoveredRoom?.players?.[state.uid]) {
+        cacheRoomUid(state.uid);
+        return;
+      }
+    }
+  }
+
+  const tx = await runTransaction(duelRoomRef, (current) => {
     if (!current || typeof current !== 'object') return current;
-    const players = current?.players && typeof current.players === 'object' ? { ...current.players } : {};
-    const existingByRequestedUid = requestedUid ? players[requestedUid] : null;
+    const currentPlayers = current?.players && typeof current.players === 'object' ? { ...current.players } : {};
+    if (currentPlayers[state.uid]) return current;
+    const existingByRequestedUid = requestedUid ? currentPlayers[requestedUid] : null;
     const displayName = String(
-      players[state.uid]?.name
-      || requestedPlayerName
+      requestedPlayerName
       || existingByRequestedUid?.name
       || `ผู้เล่น-${state.uid.slice(0, 4)}`
     ).trim();
-
-    players[state.uid] = {
-      ...(players[state.uid] && typeof players[state.uid] === 'object' ? players[state.uid] : {}),
+    const now = Date.now();
+    currentPlayers[state.uid] = {
       uid: state.uid,
       name: displayName || 'ผู้เล่น',
       online: true,
       isHost: role === 'host',
-      joinedAt: Number(players[state.uid]?.joinedAt || Date.now()),
-      updatedAt: Date.now(),
+      joinedAt: now,
+      updatedAt: now,
     };
-
     const nextRoom = {
       ...current,
-      players,
-      updatedAtMs: Date.now(),
+      players: currentPlayers,
+      updatedAtMs: now,
     };
-
     if (role === 'host') {
       const currentHostUid = String(current?.hostUid || '');
       if (!currentHostUid || (requestedUid && currentHostUid === requestedUid)) {
@@ -730,6 +852,13 @@ async function ensureDuelMembershipForCurrentUser() {
     }
     return nextRoom;
   });
+
+  const finalRoom = tx?.snapshot?.val() || {};
+  if (finalRoom?.players?.[state.uid]) {
+    cacheRoomUid(state.uid);
+    return;
+  }
+  throw new Error('ไม่พบสิทธิ์ผู้เล่นในห้อง Duel กรุณากลับหน้า Duel แล้วเข้าห้องใหม่');
 }
 
 async function init() {
