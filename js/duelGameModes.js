@@ -30,7 +30,13 @@ export const EXTERNAL_GAME_MODES = {
     minPlayers: 3,
     requiresQuestionBank: false,
     redirectPath: 'games/logic-spy/index.html',
-    buildRedirectParams: ({ roomId, pin }) => ({ roomId, pin }),
+    buildRedirectParams: ({ roomId, pin, uid, isHost, playerName }) => ({
+      roomId,
+      pin,
+      uid,
+      role: isHost ? 'host' : 'join',
+      player: playerName,
+    }),
   },
   sheriff_th: {
     label: 'จ่ายส่วย',

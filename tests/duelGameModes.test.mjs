@@ -57,7 +57,7 @@ test('builds redirect url for external games from shared room payload', () => {
   assert.equal(hostUrlV1, 'games/pob-kintub/index.html?roomId=123456&pin=654321&uid=u1&role=host&player=Host+A');
 
   const guestUrl = buildExternalGameRedirectUrl({ room: { ...room, modeConfig: { gameMode: 'logic_spy' } }, uid: 'u1', isHost: false });
-  assert.equal(guestUrl, 'games/logic-spy/index.html?roomId=123456&pin=654321');
+  assert.equal(guestUrl, 'games/logic-spy/index.html?roomId=123456&pin=654321&uid=u1&role=join&player=Host+A');
 
   const sheriffUrl = buildExternalGameRedirectUrl({ room: { ...room, modeConfig: { gameMode: 'sheriff_th' } }, uid: 'u1', isHost: false });
   assert.equal(sheriffUrl, 'games/sheriff-th/index.html?roomId=123456&pin=654321&uid=u1&role=join&player=Host+A');
