@@ -111,12 +111,25 @@ function normalizeRounds(value) {
 
 function getDuelPlayerEntries(playersMap = {}) {
   if (!playersMap || typeof playersMap !== 'object') return [];
+  const resolveDuelPlayerName = (player = {}, uid = '') => {
+    const candidates = [
+      player?.name,
+      player?.displayName,
+      player?.studentName,
+      player?.nickname,
+      player?.nickName,
+      uid ? `ผู้เล่น-${String(uid).slice(0, 4)}` : '',
+      'ผู้เล่น',
+    ];
+    return String(candidates.find((value) => String(value || '').trim()) || 'ผู้เล่น').trim();
+  };
+
   return Object.entries(playersMap)
     .map(([uid, player]) => ({
       uid: String(uid || '').trim(),
-      name: String(player?.name || '').trim(),
+      name: resolveDuelPlayerName(player, uid),
     }))
-    .filter((entry) => entry.uid && entry.name);
+    .filter((entry) => entry.uid);
 }
 
 function getPlayers(room = state.room) {
