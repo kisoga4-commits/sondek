@@ -627,13 +627,16 @@ function handleRoomUpdate(room) {
     modeConfig: room?.modeConfig || {},
     playerCount: players.length,
   });
-  const canStart = isHost && roomStatus(room) === 'lobby' && readiness.isReady;
+  // Keep start control available for host while in lobby.
+  // Final validation still happens in startDuelRoom() on server transaction,
+  // which prevents accidental starts when player count is actually not enough.
+  const canStart = isHost && roomStatus(room) === 'lobby';
   el.startGameBtn.classList.toggle('hidden', !isHost || roomStatus(room) !== 'lobby');
   el.startGameBtn.disabled = !canStart;
   el.startGameBtn.textContent = 'เริ่มเกม';
   el.lobbyHint.textContent = readiness.isReady
     ? 'พร้อมเริ่มเกม'
-    : `ต้องมีผู้เล่นอย่างน้อย ${readiness.requiredPlayers} คน`;
+    : `ต้องมีผู้เล่นอย่างน้อย ${readiness.requiredPlayers} คน (ตอนนี้ ${readiness.currentPlayers} คน)`;
 
   const rs = getActiveRound(room);
   const currentQuestion = getQuestionByRound(room, rs.roundIndex);
