@@ -48,7 +48,11 @@ import { normalizePublicImageUrl } from './imageUrl.js';
 import { getEffectiveFinishDistance, getWormWrongPenalty, pickWormComboTargetUid } from './duelRules.js';
 import { getRoomMaxPlayers, getStartPlayerCap } from './duelRoomRules.js';
 import { buildPersonalQuestionLoop, LOOP_QUESTION_COUNT } from './duelCore.js';
-import { getDefaultDuelGameLabel, getRequiredPlayersToStart, normalizeDuelGameMode } from './duelGameModes.js';
+import {
+  evaluateStartReadiness,
+  getDefaultDuelGameLabel,
+  normalizeDuelGameMode,
+} from './duelGameModes.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyC4jOmVcZp0HmmDqZCmHufnq2yyoPcvyVM',
@@ -1462,9 +1466,12 @@ export async function startDuelRoom(roomId) {
       const gameMode = String(data?.modeConfig?.gameMode || 'quick');
       const matchType = String(data?.modeConfig?.matchType || 'solo');
       const teamSize = Math.max(2, Math.min(3, Number(data?.modeConfig?.teamSize || 2)));
-      const requiredPlayers = getRequiredPlayersToStart({ gameMode, matchType, teamSize });
-      if (Object.keys(players).length < requiredPlayers) {
-        throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${requiredPlayers} คนก่อนเริ่มดวล`);
+      const readiness = evaluateStartReadiness({
+        modeConfig: { gameMode, matchType, teamSize },
+        playerCount: Object.keys(players).length,
+      });
+      if (!readiness.isReady) {
+        throw new Error(`ต้องมีผู้เล่นอย่างน้อย ${readiness.requiredPlayers} คนก่อนเริ่มดวล`);
       }
 
       const nowMs = Date.now();
