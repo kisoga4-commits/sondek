@@ -143,6 +143,7 @@ function getDuelPlayerEntries(playersMap = {}) {
     .map(([uid, player]) => ({
       uid: String(uid || '').trim(),
       name: resolveDuelPlayerName(player, uid),
+      isHost: Boolean(player?.isHost),
     }))
     .filter((entry) => entry.uid);
 }
@@ -1428,6 +1429,12 @@ function subscribeDuelPlayersForPrefill() {
     const playersRaw = snapshot.val();
     const entries = getDuelPlayerEntries(playersRaw);
     state.duelPlayers = entries;
+    if (!role && state.isHostMode === null && state.uid) {
+      const viewerEntry = entries.find((entry) => entry.uid === state.uid);
+      if (viewerEntry) {
+        state.isHostMode = Boolean(viewerEntry.isHost);
+      }
+    }
     if (el.setupError) el.setupError.classList.add('hidden');
     renderAll();
   });
