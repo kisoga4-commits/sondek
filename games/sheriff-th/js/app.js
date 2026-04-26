@@ -150,6 +150,11 @@ function getDuelPlayerEntries(playersMap = {}) {
     .filter((entry) => entry.uid);
 }
 
+function isViewerDuelHost(room = {}) {
+  const hostUid = String(room?.hostUid || '').trim();
+  return Boolean(hostUid && state.uid && hostUid === state.uid);
+}
+
 function getPlayers(room = state.room) {
   return Array.isArray(room?.players) ? room.players : [];
 }
@@ -1437,7 +1442,7 @@ function subscribeHostRoleFallback() {
     if (hostUid && state.uid) {
       state.isHostMode = hostUid === state.uid;
     } else {
-      state.isHostMode = role ? role === 'host' : false;
+      state.isHostMode = false;
     }
     renderAll();
   });
@@ -1451,12 +1456,6 @@ function subscribeDuelPlayersForPrefill() {
       const playersRaw = snapshot.val();
       const entries = getDuelPlayerEntries(playersRaw);
       state.duelPlayers = entries;
-      if (!role && state.isHostMode === null && state.uid) {
-        const viewerEntry = entries.find((entry) => entry.uid === state.uid);
-        if (viewerEntry) {
-          state.isHostMode = Boolean(viewerEntry.isHost);
-        }
-      }
       if (el.setupError) el.setupError.classList.add('hidden');
       renderAll();
     }, async (error) => {
@@ -1510,7 +1509,7 @@ async function ensureDuelMembershipForCurrentUser() {
         ...legacyPlayer,
         uid: state.uid,
         online: true,
-        isHost: role === 'host',
+        isHost: isViewerDuelHost(current),
         disconnectedAtMs: null,
         updatedAt: now,
       };
@@ -1554,7 +1553,7 @@ async function ensureDuelMembershipForCurrentUser() {
           ...legacyPlayer,
           uid: state.uid,
           online: true,
-          isHost: role === 'host',
+          isHost: isViewerDuelHost(current),
           disconnectedAtMs: null,
           updatedAt: now,
         };
@@ -1594,7 +1593,7 @@ async function ensureDuelMembershipForCurrentUser() {
       uid: state.uid,
       name: displayName || 'ผู้เล่น',
       online: true,
-      isHost: role === 'host',
+      isHost: isViewerDuelHost(current),
       joinedAt: now,
       updatedAt: now,
     };
