@@ -41,8 +41,8 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 const roomRef = duelRoomId ? ref(db, `sheriff_th_rooms/${duelRoomId}/public`) : null;
-const duelRoomPlayersRef = duelRoomId ? ref(db, `rooms/${duelRoomId}/players`) : null;
 const duelRoomHostRef = duelRoomId ? ref(db, `rooms/${duelRoomId}/hostUid`) : null;
+const duelRoomRef = duelRoomId ? ref(db, `rooms/${duelRoomId}`) : null;
 
 const state = {
   uid: '',
@@ -1449,45 +1449,42 @@ function subscribeHostRoleFallback() {
 }
 
 function subscribeDuelPlayersForPrefill() {
-  if (!duelRoomPlayersRef) return;
-  let retriedAfterPermissionDenied = false;
-  const attachListener = () => {
-    onValue(duelRoomPlayersRef, (snapshot) => {
-      const playersRaw = snapshot.val();
-      const entries = getDuelPlayerEntries(playersRaw);
-      state.duelPlayers = entries;
-      if (el.setupError) el.setupError.classList.add('hidden');
-      renderAll();
-    }, async (error) => {
-      if (isPermissionDenied(error) && !retriedAfterPermissionDenied) {
-        retriedAfterPermissionDenied = true;
-        try {
-          await ensureDuelMembershipForCurrentUser();
-          attachListener();
-          return;
-        } catch (_recoverError) {
-          // recover failed, fall through to error hint
-        }
+  if (!duelRoomRef) return;
+  onValue(duelRoomRef, (snapshot) => {
+    const room = snapshot.val();
+    const roomPlayers = room?.players && typeof room.players === 'object' ? room.players : {};
+    const entries = getDuelPlayerEntries(roomPlayers);
+    state.duelPlayers = entries;
+    if (el.setupError) el.setupError.classList.add('hidden');
+    renderAll();
+  }, async (error) => {
+    if (isPermissionDenied(error)) {
+      try {
+        await ensureDuelMembershipForCurrentUser();
+        return;
+      } catch (_recoverError) {
+        // recover failed, fall through to error hint
       }
-      state.duelPlayers = [];
-      if (el.setupError) {
-        el.setupError.textContent = 'ยังไม่มีสิทธิ์ดึงรายชื่อผู้เล่นจากห้อง Duel กรุณากลับหน้า Duel แล้วเข้าห้องใหม่';
-        el.setupError.classList.remove('hidden');
-      }
-      renderAll();
-    });
-  };
-  attachListener();
+    }
+    state.duelPlayers = [];
+    if (el.setupError) {
+      el.setupError.textContent = 'ยังไม่มีสิทธิ์ดึงรายชื่อผู้เล่นจากห้อง Duel กรุณากลับหน้า Duel แล้วเข้าห้องใหม่';
+      el.setupError.classList.remove('hidden');
+    }
+    renderAll();
+  });
 }
 
 async function ensureDuelMembershipForCurrentUser() {
   if (!duelRoomId || !state.uid) return;
-  const duelRoomRef = ref(db, `rooms/${duelRoomId}`);
+  if (!duelRoomRef) return;
   const roomSnap = await new Promise((resolve, reject) => {
     onValue(duelRoomRef, (snap) => resolve(snap), reject, { onlyOnce: true });
   });
   const room = roomSnap.val() || {};
   const players = room?.players && typeof room.players === 'object' ? room.players : {};
+  const playerEntries = getDuelPlayerEntries(players);
+  if (playerEntries.length) state.duelPlayers = playerEntries;
 
   if (players?.[state.uid]) {
     cacheRoomUid(state.uid);
