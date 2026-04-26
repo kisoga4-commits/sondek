@@ -114,6 +114,16 @@ export function getRequiredPlayersToStart({ gameMode = 'quick', matchType = 'sol
   return String(matchType || 'solo') === 'party' ? Math.max(2, Number(teamSize || 2)) * 2 : 2;
 }
 
+export function evaluateStartReadiness({ modeConfig = {}, playerCount = 0 } = {}) {
+  const requiredPlayers = getMinimumPlayers(modeConfig || {});
+  const currentPlayers = Math.max(0, Number(playerCount || 0));
+  return {
+    currentPlayers,
+    requiredPlayers,
+    isReady: currentPlayers >= requiredPlayers,
+  };
+}
+
 export function buildExternalGameRedirectUrl({ room, uid, isHost }) {
   const gameMode = String(room?.modeConfig?.gameMode || '');
   const definition = EXTERNAL_GAME_MODES[gameMode];
