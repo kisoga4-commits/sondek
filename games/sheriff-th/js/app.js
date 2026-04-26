@@ -322,6 +322,12 @@ function drawWithAutoReshuffle(room = {}, playerId = '', qty = 1) {
 }
 
 function renderRoomSummary() {
+  if (!roomId) {
+    if (el.hostOnlyHint) {
+      el.hostOnlyHint.textContent = 'ไม่พบ roomId ในลิงก์นี้ กรุณาเข้าหน้านี้จาก Duel Lobby เพื่อผูกสิทธิ์ Host/Join';
+    }
+    return;
+  }
   const isHostMode = state.isHostMode === true;
   const isJoinMode = state.isHostMode === false;
   if (el.hostOnlyHint) {
@@ -721,7 +727,9 @@ function setControlAvailability() {
         : 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
       : canStartByPlayerCount
         ? ''
-        : 'ต้องมีผู้เล่นจากห้อง Duel 2-24 คน';
+        : !roomId
+          ? 'ยังไม่ได้ผูกห้อง Duel (roomId หาย) กรุณาเข้าผ่านหน้า Duel'
+          : 'ต้องมีผู้เล่นจากห้อง Duel 2-24 คน';
   }
 
   if (el.finishGameBtn) el.finishGameBtn.disabled = !isHost || status === 'finished';
@@ -804,6 +812,13 @@ function buildInitialRoomState() {
 
 async function startGame() {
   try {
+    if (!roomId) {
+      if (el.setupError) {
+        el.setupError.textContent = 'ไม่พบ roomId ของห้อง Duel กรุณากลับหน้า Duel แล้วกดเข้าโหมดจ่ายส่วยใหม่';
+        el.setupError.classList.remove('hidden');
+      }
+      return;
+    }
     if (!canHostMutate()) {
       if (el.setupError) {
         el.setupError.textContent = 'เฉพาะ Host เท่านั้นที่เริ่มโหมดจ่ายส่วยได้';
@@ -1425,19 +1440,40 @@ function subscribeHostRoleFallback() {
 
 function subscribeDuelPlayersForPrefill() {
   if (!duelRoomPlayersRef) return;
-  onValue(duelRoomPlayersRef, (snapshot) => {
-    const playersRaw = snapshot.val();
-    const entries = getDuelPlayerEntries(playersRaw);
-    state.duelPlayers = entries;
-    if (!role && state.isHostMode === null && state.uid) {
-      const viewerEntry = entries.find((entry) => entry.uid === state.uid);
-      if (viewerEntry) {
-        state.isHostMode = Boolean(viewerEntry.isHost);
+  let retriedAfterPermissionDenied = false;
+  const attachListener = () => {
+    onValue(duelRoomPlayersRef, (snapshot) => {
+      const playersRaw = snapshot.val();
+      const entries = getDuelPlayerEntries(playersRaw);
+      state.duelPlayers = entries;
+      if (!role && state.isHostMode === null && state.uid) {
+        const viewerEntry = entries.find((entry) => entry.uid === state.uid);
+        if (viewerEntry) {
+          state.isHostMode = Boolean(viewerEntry.isHost);
+        }
       }
-    }
-    if (el.setupError) el.setupError.classList.add('hidden');
-    renderAll();
-  });
+      if (el.setupError) el.setupError.classList.add('hidden');
+      renderAll();
+    }, async (error) => {
+      if (isPermissionDenied(error) && !retriedAfterPermissionDenied) {
+        retriedAfterPermissionDenied = true;
+        try {
+          await ensureDuelMembershipForCurrentUser();
+          attachListener();
+          return;
+        } catch (_recoverError) {
+          // recover failed, fall through to error hint
+        }
+      }
+      state.duelPlayers = [];
+      if (el.setupError) {
+        el.setupError.textContent = 'ยังไม่มีสิทธิ์ดึงรายชื่อผู้เล่นจากห้อง Duel กรุณากลับหน้า Duel แล้วเข้าห้องใหม่';
+        el.setupError.classList.remove('hidden');
+      }
+      renderAll();
+    });
+  };
+  attachListener();
 }
 
 async function ensureDuelMembershipForCurrentUser() {
