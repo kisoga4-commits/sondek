@@ -48,6 +48,7 @@ const state = {
   uid: '',
   room: null,
   duelPlayers: [],
+  duelHostUid: '',
   isHostMode: role ? role === 'host' : duelRoomId ? null : true,
 };
 const uiState = {
@@ -83,6 +84,8 @@ const el = {
   roundsPerPlayerInput: document.getElementById('roundsPerPlayerInput'),
   duelPlayersPreview: document.getElementById('duelPlayersPreview'),
   startGameBtn: document.getElementById('startGameBtn'),
+  startBlockedReason: document.getElementById('startBlockedReason'),
+  duelDebugPanel: document.getElementById('duelDebugPanel'),
   setupError: document.getElementById('setupError'),
   setupCard: document.getElementById('setupCard'),
   gameCard: document.getElementById('gameCard'),
@@ -727,8 +730,7 @@ function setControlAvailability() {
     button.classList.toggle('hidden', !isHost);
   });
   if (el.startGameBtn) {
-    el.startGameBtn.disabled = !isHost || !canStartByPlayerCount;
-    el.startGameBtn.title = !isHost
+    const startBlockedReason = !isHost
       ? state.isHostMode === null
         ? 'กำลังตรวจสอบสิทธิ์ Host...'
         : 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
@@ -737,6 +739,12 @@ function setControlAvailability() {
         : !duelRoomId
           ? 'ยังไม่ได้ผูกห้อง Duel (roomId หาย) กรุณาเข้าผ่านหน้า Duel'
           : 'ต้องมีผู้เล่นจากห้อง Duel 2-24 คน';
+    el.startGameBtn.disabled = Boolean(startBlockedReason);
+    el.startGameBtn.title = startBlockedReason;
+    if (el.startBlockedReason) {
+      el.startBlockedReason.textContent = startBlockedReason;
+      el.startBlockedReason.classList.toggle('hidden', !startBlockedReason);
+    }
   }
 
   if (el.finishGameBtn) el.finishGameBtn.disabled = !isHost || status === 'finished';
@@ -744,6 +752,19 @@ function setControlAvailability() {
     el.restartGameBtn.disabled = !isHost || status !== 'finished';
     el.restartGameBtn.classList.toggle('hidden', !isHost);
   }
+}
+
+function renderDebugPanel() {
+  if (!el.duelDebugPanel) return;
+  const hostUid = String(state.duelHostUid || '').trim() || '-';
+  const lines = [
+    `duelRoomId: <code>${duelRoomId || '-'}</code>`,
+    `state.uid: <code>${state.uid || '-'}</code>`,
+    `state.isHostMode: <code>${String(state.isHostMode)}</code>`,
+    `state.duelPlayers.length: <code>${state.duelPlayers.length}</code>`,
+    `hostUid (rooms/${duelRoomId || '-'}/hostUid): <code>${hostUid}</code>`,
+  ];
+  el.duelDebugPanel.innerHTML = `<strong>Debug (โหมดจ่ายส่วย)</strong><br>${lines.join('<br>')}`;
 }
 
 function renderAll() {
@@ -760,6 +781,7 @@ function renderAll() {
   renderPhaseActions();
   renderTable();
   renderWinner();
+  renderDebugPanel();
 
   const status = String(state.room?.status || 'setup');
   const shouldHideSetup = status !== 'setup' || state.isHostMode !== true;
@@ -1433,12 +1455,14 @@ function subscribeRoom() {
 
 function subscribeHostRoleFallback() {
   if (!duelRoomHostRef) {
+    state.duelHostUid = '';
     state.isHostMode = role ? role === 'host' : true;
     renderAll();
     return;
   }
   onValue(duelRoomHostRef, (snapshot) => {
     const hostUid = String(snapshot.val() || '').trim();
+    state.duelHostUid = hostUid;
     if (hostUid && state.uid) {
       state.isHostMode = hostUid === state.uid;
     } else {
@@ -1622,7 +1646,21 @@ async function init() {
   renderRoomSummary();
   wireEvents();
   await ensureAuth();
-  await ensureDuelMembershipForCurrentUser();
+  if (!duelRoomId) {
+    if (el.setupError) {
+      el.setupError.textContent = 'ไม่พบ roomId/PIN ของห้อง Duel กรุณากลับหน้า Duel แล้วกดเข้าโหมดจ่ายส่วยใหม่';
+      el.setupError.classList.remove('hidden');
+    }
+  } else {
+    try {
+      await ensureDuelMembershipForCurrentUser();
+    } catch (_membershipError) {
+      if (el.setupError) {
+        el.setupError.textContent = 'ยังไม่มีสิทธิ์ในห้อง Duel / กรุณากลับเข้าใหม่จากหน้า Duel';
+        el.setupError.classList.remove('hidden');
+      }
+    }
+  }
   subscribeHostRoleFallback();
   subscribeRoom();
   subscribeDuelPlayersForPrefill();
