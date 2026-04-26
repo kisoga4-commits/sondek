@@ -385,6 +385,9 @@ function renderDuelPlayersPreview() {
 
 function renderDeckStatus() {
   if (!el.deckStatus) return;
+  const viewer = getCurrentViewerPlayer();
+  const sheriffId = getCurrentSheriffId();
+  const isSheriff = Boolean(viewer?.id) && viewer.id === sheriffId;
   const deck = state.room?.deck || createInitialDeck();
   const discard = state.room?.discard || createEmptyPile();
   const soldOut = state.room?.soldOut || createEmptyPile();
@@ -392,6 +395,10 @@ function renderDeckStatus() {
   const totalDiscard = Object.values(discard).reduce((sum, value) => sum + Number(value || 0), 0);
   const totalSoldOut = Object.values(soldOut).reduce((sum, value) => sum + Number(value || 0), 0);
 
+  if (isSheriff) {
+    el.deckStatus.innerHTML = '<div class="chip sheriff-chip"><small>👮 มุมมองตำรวจ</small><strong>ตรวจตะกร้าที่พ่อค้าส่งมา</strong></div>';
+    return;
+  }
   el.deckStatus.innerHTML = [
     ['🃏 กองกลาง', `${totalDeck} ใบ`],
     ['🗑️ กองทิ้ง', `${totalDiscard} ใบ`],
@@ -463,7 +470,6 @@ function renderInspectionBoard() {
   const sheriffName = players.find((player) => player.id === sheriffId)?.name || '-';
   const viewer = getCurrentViewerPlayer(room);
   const viewerId = String(viewer?.id || '');
-  const canSeeAllHands = false;
 
   if (!inspection) {
     el.inspectionSummary.innerHTML = '';
@@ -494,8 +500,14 @@ function renderInspectionBoard() {
     const bribePaid = Math.max(0, Number(inspection?.prepMap?.[id]?.bribePaid || 0));
     const bribeText = bribePaid > 0 ? `💸 จ่ายส่วยแล้ว ${bribePaid}` : '💸 ยังไม่จ่ายส่วย';
     const handText = canRevealHand ? formatHandSummary(bagMap) : `🂠 ซ่อนการ์ด (${handCount} ใบ)`;
-    const chipClasses = ['chip', viewerId === id ? 'you' : '', id === sheriffId ? 'sheriff-chip' : 'merchant-chip'].filter(Boolean).join(' ');
-    return `<div class="${chipClasses}"><small>${merchant?.name || id}${viewerId === id ? ' (คุณ)' : ''} • ${decision}</small><strong>${handText}</strong><small>${bribeText}</small></div>`;
+    const canSheriffDecide = inspection.phase === 'inspect' && viewerId === sheriffId && !resolved;
+    const chipClasses = ['chip', 'basket-card', viewerId === id ? 'you' : '', id === sheriffId ? 'sheriff-chip' : 'merchant-chip'].filter(Boolean).join(' ');
+    return `<div class="${chipClasses}">
+      <small>${merchant?.name || id}${viewerId === id ? ' (คุณ)' : ''}</small>
+      <strong>${handText}</strong>
+      <small>${decision} • ${bribeText}</small>
+      ${canSheriffDecide ? `<div class="basket-actions"><button type="button" class="btn btn-mini" data-inspect-merchant="${id}" data-inspect-action="inspect">ตรวจ</button><button type="button" class="btn btn-secondary btn-mini" data-inspect-merchant="${id}" data-inspect-action="pass">ปล่อยผ่าน</button></div>` : ''}
+    </div>`;
   }).join('');
 
   const stageText = inspection.phase === 'prepare'
@@ -572,12 +584,12 @@ function renderTable() {
   const status = String(state.room?.status || 'setup');
   const viewer = getCurrentViewerPlayer();
   const rows = computePlayerTotals(getPlayersForScoring(getPlayers()));
-  el.scoreMiniBoard.innerHTML = rows.map((player) => {
+  const scoreLine = rows.map((player) => {
     const publicScore = getVisibleRoundScore(player).publicTotal;
     const total = status === 'finished' ? player.total : publicScore;
-    const classNames = ['chip', player.id === getCurrentSheriffId() ? 'sheriff-chip' : 'merchant-chip', viewer?.id === player.id ? 'you' : ''].filter(Boolean).join(' ');
-    return `<div class="${classNames}"><small>${player.name}${viewer?.id === player.id ? ' (คุณ)' : ''}</small><strong>🏆 ${total} • 💰 ${player.money}</strong></div>`;
-  }).join('');
+    return `${player.name}${viewer?.id === player.id ? '*' : ''}: ${total}`;
+  }).join('  •  ');
+  el.scoreMiniBoard.innerHTML = `<div class="chip score-line"><strong>${scoreLine || '-'}</strong></div>`;
 }
 
 function renderWinner() {
@@ -680,7 +692,7 @@ function renderPhaseActions() {
 
   el.phaseActions.innerHTML = `
     <button type="button" class="btn btn-secondary" id="btnApplySelection">ทิ้งการ์ด + จั่วใหม่</button>
-    <button type="button" class="btn" id="btnSubmitBag">ส่งการ์ดเข้าตลาด</button>
+    <button type="button" class="btn" id="btnSubmitBag">ส่งตะกร้าเข้าตลาด (เลือกได้สูงสุด 4 ใบ)</button>
     <button type="button" class="btn btn-secondary" id="btnPayBribe">ส่งส่วย</button>
   `;
 }
@@ -843,7 +855,7 @@ async function startGame() {
 
 async function discardAndRedrawForMerchant() {
   const playerId = getActiveMerchantId();
-  const selected = Array.from(uiState.handSelections);
+  const selected = Array.from(uiState.handSelections).slice(0, 3);
   const qty = Math.max(0, Math.min(3, selected.length));
   const cardIds = selected.map((token) => String(token).split('#')[0]);
   await mutateRoom((room) => {
@@ -926,6 +938,19 @@ async function addCardToMerchantBag() {
   });
 }
 
+function buildBagFromSelections(merchant = {}) {
+  const bag = createEmptyPile();
+  const selectedTokens = Array.from(uiState.handSelections);
+  for (const token of selectedTokens) {
+    const cardId = String(token).split('#')[0];
+    if (!cardId) continue;
+    bag[cardId] = Math.max(0, Number(bag[cardId] || 0)) + 1;
+  }
+  const overLimit = countPileCards(bag) > 4;
+  const handNotEnough = CARD_CATALOG.some((card) => Math.max(0, Number(bag[card.id] || 0)) > Math.max(0, Number(merchant?.hand?.[card.id] || 0)));
+  return { bag, overLimit, handNotEnough };
+}
+
 async function clearMerchantBag() {
   const playerId = getActiveMerchantId();
   await mutateRoom((room) => {
@@ -960,7 +985,12 @@ async function submitMerchantBag() {
     if (!viewer?.id || viewer.id !== playerId) return room;
     const prep = inspection.prepMap?.[playerId];
     if (!prep || prep.bagSubmitted) return room;
-    const bag = prep.bag || createEmptyPile();
+    const merchant = getPlayers(room).find((player) => player.id === playerId);
+    const hasManualBag = countPileCards(prep.bag || createEmptyPile()) > 0;
+    const fromSelection = buildBagFromSelections(merchant);
+    if (fromSelection.overLimit) return { ...room, lastEvent: 'เลือกส่งกระเช้าได้สูงสุด 4 ใบ' };
+    if (fromSelection.handNotEnough) return { ...room, lastEvent: 'ส่งกระเช้าไม่สำเร็จ: การ์ดในมือไม่พอ' };
+    const bag = hasManualBag ? (prep.bag || createEmptyPile()) : fromSelection.bag;
     const bagCount = countPileCards(bag);
     if (bagCount <= 0) {
       return { ...room, lastEvent: 'ต้องใส่การ์ดอย่างน้อย 1 ใบก่อนส่งกระเช้า' };
@@ -990,6 +1020,7 @@ async function submitMerchantBag() {
         : `${merchantName} ส่งกระเช้าแล้ว (${submittedCount}/${inspection.merchantIds.length})`,
     };
   });
+  uiState.handSelections.clear();
 }
 
 async function reshuffleDiscardToDeck() {
@@ -1036,10 +1067,10 @@ async function nextSheriffRound() {
   });
 }
 
-async function resolveInspectionDecision() {
-  const merchantId = getActiveMerchantId();
-  const action = String(el.inspectionActionInput?.value || 'inspect').trim();
-  const bribe = Math.max(0, Number(el.inspectionBribeInput?.value || 0));
+async function resolveInspectionDecision(option = {}) {
+  const merchantId = String(option?.merchantId || getActiveMerchantId() || '');
+  const action = String(option?.action || el.inspectionActionInput?.value || 'inspect').trim();
+  const bribe = Math.max(0, Number(option?.bribe ?? el.inspectionBribeInput?.value || 0));
   if (!merchantId) return;
 
   await mutateRoom((room) => {
@@ -1241,7 +1272,7 @@ function wireEvents() {
     if (!token) return;
     if (uiState.handSelections.has(token)) uiState.handSelections.delete(token);
     else {
-      const limit = uiState.selectionMode === 'discard' ? 3 : 4;
+      const limit = 4;
       if (uiState.handSelections.size >= limit) return;
       uiState.handSelections.add(token);
     }
@@ -1261,6 +1292,20 @@ function wireEvents() {
       if (el.inspectionActionInput) el.inspectionActionInput.value = 'pass';
       if (el.inspectionBribeInput && !el.inspectionBribeInput.value) el.inspectionBribeInput.value = '5';
       void resolveInspectionDecision();
+    }
+    const merchantId = String(target.getAttribute('data-inspect-merchant') || '');
+    const action = String(target.getAttribute('data-inspect-action') || '');
+    if (merchantId && action) {
+      void resolveInspectionDecision({ merchantId, action });
+    }
+  });
+  el.inspectionSummary?.addEventListener('click', (event) => {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (!target) return;
+    const merchantId = String(target.getAttribute('data-inspect-merchant') || '');
+    const action = String(target.getAttribute('data-inspect-action') || '');
+    if (merchantId && action) {
+      void resolveInspectionDecision({ merchantId, action });
     }
   });
 
