@@ -18,6 +18,8 @@ const SECRET_SECONDS = 20;
 const TURN_SECONDS = 18;
 const VOTE_SECONDS = 25;
 const RESULT_SECONDS = 12;
+const LOGIC_SPY_MIN_PLAYERS = 2;
+const LOGIC_SPY_MAX_PLAYERS = 12;
 
 const app = initializeApp(config);
 const db = getDatabase(app);
@@ -310,18 +312,18 @@ function ui() {
     .map(([uid, player]) => `<div class="vote-item"><b>${displayPlayerName(uid, resolveRoomPlayerName(player, uid))}</b><span>${Number(game?.scores?.[uid] || 0)} แต้ม</span></div>`)
     .join('');
 
-  const roomMaxPlayers = Math.max(5, Number(state.duel?.maxPlayers || 5));
+  const roomMaxPlayers = Math.max(LOGIC_SPY_MAX_PLAYERS, Number(state.duel?.maxPlayers || LOGIC_SPY_MAX_PLAYERS));
   el.status.innerHTML = `<div>ห้อง: <b>${roomId || '-'}</b> • ผู้เล่น: ${players.length}/${roomMaxPlayers} • สถานะ: <b>${phase}</b></div>`;
   updateVisibleSections(phase);
 
   el.lobby.innerHTML = `
     <h3>Lobby</h3>
-    <p>โหมดนี้ต้องมี 3-5 คน</p>
+    <p>โหมดนี้เล่นได้ ${LOGIC_SPY_MIN_PLAYERS}-${LOGIC_SPY_MAX_PLAYERS} คน</p>
     <p class="muted">Host(Room): <b>${roomHostUid || '-'}</b> • ผู้คุมเกม: <b>${moderatorUid || '-'}</b></p>
     ${state.startFlowMessage ? `<p style="color:#ff7b7b;">${state.startFlowMessage}</p>` : ''}
     <div class="chips">${chips}</div>
     ${isMeModerator
-      ? `<button class="btn" id="startRoundBtn" ${players.length < 3 ? 'disabled' : ''}>เริ่มรอบใหม่</button>`
+      ? `<button class="btn" id="startRoundBtn" ${players.length < LOGIC_SPY_MIN_PLAYERS ? 'disabled' : ''}>เริ่มรอบใหม่</button>`
       : '<p>รอ Host / Moderator เริ่มรอบ</p>'}
     <hr/>
     ${scoreRows}
@@ -481,7 +483,7 @@ async function startRound(playerIds) {
   const currentUid = String(state.uid || '');
   const roomHostUid = String(state.duel?.hostUid || '');
   const moderatorUid = getModeratorUid();
-  const ids = (Array.isArray(playerIds) ? playerIds : []).map((id) => String(id || '')).filter(Boolean).slice(0, 5);
+  const ids = (Array.isArray(playerIds) ? playerIds : []).map((id) => String(id || '')).filter(Boolean).slice(0, LOGIC_SPY_MAX_PLAYERS);
   const playersInRoom = getPlayers().map(([uid]) => uid);
   console.info('[logic-spy][start-round] begin', {
     currentUid,
@@ -518,8 +520,8 @@ async function startRound(playerIds) {
     roomPlayers: playersInRoom,
     startIds: ids,
   });
-  if (ids.length < 3) {
-    failStartRound('players not enough', { minPlayers: 3, actualPlayers: ids.length });
+  if (ids.length < LOGIC_SPY_MIN_PLAYERS) {
+    failStartRound('players not enough', { minPlayers: LOGIC_SPY_MIN_PLAYERS, actualPlayers: ids.length });
     ui();
     return;
   }
