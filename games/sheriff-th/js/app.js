@@ -710,6 +710,7 @@ function setControlAvailability() {
   [el.startGameBtn, el.finishGameBtn].forEach((button) => {
     if (!button) return;
     button.disabled = !isHost;
+    button.classList.toggle('hidden', !isHost);
   });
   if (el.startGameBtn) {
     el.startGameBtn.disabled = !isHost || !canStartByPlayerCount;
@@ -723,7 +724,10 @@ function setControlAvailability() {
   }
 
   if (el.finishGameBtn) el.finishGameBtn.disabled = !isHost || status === 'finished';
-  if (el.restartGameBtn) el.restartGameBtn.disabled = !isHost || status !== 'finished';
+  if (el.restartGameBtn) {
+    el.restartGameBtn.disabled = !isHost || status !== 'finished';
+    el.restartGameBtn.classList.toggle('hidden', !isHost);
+  }
 }
 
 function renderAll() {
@@ -799,6 +803,13 @@ function buildInitialRoomState() {
 
 async function startGame() {
   try {
+    if (!canHostMutate()) {
+      if (el.setupError) {
+        el.setupError.textContent = 'เฉพาะ Host เท่านั้นที่เริ่มโหมดจ่ายส่วยได้';
+        el.setupError.classList.remove('hidden');
+      }
+      return;
+    }
     const rounds = normalizeRounds(el.roundsPerPlayerInput?.value || 1);
     const duelEntries = state.duelPlayers;
     if (duelEntries.length < 2 || duelEntries.length > 24) {
@@ -1181,6 +1192,7 @@ async function resolveInspectionDecision(option = {}) {
 }
 
 async function finishGame() {
+  if (!canHostMutate()) return;
   await mutateRoom((room) => ({
     ...room,
     status: 'finished',
