@@ -22,7 +22,7 @@ label { display:grid; gap:6px; font-weight:700; }
 input,select,button { font: inherit; }
 input,select { border:1px solid #b8c7bc; border-radius:10px; padding:10px; background:#fff; }
 .player-list { margin:0; padding-left:18px; }
-.table-center { display:grid; grid-template-columns: 1fr; gap:10px; margin-bottom:10px; }
+.table-center { display:grid; grid-template-columns: 1fr; gap:8px; margin-bottom:8px; }
 .center-pile, .score-mini-board { display:grid; gap:8px; }
 .player-focus { display:grid; gap:8px; }
 .focus-head { display:grid; gap:6px; }
@@ -42,6 +42,24 @@ input,select { border:1px solid #b8c7bc; border-radius:10px; padding:10px; backg
 .action-bar { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
 .bottom-info { border-top:1px dashed #98ad9d; padding-top:8px; margin-top:8px; }
 .mini-info, .inspect-focus { display:grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap:8px; }
+.inspect-focus {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.basket-card {
+  min-height: 132px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+.basket-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.score-line {
+  overflow-x: auto;
+  white-space: nowrap;
+}
 .chip.you { border-color: #1d5cff; background: #eef3ff; }
 .chip.sheriff-chip { border-color: #7b35ca; background: #f5edff; }
 .chip.merchant-chip { border-color: #1f7f45; background: #ecfff2; }
