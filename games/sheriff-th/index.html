@@ -21,24 +21,6 @@
         </div>
       </section>
 
-      <section class="card info-shortcuts-card">
-        <h2>คู่มือสั้นก่อนเล่น</h2>
-        <div class="shortcut-grid">
-          <button type="button" class="shortcut-card" data-open-modal="stepsModal">
-            <span class="icon">🧭</span>
-            <span>ขั้นตอนการเล่น</span>
-          </button>
-          <button type="button" class="shortcut-card" data-open-modal="bonusModal">
-            <span class="icon">🎁</span>
-            <span>ระบบโบนัส</span>
-          </button>
-          <button type="button" class="shortcut-card" data-open-modal="cardsModal">
-            <span class="icon">🃏</span>
-            <span>รายละเอียดการ์ด</span>
-          </button>
-        </div>
-      </section>
-
       <section class="card setup-card" id="setupCard">
         <h2>ตั้งค่าโหมดเสริม</h2>
         <p id="hostOnlyHint" class="muted"></p>
@@ -63,14 +45,33 @@
 
       <section class="card game-card hidden" id="gameCard">
         <h2>กระดานกลาง</h2>
+        <p class="muted">เล่นง่าย 3 ขั้นตอน: 1) เตรียมกระเช้า 2) ตำรวจตรวจ 3) นับแต้ม</p>
         <div id="gameStatus" class="status-grid"></div>
-        <div id="scoreHighlights" class="score-highlight-grid"></div>
-        <div id="playerRoleStrip" class="role-strip"></div>
-        <div id="systemHealth" class="system-health"></div>
+        <div id="phaseGuide" class="summary-grid"></div>
 
         <div class="toolbar">
           <button type="button" id="nextSheriffBtn" class="btn">จบรอบ/ไปตำรวจถัดไป</button>
           <button type="button" id="finishGameBtn" class="btn btn-danger">สรุปผลทันที</button>
+        </div>
+
+        <div class="card-manager">
+          <h3>ส่วนผู้เล่น (เตรียมกระเช้า)</h3>
+          <div class="manager-grid">
+            <label>พ่อค้า
+              <select id="merchantPlayerInput"></select>
+            </label>
+            <label>การ์ด
+              <select id="merchantCardTypeInput"></select>
+            </label>
+            <label>จำนวน
+              <input id="merchantQtyInput" type="number" min="1" max="4" value="1" />
+            </label>
+            <button type="button" id="discardRedrawBtn" class="btn btn-secondary">ทิ้ง+สุ่มใหม่ (รอบละไม่เกิน 3)</button>
+            <button type="button" id="addBagBtn" class="btn">ใส่การ์ดเข้ากระเช้า</button>
+            <button type="button" id="clearBagBtn" class="btn btn-secondary">ล้างกระเช้า</button>
+            <button type="button" id="submitBagBtn" class="btn">ยืนยันส่งกระเช้า (0-4)</button>
+          </div>
+          <div id="playerHandSummary" class="summary-grid"></div>
         </div>
 
         <div class="card-manager">
@@ -91,26 +92,8 @@
             </label>
             <button type="button" id="resolveInspectionBtn" class="btn">ยืนยันคำสั่งตำรวจ</button>
           </div>
-          <p class="muted">ระบบจะแสดงการ์ดของพ่อค้าทุกคนพร้อมกัน และให้ตำรวจตัดสินใจทีละคนว่า “ตรวจ” หรือ “ปล่อยผ่าน” พร้อมบันทึกผลเงิน/แต้มอัตโนมัติ</p>
-        </div>
-
-        <div class="card-manager">
-          <h3>ระบบทิ้งการ์ด / จับการ์ด</h3>
-          <div class="manager-grid">
-            <label>ผู้เล่น
-              <select id="cardPlayerInput"></select>
-            </label>
-            <label>การ์ด (ใช้ตอนทิ้งการ์ด)
-              <select id="cardTypeInput"></select>
-            </label>
-            <label>จำนวน
-              <input id="cardQtyInput" type="number" min="1" max="10" value="1" />
-            </label>
-            <button type="button" id="drawCardBtn" class="btn">สุ่มจับการ์ดจากกองกลาง</button>
-            <button type="button" id="discardCardBtn" class="btn btn-secondary">ทิ้งการ์ดลงกองทิ้ง</button>
-          </div>
+          <p class="muted">ตอนตรวจ: เปิดการ์ดในกระเช้าได้เฉพาะพ่อค้าคนนั้นกับตำรวจรอบนี้ • ถ้าไม่เปิดก็ปล่อยผ่านด้วยสินบน • ของที่ขายแล้วจะออกจากเกม ไม่กลับเข้ากอง</p>
           <div id="deckStatus" class="summary-grid"></div>
-          <p class="muted">ระบบจะคำนวณแต้มการ์ดอัตโนมัติจากการ์ดในมือ และใช้ข้อมูลนี้ไปคำนวณโบนัสตอนจบเกม</p>
           <button type="button" id="reshuffleBtn" class="btn btn-secondary">สับกองทิ้งกลับเข้ากองกลาง</button>
         </div>
 
@@ -120,10 +103,10 @@
               <tr>
                 <th>ผู้เล่น</th>
                 <th>💰 เงิน</th>
-                <th>🃏 แต้มการ์ด</th>
-                <th>🎁 โบนัส</th>
+                <th>🥕 แต้มของปกติ (ระหว่างเกม)</th>
+                <th>🕵️ ของเถื่อน (เปิดตอนจบ)</th>
+                <th>🎁 โบนัส (สรุปท้ายเกม)</th>
                 <th>🏆 รวม</th>
-                <th>ปรับเงิน</th>
               </tr>
             </thead>
             <tbody id="playersTableBody"></tbody>
@@ -144,10 +127,11 @@
       <h3>ขั้นตอนการเล่น (สั้น)</h3>
       <ul class="steps-list">
         <li><span>1️⃣</span> Host เลือกรอบตำรวจต่อคน (1 หรือ 2 รอบ)</li>
-        <li><span>👥</span> ระบบดึงรายชื่อจาก Duel อัตโนมัติ</li>
-        <li><span>🚨</span> กดเริ่มเกม ระบบสุ่มตำรวจรอบแรกและแสดงกระเป๋าพ่อค้าทุกคนพร้อมกัน</li>
-        <li><span>🧺</span> ตำรวจกดตัดสินทีละคน: “ตรวจสอบ” หรือ “ปล่อยผ่าน + จ่ายส่วย”</li>
-        <li><span>🎴</span> ครบทุกคน = จบรอบ แล้วค่อยกดไปตำรวจรอบถัดไป</li>
+        <li><span>🎴</span> พ่อค้าเริ่มมือ 6 ใบ และเลือกทิ้ง 0-3 ใบเพื่อสุ่มใหม่ได้รอบละ 1 ชุด</li>
+        <li><span>🧺</span> พ่อค้าส่งกระเช้า 0-4 ใบ</li>
+        <li><span>🕵️</span> ตำรวจตรวจทีละคน (เปิดตรวจ หรือปล่อยผ่านด้วยสินบน)</li>
+        <li><span>📊</span> จบรอบ: เห็นคะแนนรวมแบบง่าย (ยังไม่เปิดคะแนนของเถื่อนและโบนัส)</li>
+        <li><span>✅</span> เปลี่ยนตำรวจรอบถัดไปจนทุกคนได้เป็นตำรวจ</li>
         <li><span>🏁</span> ครบทุกรอบ ระบบสรุปผู้ชนะอัตโนมัติ</li>
       </ul>
       <form method="dialog"><button class="btn">ปิด</button></form>
@@ -160,7 +144,7 @@
         <li><span>🥚</span> ไข่ไก่: อันดับ 1 = +12, อันดับ 2 = +8</li>
         <li><span>🥬</span> ผักสด: อันดับ 1 = +10, อันดับ 2 = +6</li>
         <li><span>🐟</span> ปลาทู: อันดับ 1 = +8, อันดับ 2 = +4</li>
-        <li><span>🚬🍷🦐🌿</span> ของเถื่อน (นับรวมทุกชนิด): อันดับ 1 = +10, อันดับ 2 = +5</li>
+        <li><span>💨🍷🥤💊</span> ของเถื่อน (นับรวมทุกชนิด): อันดับ 1 = +10, อันดับ 2 = +5</li>
         <li><span>🤝</span> ถ้าจำนวนการ์ดเสมอกัน ผู้เล่นทุกคนที่เสมอจะได้โบนัสอันดับนั้นเท่ากัน</li>
         <li><span>🧮</span> คะแนนรวมต่อคน = เงิน + แต้มการ์ด + โบนัส</li>
       </ul>

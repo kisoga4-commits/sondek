@@ -3,10 +3,10 @@ export const CARD_CATALOG = [
   { id: 'egg', name: 'ไข่ไก่', type: 'legal', points: 3, fine: 2, legalKey: 'egg', deckCount: 12 },
   { id: 'veg', name: 'ผักสด', type: 'legal', points: 4, fine: 3, legalKey: 'veg', deckCount: 10 },
   { id: 'mackerel', name: 'ปลาทู', type: 'legal', points: 5, fine: 4, legalKey: 'mackerel', deckCount: 8 },
-  { id: 'liquor', name: 'เหล้านอก', type: 'contraband', points: 7, fine: 4, deckCount: 6 },
-  { id: 'smoke', name: 'บุหรี่เถื่อน', type: 'contraband', points: 8, fine: 4, deckCount: 4 },
-  { id: 'rare_sea', name: 'ของทะเลหายาก', type: 'contraband', points: 9, fine: 5, deckCount: 3 },
-  { id: 'herb', name: 'สมุนไพรห้ามขาย', type: 'contraband', points: 10, fine: 5, deckCount: 3 },
+  { id: 'liquor', name: 'เหล้าเถื่อน', type: 'contraband', points: 7, fine: 4, deckCount: 6 },
+  { id: 'smoke', name: 'บุหรี่ไฟฟ้า', type: 'contraband', points: 8, fine: 4, deckCount: 4 },
+  { id: 'rare_sea', name: 'น้ำกระท่อม', type: 'contraband', points: 9, fine: 5, deckCount: 3 },
+  { id: 'herb', name: 'ยาเถื่อน', type: 'contraband', points: 10, fine: 5, deckCount: 3 },
 ];
 
 export const LEGAL_BONUS = {

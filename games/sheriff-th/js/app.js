@@ -65,9 +65,9 @@ const CARD_ICON_BY_ID = {
   veg: '🥬',
   mackerel: '🐟',
   liquor: '🍷',
-  smoke: '🚬',
-  rare_sea: '🦐',
-  herb: '🌿',
+  smoke: '💨',
+  rare_sea: '🥤',
+  herb: '💊',
 };
 
 const el = {
@@ -79,14 +79,15 @@ const el = {
   setupCard: document.getElementById('setupCard'),
   gameCard: document.getElementById('gameCard'),
   gameStatus: document.getElementById('gameStatus'),
-  scoreHighlights: document.getElementById('scoreHighlights'),
-  playerRoleStrip: document.getElementById('playerRoleStrip'),
-  systemHealth: document.getElementById('systemHealth'),
-  cardPlayerInput: document.getElementById('cardPlayerInput'),
-  cardTypeInput: document.getElementById('cardTypeInput'),
-  cardQtyInput: document.getElementById('cardQtyInput'),
-  drawCardBtn: document.getElementById('drawCardBtn'),
-  discardCardBtn: document.getElementById('discardCardBtn'),
+  phaseGuide: document.getElementById('phaseGuide'),
+  merchantPlayerInput: document.getElementById('merchantPlayerInput'),
+  merchantCardTypeInput: document.getElementById('merchantCardTypeInput'),
+  merchantQtyInput: document.getElementById('merchantQtyInput'),
+  discardRedrawBtn: document.getElementById('discardRedrawBtn'),
+  addBagBtn: document.getElementById('addBagBtn'),
+  clearBagBtn: document.getElementById('clearBagBtn'),
+  submitBagBtn: document.getElementById('submitBagBtn'),
+  playerHandSummary: document.getElementById('playerHandSummary'),
   reshuffleBtn: document.getElementById('reshuffleBtn'),
   deckStatus: document.getElementById('deckStatus'),
   playersTableBody: document.getElementById('playersTableBody'),
@@ -136,6 +137,11 @@ function getCurrentSheriffId(room = state.room) {
   return String(queue[activeRound] || '');
 }
 
+function getCurrentViewerPlayer(room = state.room) {
+  const players = getPlayers(room);
+  return players.find((player) => player.sourceUid && player.sourceUid === state.uid) || null;
+}
+
 function pickMarketPlayerId(players = [], sheriffId = '') {
   const candidates = players.filter((player) => player.id !== sheriffId);
   const source = candidates.length ? candidates : players;
@@ -148,24 +154,67 @@ function getCurrentRoundInspection(room = state.room) {
   const inspection = room?.inspection;
   if (!inspection || typeof inspection !== 'object') return null;
   const merchantIds = Array.isArray(inspection.merchantIds) ? inspection.merchantIds : [];
+  const prepMap = inspection?.prepMap && typeof inspection.prepMap === 'object' ? inspection.prepMap : {};
   const resolvedMap = inspection?.resolvedMap && typeof inspection.resolvedMap === 'object' ? inspection.resolvedMap : {};
+  const submittedCount = merchantIds.filter((id) => Boolean(prepMap[id]?.bagSubmitted)).length;
   const resolvedCount = merchantIds.filter((id) => Boolean(resolvedMap[id])).length;
+  const phase = String(inspection.phase || 'prepare');
   return {
     ...inspection,
+    phase,
     merchantIds,
+    prepMap,
     resolvedMap,
+    submittedCount,
     resolvedCount,
-    isComplete: merchantIds.length > 0 && resolvedCount >= merchantIds.length,
+    isReadyForInspection: merchantIds.length > 0 && submittedCount >= merchantIds.length,
+    isComplete: phase === 'inspect' && merchantIds.length > 0 && resolvedCount >= merchantIds.length,
   };
 }
 
 function buildInspectionState(players = [], sheriffId = '') {
   return {
+    phase: 'prepare',
     sheriffId,
     merchantIds: players.map((player) => String(player.id || '')).filter((id) => id && id !== sheriffId),
+    prepMap: players.reduce((acc, player) => {
+      if (player.id && player.id !== sheriffId) {
+        acc[player.id] = {
+          redrawCount: 0,
+          bag: createEmptyPile(),
+          bagSubmitted: false,
+        };
+      }
+      return acc;
+    }, {}),
     resolvedMap: {},
     startedAtMs: Date.now(),
     completedAtMs: null,
+  };
+}
+
+function getInspectionPhase(room = state.room) {
+  return String(room?.inspection?.phase || 'prepare');
+}
+
+function countPileCards(pile = {}) {
+  return CARD_CATALOG.reduce((sum, card) => sum + Math.max(0, Number(pile?.[card.id] || 0)), 0);
+}
+
+function getVisibleRoundScore(player = {}) {
+  const hand = addPile(player?.hand || createEmptyPile(), player?.sold || createEmptyPile());
+  let legalPoints = 0;
+  let contrabandPoints = 0;
+  CARD_CATALOG.forEach((card) => {
+    const qty = Math.max(0, Number(hand?.[card.id] || 0));
+    const points = qty * Number(card.points || 0);
+    if (card.type === 'legal') legalPoints += points;
+    if (card.type === 'contraband') contrabandPoints += points;
+  });
+  return {
+    legalPoints,
+    contrabandPoints,
+    publicTotal: Number(player?.money || 0) + legalPoints,
   };
 }
 
@@ -190,12 +239,51 @@ function splitHandByType(hand = {}) {
   return { legal, contraband };
 }
 
+function subtractPileFromHand(hand = {}, pile = {}) {
+  const next = { ...(hand || createEmptyPile()) };
+  CARD_CATALOG.forEach((card) => {
+    const current = Math.max(0, Number(next[card.id] || 0));
+    const used = Math.max(0, Number(pile?.[card.id] || 0));
+    next[card.id] = Math.max(0, current - used);
+  });
+  return next;
+}
+
+function addPile(target = {}, pile = {}) {
+  const next = { ...(target || createEmptyPile()) };
+  CARD_CATALOG.forEach((card) => {
+    const current = Math.max(0, Number(next[card.id] || 0));
+    const incoming = Math.max(0, Number(pile?.[card.id] || 0));
+    next[card.id] = current + incoming;
+  });
+  return next;
+}
+
+function getPlayersForScoring(players = []) {
+  return players.map((player) => ({
+    ...player,
+    hand: addPile(player?.hand || createEmptyPile(), player?.sold || createEmptyPile()),
+  }));
+}
+
 function formatHandSummary(hand = {}) {
   return CARD_CATALOG
     .map((card) => ({ card, qty: Math.max(0, Number(hand?.[card.id] || 0)) }))
     .filter((entry) => entry.qty > 0)
     .map((entry) => `${getCardIcon(entry.card.id)} ${entry.card.name} x${entry.qty}`)
     .join(' • ') || '-';
+}
+
+function drawWithAutoReshuffle(room = {}, playerId = '', qty = 1) {
+  const firstDraw = drawRandomCards(room, { playerId, qty });
+  if (firstDraw.ok) return { ...firstDraw, reshuffled: false };
+  if (String(firstDraw.message || '') !== 'deck_empty') return { ...firstDraw, reshuffled: false };
+  const reshuffledRoom = reshuffleDiscard(firstDraw.room || room);
+  const secondDraw = drawRandomCards(reshuffledRoom, { playerId, qty });
+  return {
+    ...secondDraw,
+    reshuffled: true,
+  };
 }
 
 function renderRoomSummary() {
@@ -212,22 +300,37 @@ function renderRoomSummary() {
 
 function renderCardsInfo() {
   if (!el.cardsInfoList) return;
-  el.cardsInfoList.innerHTML = CARD_CATALOG.map((card) => (
-    `<article class="card-item">
-      <div class="card-item-head">
-        <span class="card-icon" aria-hidden="true">${getCardIcon(card.id)}</span>
-        <strong>${card.name}</strong>
+  const legalCards = CARD_CATALOG.filter((card) => card.type === 'legal');
+  const contrabandCards = CARD_CATALOG.filter((card) => card.type === 'contraband');
+  const renderGroup = (title, cards) => `
+    <section>
+      <h4>${title}</h4>
+      <div class="cards-list">
+        ${cards.map((card) => (
+          `<article class="card-item">
+            <div class="card-item-head">
+              <span class="card-icon" aria-hidden="true">${getCardIcon(card.id)}</span>
+              <strong>${card.name}</strong>
+            </div>
+            <small>แต้ม ${card.points} • ค่าปรับ ${card.fine} • ในกองเริ่มต้น ${card.deckCount}</small>
+          </article>`
+        )).join('')}
       </div>
-      <small>${card.type === 'legal' ? 'ของปกติ ✅' : 'ของเถื่อน ⚠️'} • แต้ม ${card.points} • ค่าปรับ ${card.fine} • ในกองกลาง ${card.deckCount}</small>
-    </article>`
-  )).join('');
+    </section>
+  `;
+  el.cardsInfoList.innerHTML = [
+    renderGroup('หมวดของดี ✅', legalCards),
+    renderGroup('หมวดของเถื่อน ⚠️', contrabandCards),
+  ].join('');
 }
 
 function renderPlayerSelects() {
   const players = getPlayers();
-  if (!el.cardPlayerInput || !el.cardTypeInput) return;
-  el.cardPlayerInput.innerHTML = players.map((player) => `<option value="${player.id}">${player.name}</option>`).join('');
-  el.cardTypeInput.innerHTML = CARD_CATALOG.map((card) => `<option value="${card.id}">${getCardIcon(card.id)} ${card.name}</option>`).join('');
+  const sheriffId = getCurrentSheriffId();
+  const merchants = players.filter((player) => player.id !== sheriffId);
+  if (!el.merchantPlayerInput || !el.merchantCardTypeInput) return;
+  el.merchantPlayerInput.innerHTML = merchants.map((player) => `<option value="${player.id}">${player.name}</option>`).join('');
+  el.merchantCardTypeInput.innerHTML = CARD_CATALOG.map((card) => `<option value="${card.id}">${getCardIcon(card.id)} ${card.name}</option>`).join('');
 }
 
 function renderDuelPlayersPreview() {
@@ -251,13 +354,16 @@ function renderDeckStatus() {
   if (!el.deckStatus) return;
   const deck = state.room?.deck || createInitialDeck();
   const discard = state.room?.discard || createEmptyPile();
+  const soldOut = state.room?.soldOut || createEmptyPile();
   const totalDeck = Object.values(deck).reduce((sum, value) => sum + Number(value || 0), 0);
   const totalDiscard = Object.values(discard).reduce((sum, value) => sum + Number(value || 0), 0);
+  const totalSoldOut = Object.values(soldOut).reduce((sum, value) => sum + Number(value || 0), 0);
 
   el.deckStatus.innerHTML = [
     ['การ์ดในกองกลาง', `${totalDeck} ใบ`],
     ['การ์ดในกองทิ้ง', `${totalDiscard} ใบ`],
-    ...CARD_CATALOG.map((card) => [`${getCardIcon(card.id)} ${card.name}`, `กองกลาง ${Number(deck[card.id] || 0)} • ทิ้ง ${Number(discard[card.id] || 0)}`]),
+    ['ขายแล้ว/ออกจากเกม', `${totalSoldOut} ใบ`],
+    ...CARD_CATALOG.map((card) => [`${getCardIcon(card.id)} ${card.name}`, `กองกลาง ${Number(deck[card.id] || 0)} • ทิ้ง ${Number(discard[card.id] || 0)} • ขายแล้ว ${Number(soldOut[card.id] || 0)}`]),
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
@@ -269,112 +375,43 @@ function renderGameStatus() {
   const currentSheriffId = getCurrentSheriffId();
   const currentSheriff = players.find((player) => player.id === currentSheriffId)?.name || '-';
   const status = String(state.room?.status || 'setup');
-  const me = players.find((player) => player.sourceUid && player.sourceUid === state.uid)?.name || '-';
   const inspection = getCurrentRoundInspection();
   const pendingCount = inspection ? Math.max(0, inspection.merchantIds.length - inspection.resolvedCount) : 0;
+  const submittedCount = inspection ? Number(inspection.submittedCount || 0) : 0;
+  const deck = state.room?.deck || createInitialDeck();
+  const totalDeck = Object.values(deck).reduce((sum, value) => sum + Number(value || 0), 0);
+  const phase = inspection?.phase === 'inspect' ? 'ด่านตำรวจ' : 'เตรียมกระเช้า';
+  const starterUse = players.length * 6;
 
   el.gameStatus.innerHTML = [
     ['สถานะ', status === 'finished' ? 'จบเกม' : status === 'playing' ? 'กำลังเล่น' : 'ตั้งค่า'],
     ['รอบปัจจุบัน', `${Math.min(activeRound + 1, Math.max(queue.length, 1))}/${Math.max(queue.length, 1)}`],
     ['🚨 ตำรวจรอบนี้', currentSheriff],
-    ['🧺 พ่อค้าที่รอตัดสิน', `${pendingCount} คน`],
-    ['🙋 คุณคือ', me],
+    ['เฟส', phase],
+    ['🧺 ส่งกระเช้าแล้ว', `${submittedCount}/${inspection?.merchantIds?.length || 0}`],
+    ['🕵️ พ่อค้าที่รอตัดสิน', `${pendingCount} คน`],
+    ['ไพ่เริ่มต้นที่ใช้', `${starterUse}/60 ใบ`],
     ['รอบตำรวจต่อคน', `${normalizeRounds(state.room?.roundsPerPlayer || 1)} รอบ`],
-    ['ผู้เล่นรวม', `${players.length} คน`],
-    ['รอบที่เหลือ', `${Math.max(0, queue.length - activeRound - 1)} รอบ`],
+    ['การ์ดกองกลาง', `${totalDeck} ใบ`],
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
-function renderScoreHighlights() {
-  if (!el.scoreHighlights) return;
-  const ranked = computePlayerTotals(getPlayers()).sort((a, b) => b.total - a.total);
-  if (!ranked.length) {
-    el.scoreHighlights.innerHTML = '';
-    return;
-  }
-  const top = ranked.slice(0, 3);
-  const medals = ['🥇', '🥈', '🥉'];
-  const highestMoney = [...ranked].sort((a, b) => b.money - a.money)[0];
-  el.scoreHighlights.innerHTML = [
-    ...top.map((player, index) => `
-      <article class="score-card">
-        <small>${medals[index] || '🏅'} อันดับ ${index + 1}</small>
-        <strong>${player.name} • ${player.total} แต้ม</strong>
-        <small>💰 ${player.money} + 🃏 ${player.cardPoints} + 🎁 ${player.bonus}</small>
-      </article>
-    `),
-    `<article class="score-card">
-      <small>💸 เงินมากสุดตอนนี้</small>
-      <strong>${highestMoney?.name || '-'} • ${highestMoney?.money || 0}</strong>
-      <small>ช่วยดูว่าระบบปรับเงินทำงานถูกต้องไหม</small>
-    </article>`,
-  ].join('');
-}
-
-function renderSystemHealth() {
-  if (!el.systemHealth) return;
-  const room = state.room;
-  const players = getPlayers(room);
-  if (!room || !players.length) {
-    el.systemHealth.innerHTML = '';
-    return;
-  }
-  const deck = room.deck || createInitialDeck();
-  const discard = room.discard || createEmptyPile();
-  const totalDeck = Object.values(deck).reduce((sum, value) => sum + Number(value || 0), 0);
-  const totalDiscard = Object.values(discard).reduce((sum, value) => sum + Number(value || 0), 0);
-  const totalHands = players.reduce((sum, player) => (
-    sum + Object.values(player?.hand || {}).reduce((inner, qty) => inner + Number(qty || 0), 0)
-  ), 0);
-  const expectedTotalCards = CARD_CATALOG.reduce((sum, card) => sum + Number(card.deckCount || 0), 0);
-  const activeRound = Number(room?.activeRoundIndex || 0);
-  const queue = Array.isArray(room?.sheriffQueue) ? room.sheriffQueue : [];
-  const rounds = normalizeRounds(room?.roundsPerPlayer || 1);
-  const sheriffId = getCurrentSheriffId(room);
-  const inspection = getCurrentRoundInspection(room);
-  const checks = [
-    {
-      ok: players.length >= 3 && players.length <= 24,
-      message: `👥 จำนวนผู้เล่น ${players.length} คน`,
-    },
-    {
-      ok: String(room?.status || '') === 'setup' || queue.length === players.length * rounds,
-      message: `🚨 คิวตำรวจ ${queue.length}/${players.length * rounds} รอบ`,
-    },
-    {
-      ok: activeRound >= 0 && activeRound <= queue.length,
-      message: `🔁 ดัชนีรอบ ${activeRound + 1}/${Math.max(queue.length, 1)}`,
-    },
-    {
-      ok: totalDeck + totalDiscard + totalHands === expectedTotalCards,
-      message: `🧮 การ์ดรวม ${totalDeck + totalDiscard + totalHands}/${expectedTotalCards}`,
-    },
-    {
-      ok: !inspection || inspection.merchantIds.every((id) => id && id !== sheriffId),
-      message: `🧺 รายชื่อพ่อค้า ${inspection ? inspection.merchantIds.length : 0} คน`,
-    },
-  ];
-  el.systemHealth.innerHTML = checks
-    .map((check) => `<div class="health-item ${check.ok ? 'ok' : 'warn'}">${check.ok ? '✅' : '⚠️'} ${check.message}</div>`)
-    .join('');
-}
-
-function renderRoleStrip() {
-  if (!el.playerRoleStrip) return;
-  const players = getPlayers();
+function renderPhaseGuide() {
+  if (!el.phaseGuide) return;
+  const viewer = getCurrentViewerPlayer();
   const sheriffId = getCurrentSheriffId();
-  if (!players.length) {
-    el.playerRoleStrip.innerHTML = '';
-    return;
-  }
-  el.playerRoleStrip.innerHTML = players.map((player) => {
-    const isSheriff = player.id === sheriffId;
-    const isYou = Boolean(player.sourceUid && player.sourceUid === state.uid);
-    const classes = ['role-pill'];
-    if (isSheriff) classes.push('is-sheriff');
-    if (isYou) classes.push('is-you');
-    return `<span class="${classes.join(' ')}">${isSheriff ? '🚨 ' : ''}${player.name}${isYou ? ' (คุณ)' : ''}</span>`;
-  }).join('');
+  const isSheriff = viewer?.id && viewer.id === sheriffId;
+  const inspection = getCurrentRoundInspection();
+  const phaseText = inspection?.phase === 'inspect'
+    ? 'เฟสตรวจ: ตำรวจตรวจพ่อค้าทีละคน'
+    : 'เฟสเตรียม: ทิ้ง 0-3 แล้วส่งกระเช้า 0-4';
+  const viewerRoleText = isSheriff ? 'คุณเป็นตำรวจรอบนี้: เลือกเปิดตรวจหรือรับสินบน' : 'คุณเป็นพ่อค้า: จัดมือและเลือกของเข้ากระเช้า';
+  el.phaseGuide.innerHTML = [
+    ['ลำดับเล่น', 'แจก 6 ใบ → ทิ้งได้สูงสุด 3 ใบ → ส่งกระเช้า 0-4 ใบ → ตรวจด่าน'],
+    ['เฟสรอบนี้', phaseText],
+    ['กติกาง่ายๆ', 'การ์ดในกระเช้าเปิดให้ดูเฉพาะเจ้าของกับตำรวจรอบนี้'],
+    ['คำแนะนำรอบนี้', viewerRoleText],
+  ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
 function renderInspectionBoard() {
@@ -384,6 +421,9 @@ function renderInspectionBoard() {
   const inspection = getCurrentRoundInspection(room);
   const sheriffId = getCurrentSheriffId(room);
   const sheriffName = players.find((player) => player.id === sheriffId)?.name || '-';
+  const viewer = getCurrentViewerPlayer(room);
+  const viewerId = String(viewer?.id || '');
+  const canSeeAllHands = viewerId && viewerId === sheriffId;
 
   if (!inspection) {
     el.inspectionSummary.innerHTML = '';
@@ -391,7 +431,9 @@ function renderInspectionBoard() {
     return;
   }
 
-  const unresolvedIds = inspection.merchantIds.filter((id) => !inspection.resolvedMap[id]);
+  const unresolvedIds = inspection.phase === 'inspect'
+    ? inspection.merchantIds.filter((id) => !inspection.resolvedMap[id])
+    : inspection.merchantIds;
   if (el.inspectMerchantInput) {
     el.inspectMerchantInput.innerHTML = unresolvedIds
       .map((id) => `<option value="${id}">${players.find((player) => player.id === id)?.name || id}</option>`)
@@ -401,52 +443,70 @@ function renderInspectionBoard() {
   const merchantCards = inspection.merchantIds.map((id) => {
     const merchant = players.find((player) => player.id === id);
     const resolved = inspection.resolvedMap[id];
+    const bagMap = inspection?.prepMap?.[id]?.bag || createEmptyPile();
+    const handCount = countPileCards(bagMap);
+    const canRevealHand = canSeeAllHands || viewerId === id;
     const decision = resolved?.action === 'inspect'
       ? '🔎 ตรวจสอบ'
       : resolved?.action === 'pass'
         ? '✅ ปล่อยผ่าน'
         : '⏳ รอตัดสิน';
-    return `<div class="chip"><small>${merchant?.name || id} • ${decision}</small><strong>${formatHandSummary(merchant?.hand || {})}</strong></div>`;
+    const handText = canRevealHand ? formatHandSummary(bagMap) : `🂠 ซ่อนการ์ด (${handCount} ใบ)`;
+    return `<div class="chip"><small>${merchant?.name || id} • ${decision}</small><strong>${handText}</strong></div>`;
   }).join('');
 
+  const stageText = inspection.phase === 'prepare'
+    ? `เฟสเตรียมกระเช้า ${inspection.submittedCount}/${inspection.merchantIds.length}`
+    : `เฟสตรวจ ${inspection.resolvedCount}/${inspection.merchantIds.length}`;
   el.inspectionSummary.innerHTML = [
     `<div class="chip"><small>ตำรวจรอบนี้</small><strong>${sheriffName}</strong></div>`,
-    `<div class="chip"><small>สถานะการตัดสิน</small><strong>${inspection.resolvedCount}/${inspection.merchantIds.length} คน</strong></div>`,
+    `<div class="chip"><small>สถานะรอบ</small><strong>${stageText}</strong></div>`,
     merchantCards,
   ].join('');
 }
 
+function renderPlayerHandSummary() {
+  if (!el.playerHandSummary) return;
+  const room = state.room || {};
+  const players = getPlayers(room);
+  const merchantId = String(el.merchantPlayerInput?.value || '');
+  const merchant = players.find((player) => player.id === merchantId) || players[0];
+  const inspection = getCurrentRoundInspection(room);
+  if (!merchant) {
+    el.playerHandSummary.innerHTML = '';
+    return;
+  }
+  const prep = inspection?.prepMap?.[merchant.id] || { redrawCount: 0, bag: createEmptyPile(), bagSubmitted: false };
+  const bagTotal = countPileCards(prep.bag || {});
+  const sold = merchant?.sold || createEmptyPile();
+  el.playerHandSummary.innerHTML = [
+    [`มือของ ${merchant.name}`, formatHandSummary(merchant.hand || {})],
+    ['ขายสะสมแล้ว', formatHandSummary(sold)],
+    ['ทิ้งและสุ่มใหม่ในรอบนี้', `${Math.max(0, Number(prep.redrawCount || 0))}/3 ใบ`],
+    ['กระเช้าปัจจุบัน', `${formatHandSummary(prep.bag || {})}`],
+    ['จำนวนในกระเช้า', `${bagTotal}/4 ใบ`],
+    ['สถานะส่งกระเช้า', prep.bagSubmitted ? '✅ ส่งแล้ว' : '⏳ ยังไม่ส่ง'],
+  ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
+}
+
 function renderTable() {
   if (!el.playersTableBody) return;
-  const ranked = computePlayerTotals(getPlayers()).sort((a, b) => b.total - a.total);
-  el.playersTableBody.innerHTML = ranked.map((player) => `
+  const status = String(state.room?.status || 'setup');
+  const rows = computePlayerTotals(getPlayersForScoring(getPlayers()));
+  el.playersTableBody.innerHTML = rows.map((player) => `
     <tr>
       <td>${player.name}</td>
       <td><strong>${player.money}</strong></td>
-      <td><strong>${player.cardPoints}</strong></td>
-      <td><strong>${player.bonus}</strong></td>
-      <td><strong>🏆 ${player.total}</strong></td>
-      <td>
-        <span class="money-actions">
-          <button type="button" data-money="-5" data-player-id="${player.id}" ${canHostMutate() ? '' : 'disabled'}>-5</button>
-          <button type="button" data-money="5" data-player-id="${player.id}" ${canHostMutate() ? '' : 'disabled'}>+5</button>
-          <button type="button" data-money="10" data-player-id="${player.id}" ${canHostMutate() ? '' : 'disabled'}>+10</button>
-        </span>
-      </td>
+      <td><strong>${getVisibleRoundScore(player).legalPoints}</strong></td>
+      <td><strong>${status === 'finished' ? getVisibleRoundScore(player).contrabandPoints : '❓'}</strong></td>
+      <td><strong>${status === 'finished' ? player.bonus : '-'}</strong></td>
+      <td><strong>🏆 ${status === 'finished' ? player.total : getVisibleRoundScore(player).publicTotal}</strong></td>
     </tr>
   `).join('');
-
-  el.playersTableBody.querySelectorAll('[data-money]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const delta = Number(btn.dataset.money || 0);
-      const playerId = String(btn.dataset.playerId || '');
-      void adjustMoney(playerId, delta);
-    });
-  });
 }
 
 function renderWinner() {
-  const ranked = buildWinnerSummary(getPlayers());
+  const ranked = buildWinnerSummary(getPlayersForScoring(getPlayers()));
   const winner = ranked[0];
   const status = String(state.room?.status || 'setup');
   if (status !== 'finished' || !winner) {
@@ -472,8 +532,11 @@ function setControlAvailability() {
   const playing = status === 'playing';
   const duelPlayerCount = state.duelPlayers.length;
   const canStartByPlayerCount = duelPlayerCount >= 3 && duelPlayerCount <= 24;
+  const inspection = getCurrentRoundInspection();
+  const phase = getInspectionPhase();
+  const roundComplete = !playing || !inspection || inspection.isComplete;
 
-  [el.startGameBtn, el.drawCardBtn, el.discardCardBtn, el.reshuffleBtn, el.nextSheriffBtn, el.finishGameBtn].forEach((button) => {
+  [el.startGameBtn, el.discardRedrawBtn, el.addBagBtn, el.clearBagBtn, el.submitBagBtn, el.reshuffleBtn, el.nextSheriffBtn, el.finishGameBtn].forEach((button) => {
     if (!button) return;
     button.disabled = !isHost;
   });
@@ -488,12 +551,13 @@ function setControlAvailability() {
         : 'ต้องมีผู้เล่นจากห้อง Duel 3-24 คน';
   }
 
-  if (el.drawCardBtn) el.drawCardBtn.disabled = !isHost || !playing;
-  if (el.discardCardBtn) el.discardCardBtn.disabled = !isHost || !playing;
-  const inspection = getCurrentRoundInspection();
-  const roundComplete = !playing || !inspection || inspection.isComplete;
+  const allowPrepareActions = isHost && playing && phase === 'prepare';
+  if (el.discardRedrawBtn) el.discardRedrawBtn.disabled = !allowPrepareActions;
+  if (el.addBagBtn) el.addBagBtn.disabled = !allowPrepareActions;
+  if (el.clearBagBtn) el.clearBagBtn.disabled = !allowPrepareActions;
+  if (el.submitBagBtn) el.submitBagBtn.disabled = !allowPrepareActions;
   if (el.nextSheriffBtn) el.nextSheriffBtn.disabled = !isHost || !playing || !roundComplete;
-  if (el.resolveInspectionBtn) el.resolveInspectionBtn.disabled = !isHost || !playing || roundComplete;
+  if (el.resolveInspectionBtn) el.resolveInspectionBtn.disabled = !isHost || !playing || phase !== 'inspect' || roundComplete;
   if (el.finishGameBtn) el.finishGameBtn.disabled = !isHost || status === 'finished';
   if (el.reshuffleBtn) el.reshuffleBtn.disabled = !isHost || status === 'setup';
 }
@@ -504,10 +568,9 @@ function renderAll() {
   renderPlayerSelects();
   renderDeckStatus();
   renderGameStatus();
-  renderScoreHighlights();
-  renderRoleStrip();
+  renderPhaseGuide();
+  renderPlayerHandSummary();
   renderInspectionBoard();
-  renderSystemHealth();
   renderTable();
   renderWinner();
 
@@ -562,6 +625,7 @@ function buildInitialRoomState() {
     activeRoundIndex: 0,
     deck: createInitialDeck(),
     discard: createEmptyPile(),
+    soldOut: createEmptyPile(),
     lastEvent: 'รอ Host ตั้งค่าผู้เล่นและเริ่มเกม',
   };
 }
@@ -582,6 +646,7 @@ async function startGame() {
     const players = duelEntries.slice(0, 24).map((entry, index) => ({
       ...createPlayer(entry.name, `p${index + 1}`),
       sourceUid: entry.uid,
+      sold: createEmptyPile(),
     }));
     const queue = buildSheriffQueue(players.map((player) => player.id), rounds);
     const firstSheriffId = String(queue[0] || '');
@@ -609,7 +674,8 @@ async function startGame() {
       inspection: buildInspectionState(readyPlayers, firstSheriffId),
       deck: readyDeck,
       discard: createEmptyPile(),
-      lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • 🚨 ${readyPlayers.find((p) => p.id === firstSheriffId)?.name || '-'} • แสดงกระเป๋าพ่อค้าทุกคนแล้ว`,
+      soldOut: createEmptyPile(),
+      lastEvent: `เริ่มเกมแล้ว • แจกการ์ดเริ่มต้นคนละ ${dealtCards} ใบ${dealWarning} • 🚨 ${readyPlayers.find((p) => p.id === firstSheriffId)?.name || '-'} เริ่มตรวจด่าน`,
       startedAtMs: Date.now(),
     }));
   } catch (error) {
@@ -620,71 +686,130 @@ async function startGame() {
   }
 }
 
-async function adjustMoney(playerId = '', delta = 0) {
-  if (!playerId || !Number.isFinite(delta)) return;
+async function discardAndRedrawForMerchant() {
+  const playerId = String(el.merchantPlayerInput?.value || '');
+  const cardId = String(el.merchantCardTypeInput?.value || '');
+  const qty = Math.max(1, Math.min(3, Number(el.merchantQtyInput?.value || 1)));
   await mutateRoom((room) => {
-    const players = getPlayers(room).map((player) => (
-      player.id !== playerId
-        ? player
-        : { ...player, money: Math.max(0, Number(player.money || 0) + delta) }
-    ));
-    const name = players.find((player) => player.id === playerId)?.name || 'ผู้เล่น';
+    if (String(room.status || '') !== 'playing') return room;
+    const inspection = getCurrentRoundInspection(room);
+    if (!inspection || inspection.phase !== 'prepare') return room;
+    const prep = inspection.prepMap?.[playerId];
+    if (!prep || prep.bagSubmitted) return room;
+    const used = Math.max(0, Number(prep.redrawCount || 0));
+    if (used + qty > 3) {
+      return { ...room, lastEvent: 'ทิ้ง+สุ่มใหม่ได้รวมไม่เกิน 3 ใบต่อรอบ' };
+    }
+    const discardResult = discardCard(room, { playerId, cardId, qty });
+    if (!discardResult.ok) {
+      return { ...room, lastEvent: 'ทิ้งการ์ดไม่สำเร็จ: การ์ดในมือไม่พอ' };
+    }
+    const drawResult = drawWithAutoReshuffle(discardResult.room, playerId, qty);
+    if (!drawResult.ok) {
+      return { ...room, lastEvent: 'สุ่มการ์ดใหม่ไม่สำเร็จ: กองกลางไม่พอ' };
+    }
+    const nextInspection = {
+      ...inspection,
+      prepMap: {
+        ...inspection.prepMap,
+        [playerId]: {
+          ...prep,
+          redrawCount: used + qty,
+        },
+      },
+    };
+    const players = getPlayers(drawResult.room);
+    const playerName = players.find((player) => player.id === playerId)?.name || 'พ่อค้า';
     return {
       ...room,
       players,
-      lastEvent: `${name} ปรับเงิน ${delta > 0 ? '+' : ''}${delta}`,
+      deck: drawResult.room.deck,
+      discard: drawResult.room.discard,
+      inspection: nextInspection,
+      lastEvent: `${playerName} ทิ้ง+สุ่มใหม่ ${qty} ใบ (ใช้สิทธิ์ ${used + qty}/3)${drawResult.reshuffled ? ' • สับกองทิ้งอัตโนมัติ' : ''}`,
     };
   });
 }
 
-async function drawCardToPlayer() {
-  const playerId = String(el.cardPlayerInput?.value || '');
-  const qty = Math.max(1, Math.min(10, Number(el.cardQtyInput?.value || 1)));
+async function addCardToMerchantBag() {
+  const playerId = String(el.merchantPlayerInput?.value || '');
+  const cardId = String(el.merchantCardTypeInput?.value || '');
+  const qty = Math.max(1, Math.min(4, Number(el.merchantQtyInput?.value || 1)));
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
-    const result = drawRandomCards(room, { playerId, qty });
-    if (!result.ok) {
-      return {
-        ...room,
-        lastEvent: 'กองกลางไม่พอสำหรับการสุ่มจับการ์ด',
-      };
-    }
-    const players = getPlayers(result.room);
-    const deck = result.room.deck;
-    const drawnSummary = result.drawnCards
-      .map((id) => `${getCardIcon(id)} ${getCardById(id)?.name || id}`)
-      .filter(Boolean)
-      .join(', ');
-
+    const inspection = getCurrentRoundInspection(room);
+    if (!inspection || inspection.phase !== 'prepare') return room;
+    const prep = inspection.prepMap?.[playerId];
+    if (!prep || prep.bagSubmitted) return room;
+    const merchant = getPlayers(room).find((player) => player.id === playerId);
+    const handQty = Math.max(0, Number(merchant?.hand?.[cardId] || 0));
+    const bag = { ...(prep.bag || createEmptyPile()) };
+    const nextQty = Math.max(0, Number(bag[cardId] || 0)) + qty;
+    const bagTotal = countPileCards(bag) + qty;
+    if (nextQty > handQty) return { ...room, lastEvent: 'ใส่กระเช้าไม่สำเร็จ: เกินจำนวนการ์ดในมือ' };
+    if (bagTotal > 4) return { ...room, lastEvent: 'ใส่กระเช้าได้สูงสุด 4 ใบ' };
+    bag[cardId] = nextQty;
     return {
       ...room,
-      players,
-      deck,
-      lastEvent: `${players.find((player) => player.id === playerId)?.name || 'ผู้เล่น'} สุ่มจับ ${qty} ใบ: ${drawnSummary || '-'}`,
+      inspection: {
+        ...inspection,
+        prepMap: {
+          ...inspection.prepMap,
+          [playerId]: { ...prep, bag },
+        },
+      },
+      lastEvent: `${merchant?.name || 'พ่อค้า'} ใส่ ${getCardIcon(cardId)} ${getCardById(cardId)?.name || cardId} x${qty} เข้ากระเช้า`,
     };
   });
 }
 
-async function discardCardFromPlayer() {
-  const playerId = String(el.cardPlayerInput?.value || '');
-  const cardId = String(el.cardTypeInput?.value || '');
-  const qty = Math.max(1, Math.min(10, Number(el.cardQtyInput?.value || 1)));
+async function clearMerchantBag() {
+  const playerId = String(el.merchantPlayerInput?.value || '');
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
-    const result = discardCard(room, { playerId, cardId, qty });
-    if (!result.ok) {
-      return {
-        ...room,
-        lastEvent: `ทิ้งการ์ดไม่สำเร็จ: ผู้เล่นมี ${getCardById(cardId)?.name || cardId} ไม่พอ`,
-      };
-    }
-    const players = getPlayers(result.room);
-    const discard = result.room.discard;
+    const inspection = getCurrentRoundInspection(room);
+    if (!inspection || inspection.phase !== 'prepare') return room;
+    const prep = inspection.prepMap?.[playerId];
+    if (!prep || prep.bagSubmitted) return room;
     return {
       ...room,
-      players,
-      discard,
-      lastEvent: `${players.find((player) => player.id === playerId)?.name || 'ผู้เล่น'} ทิ้ง ${getCardIcon(cardId)} ${getCardById(cardId)?.name || cardId} x${qty}`,
+      inspection: {
+        ...inspection,
+        prepMap: {
+          ...inspection.prepMap,
+          [playerId]: { ...prep, bag: createEmptyPile() },
+        },
+      },
+      lastEvent: 'ล้างกระเช้าพ่อค้าแล้ว',
+    };
+  });
+}
+
+async function submitMerchantBag() {
+  const playerId = String(el.merchantPlayerInput?.value || '');
+  await mutateRoom((room) => {
+    if (String(room.status || '') !== 'playing') return room;
+    const inspection = getCurrentRoundInspection(room);
+    if (!inspection || inspection.phase !== 'prepare') return room;
+    const prep = inspection.prepMap?.[playerId];
+    if (!prep || prep.bagSubmitted) return room;
+    const prepMap = {
+      ...inspection.prepMap,
+      [playerId]: { ...prep, bagSubmitted: true },
+    };
+    const submittedCount = inspection.merchantIds.filter((id) => prepMap[id]?.bagSubmitted).length;
+    const phase = submittedCount >= inspection.merchantIds.length ? 'inspect' : 'prepare';
+    const merchantName = getPlayers(room).find((player) => player.id === playerId)?.name || 'พ่อค้า';
+    return {
+      ...room,
+      inspection: {
+        ...inspection,
+        prepMap,
+        phase,
+      },
+      lastEvent: phase === 'inspect'
+        ? `${merchantName} ส่งกระเช้าแล้ว • พ่อค้าครบทุกคน เริ่มเฟสตรวจ`
+        : `${merchantName} ส่งกระเช้าแล้ว (${submittedCount}/${inspection.merchantIds.length})`,
     };
   });
 }
@@ -743,6 +868,7 @@ async function resolveInspectionDecision() {
     if (String(room.status || '') !== 'playing') return room;
     const inspection = getCurrentRoundInspection(room);
     if (!inspection) return room;
+    if (inspection.phase !== 'inspect') return { ...room, lastEvent: 'ยังตรวจไม่ได้: รอพ่อค้าส่งกระเช้าให้ครบก่อน' };
     if (!inspection.merchantIds.includes(merchantId) || inspection.resolvedMap[merchantId]) return room;
 
     const players = getPlayers(room).map((player) => ({ ...player, hand: { ...(player.hand || createEmptyPile()) } }));
@@ -751,38 +877,50 @@ async function resolveInspectionDecision() {
     const merchant = players.find((player) => player.id === merchantId);
     if (!sheriff || !merchant) return room;
 
+    const prep = inspection.prepMap?.[merchantId] || { bag: createEmptyPile() };
+    const bag = prep?.bag || createEmptyPile();
     const resolvedMap = { ...inspection.resolvedMap };
     const discard = { ...(room.discard || createEmptyPile()) };
+    let soldOut = { ...(room.soldOut || createEmptyPile()) };
     let lastEvent = '';
 
     if (action === 'pass') {
       const paidBribe = Math.min(Math.max(0, Math.floor(bribe)), Math.max(0, Number(merchant.money || 0)));
       merchant.money = Math.max(0, Number(merchant.money || 0) - paidBribe);
       sheriff.money = Math.max(0, Number(sheriff.money || 0) + paidBribe);
+      merchant.hand = subtractPileFromHand(merchant.hand, bag);
+      merchant.sold = addPile(merchant.sold || createEmptyPile(), bag);
+      soldOut = addPile(soldOut, bag);
       resolvedMap[merchantId] = { action: 'pass', bribe: paidBribe, atMs: Date.now() };
-      lastEvent = `✅ ${sheriff.name} ปล่อยผ่าน ${merchant.name} (จ่ายส่วย ${paidBribe})`;
+      lastEvent = `✅ ${sheriff.name} ปล่อยผ่าน ${merchant.name} (จ่ายส่วย ${paidBribe}) • ส่งขาย ${countPileCards(bag)} ใบ`;
     } else {
-      const { legal, contraband } = splitHandByType(merchant.hand || {});
+      const { legal, contraband } = splitHandByType(bag);
       const hasContraband = CARD_CATALOG.some((card) => card.type === 'contraband' && Number(contraband[card.id] || 0) > 0);
       if (hasContraband) {
+        merchant.hand = subtractPileFromHand(merchant.hand, contraband);
         CARD_CATALOG.forEach((card) => {
           if (card.type !== 'contraband') return;
-          const qty = Math.max(0, Number(merchant.hand?.[card.id] || 0));
+          const qty = Math.max(0, Number(contraband?.[card.id] || 0));
           if (qty <= 0) return;
-          merchant.hand[card.id] = 0;
           discard[card.id] = Math.max(0, Number(discard[card.id] || 0) + qty);
         });
+        merchant.hand = subtractPileFromHand(merchant.hand, legal);
+        merchant.sold = addPile(merchant.sold || createEmptyPile(), legal);
+        soldOut = addPile(soldOut, legal);
         const fine = Math.min(sumFineByHand(contraband, 'contraband'), Math.max(0, Number(merchant.money || 0)));
         merchant.money = Math.max(0, Number(merchant.money || 0) - fine);
         sheriff.money = Math.max(0, Number(sheriff.money || 0) + fine);
         resolvedMap[merchantId] = { action: 'inspect', fine, confiscated: true, atMs: Date.now() };
-        lastEvent = `🔎 ${sheriff.name} ตรวจเจอของเถื่อนจาก ${merchant.name} • ปรับ ${fine} และยึดของเถื่อน`;
+        lastEvent = `🔎 ${sheriff.name} ตรวจเจอของเถื่อนจาก ${merchant.name} • ปรับ ${fine}, ยึดของเถื่อน และขายของดี ${countPileCards(legal)} ใบ`;
       } else {
+        merchant.hand = subtractPileFromHand(merchant.hand, legal);
+        merchant.sold = addPile(merchant.sold || createEmptyPile(), legal);
+        soldOut = addPile(soldOut, legal);
         const compensation = Math.min(sumFineByHand(legal, 'legal'), Math.max(0, Number(sheriff.money || 0)));
         sheriff.money = Math.max(0, Number(sheriff.money || 0) - compensation);
         merchant.money = Math.max(0, Number(merchant.money || 0) + compensation);
         resolvedMap[merchantId] = { action: 'inspect', compensation, confiscated: false, atMs: Date.now() };
-        lastEvent = `🔎 ${sheriff.name} ตรวจไม่เจอของเถื่อนของ ${merchant.name} • ตำรวจจ่ายชดเชย ${compensation}`;
+        lastEvent = `🔎 ${sheriff.name} ตรวจไม่เจอของเถื่อนของ ${merchant.name} • ตำรวจจ่ายชดเชย ${compensation} และส่งขาย ${countPileCards(legal)} ใบ`;
       }
     }
 
@@ -792,8 +930,17 @@ async function resolveInspectionDecision() {
       ...room,
       players,
       discard,
+      soldOut,
       inspection: {
         ...inspection,
+        phase: 'inspect',
+        prepMap: {
+          ...inspection.prepMap,
+          [merchantId]: {
+            ...(inspection.prepMap?.[merchantId] || {}),
+            bag: createEmptyPile(),
+          },
+        },
         resolvedMap,
         completedAtMs: isComplete ? Date.now() : null,
       },
@@ -813,12 +960,15 @@ async function finishGame() {
 
 function wireEvents() {
   el.startGameBtn?.addEventListener('click', () => { void startGame(); });
-  el.drawCardBtn?.addEventListener('click', () => { void drawCardToPlayer(); });
-  el.discardCardBtn?.addEventListener('click', () => { void discardCardFromPlayer(); });
+  el.discardRedrawBtn?.addEventListener('click', () => { void discardAndRedrawForMerchant(); });
+  el.addBagBtn?.addEventListener('click', () => { void addCardToMerchantBag(); });
+  el.clearBagBtn?.addEventListener('click', () => { void clearMerchantBag(); });
+  el.submitBagBtn?.addEventListener('click', () => { void submitMerchantBag(); });
   el.reshuffleBtn?.addEventListener('click', () => { void reshuffleDiscardToDeck(); });
   el.resolveInspectionBtn?.addEventListener('click', () => { void resolveInspectionDecision(); });
   el.nextSheriffBtn?.addEventListener('click', () => { void nextSheriffRound(); });
   el.finishGameBtn?.addEventListener('click', () => { void finishGame(); });
+  el.merchantPlayerInput?.addEventListener('change', () => { renderPlayerHandSummary(); });
 
   document.querySelectorAll('[data-open-modal]').forEach((button) => {
     button.addEventListener('click', () => {
