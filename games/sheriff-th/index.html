@@ -7,36 +7,26 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <main class="page">
-      <section class="card hero-card">
-        <div>
-          <h1>💸 จ่ายส่วย</h1>
-          <p class="muted">โหมดเสริมแบบแยกระบบจากเกมหลัก Duel: ใช้สำหรับบริหารรอบตำรวจ, การ์ด, แต้ม และกระดานกลางให้อ่านง่าย</p>
-        </div>
-        <div class="hero-actions">
-          <button type="button" class="btn btn-secondary" data-open-modal="stepsModal">ขั้นตอนการเล่น</button>
-          <button type="button" class="btn btn-secondary" data-open-modal="bonusModal">ระบบโบนัส</button>
-          <button type="button" class="btn btn-secondary" data-open-modal="cardsModal">รายละเอียดการ์ด</button>
-          <a class="btn" href="../../duel.html">กลับไป Duel</a>
+    <main class="table-ui">
+      <section class="top-bar card">
+        <div class="mode-title">💸 จ่ายส่วย</div>
+        <div id="gameStatus" class="top-chips"></div>
+        <div class="top-actions">
+          <a class="btn btn-secondary btn-mini" href="../../duel.html">กลับ Duel</a>
+          <button type="button" class="btn btn-secondary btn-mini" data-open-modal="stepsModal">วิธีเล่น</button>
         </div>
       </section>
 
       <section class="card setup-card" id="setupCard">
-        <h2>ตั้งค่าโหมดเสริม</h2>
+        <h2>เริ่มเกม</h2>
         <p id="hostOnlyHint" class="muted"></p>
-        <div class="setup-grid">
-          <label>จำนวนรอบตำรวจต่อคน
-            <select id="roundsPerPlayerInput">
-              <option value="1">1 รอบ</option>
-              <option value="2">2 รอบ</option>
-            </select>
-          </label>
-          <div>
-            <strong>ผู้เล่นที่เข้าร่วม (จาก Duel)</strong>
-            <ul id="duelPlayersPreview" class="player-list"></ul>
-          </div>
-        </div>
-        <p class="muted">Host กดเริ่มได้ทันทีเมื่อผู้เล่นจากห้อง Duel อยู่ในช่วง 2-24 คน</p>
+        <label>จำนวนรอบตำรวจต่อคน
+          <select id="roundsPerPlayerInput">
+            <option value="1">1 รอบ</option>
+            <option value="2">2 รอบ</option>
+          </select>
+        </label>
+        <ul id="duelPlayersPreview" class="player-list"></ul>
         <div class="actions">
           <button type="button" id="startGameBtn" class="btn">เริ่มโหมดจ่ายส่วย</button>
         </div>
@@ -44,116 +34,67 @@
       </section>
 
       <section class="card game-card hidden" id="gameCard">
-        <h2>กระดานกลาง</h2>
-        <p class="muted">เล่นง่าย 3 ขั้นตอน: 1) เตรียมกระเช้า 2) ตำรวจตรวจ 3) นับแต้ม</p>
-        <div id="gameStatus" class="status-grid"></div>
-        <div id="phaseGuide" class="summary-grid"></div>
-
-        <div class="toolbar">
-          <button type="button" id="nextSheriffBtn" class="btn">จบรอบ/ไปตำรวจถัดไป</button>
-          <button type="button" id="finishGameBtn" class="btn btn-danger">สรุปผลทันที</button>
+        <div class="table-center">
+          <div id="deckStatus" class="center-pile"></div>
+          <div id="scoreMiniBoard" class="score-mini-board"></div>
         </div>
 
-        <div class="card-manager">
-          <h3>ส่วนผู้เล่น (เตรียมกระเช้า)</h3>
-          <div class="manager-grid">
-            <label>พ่อค้า
+        <div class="player-focus">
+          <div class="focus-head">
+            <label>ผู้เล่นที่กำลังเล่น
               <select id="merchantPlayerInput"></select>
             </label>
-            <label>การ์ด
-              <select id="merchantCardTypeInput"></select>
-            </label>
-            <label>จำนวน
-              <input id="merchantQtyInput" type="number" min="1" max="4" value="1" />
-            </label>
-            <button type="button" id="discardRedrawBtn" class="btn btn-secondary">ทิ้ง+สุ่มใหม่ (รอบละไม่เกิน 3)</button>
-            <button type="button" id="addBagBtn" class="btn">ใส่การ์ดเข้ากระเช้า</button>
-            <button type="button" id="clearBagBtn" class="btn btn-secondary">ล้างกระเช้า</button>
-            <button type="button" id="submitBagBtn" class="btn">ยืนยันส่งกระเช้า (0-4)</button>
+            <p id="phaseGuide" class="muted"></p>
           </div>
-          <div id="playerHandSummary" class="summary-grid"></div>
+
+          <div id="playerHandCards" class="hand-row"></div>
+          <div id="playerHandSummary" class="mini-info"></div>
         </div>
 
-        <div class="card-manager">
-          <h3>ด่านตรวจตำรวจ (จ่ายส่วย)</h3>
-          <div id="inspectionSummary" class="summary-grid"></div>
-          <div id="inspectionPanel" class="manager-grid">
-            <label>พ่อค้าที่ต้องตัดสิน
-              <select id="inspectMerchantInput"></select>
-            </label>
-            <label>คำสั่งตำรวจ
-              <select id="inspectionActionInput">
-                <option value="inspect">ตรวจสอบกระเป๋า/ตะกร้า</option>
-                <option value="pass">ปล่อยผ่านไปขายตลาด</option>
-              </select>
-            </label>
-            <label>เงินจ่ายส่วย (ใช้เมื่อปล่อยผ่าน)
-              <input id="inspectionBribeInput" type="number" min="0" max="50" value="0" />
-            </label>
-            <button type="button" id="resolveInspectionBtn" class="btn">ยืนยันคำสั่งตำรวจ</button>
-          </div>
-          <p class="muted">ตอนตรวจ: เปิดการ์ดในกระเช้าได้เฉพาะพ่อค้าคนนั้นกับตำรวจรอบนี้ • ถ้าไม่เปิดก็ปล่อยผ่านด้วยสินบน • ของที่ขายแล้วจะออกจากเกม ไม่กลับเข้ากอง</p>
-          <div id="deckStatus" class="summary-grid"></div>
-          <button type="button" id="reshuffleBtn" class="btn btn-secondary">สับกองทิ้งกลับเข้ากองกลาง</button>
-        </div>
+        <div id="inspectionSummary" class="inspect-focus"></div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ผู้เล่น</th>
-                <th>💰 เงิน</th>
-                <th>🥕 แต้มของปกติ (ระหว่างเกม)</th>
-                <th>🕵️ ของเถื่อน (เปิดตอนจบ)</th>
-                <th>🎁 โบนัส (สรุปท้ายเกม)</th>
-                <th>🏆 รวม</th>
-              </tr>
-            </thead>
-            <tbody id="playersTableBody"></tbody>
-          </table>
-        </div>
+        <div class="action-bar" id="phaseActions"></div>
 
-        <p id="eventLog" class="muted event-log"></p>
+        <section class="bottom-info">
+          <p id="eventLog" class="muted event-log"></p>
+        </section>
+
+        <div class="hidden-controls hidden">
+          <select id="merchantCardTypeInput"></select>
+          <input id="merchantQtyInput" type="number" min="1" max="4" value="1" />
+          <button type="button" id="discardRedrawBtn">discard</button>
+          <button type="button" id="addBagBtn">add bag</button>
+          <button type="button" id="clearBagBtn">clear bag</button>
+          <button type="button" id="submitBagBtn">submit bag</button>
+          <button type="button" id="reshuffleBtn">reshuffle</button>
+          <select id="inspectMerchantInput"></select>
+          <select id="inspectionActionInput">
+            <option value="inspect">inspect</option>
+            <option value="pass">pass</option>
+          </select>
+          <input id="inspectionBribeInput" type="number" min="0" max="50" value="0" />
+          <button type="button" id="resolveInspectionBtn">resolve</button>
+          <button type="button" id="nextSheriffBtn">next</button>
+          <button type="button" id="finishGameBtn">finish</button>
+        </div>
       </section>
 
       <section class="card hidden" id="resultCard">
-        <h2>สรุปเกม</h2>
+        <h2>จบเกม</h2>
         <p id="winnerText"></p>
         <div id="winnerDetail" class="muted"></div>
       </section>
     </main>
 
     <dialog id="stepsModal">
-      <h3>ขั้นตอนการเล่น (สั้น)</h3>
+      <h3>ลำดับการเล่น</h3>
       <ul class="steps-list">
-        <li><span>1️⃣</span> Host เลือกรอบตำรวจต่อคน (1 หรือ 2 รอบ)</li>
-        <li><span>🎴</span> พ่อค้าเริ่มมือ 6 ใบ และเลือกทิ้ง 0-3 ใบเพื่อสุ่มใหม่ได้รอบละ 1 ชุด</li>
-        <li><span>🧺</span> พ่อค้าส่งกระเช้า 0-4 ใบ</li>
-        <li><span>🕵️</span> ตำรวจตรวจทีละคน (เปิดตรวจ หรือปล่อยผ่านด้วยสินบน)</li>
-        <li><span>📊</span> จบรอบ: เห็นคะแนนรวมแบบง่าย (ยังไม่เปิดคะแนนของเถื่อนและโบนัส)</li>
-        <li><span>✅</span> เปลี่ยนตำรวจรอบถัดไปจนทุกคนได้เป็นตำรวจ</li>
-        <li><span>🏁</span> ครบทุกรอบ ระบบสรุปผู้ชนะอัตโนมัติ</li>
+        <li><span>1️⃣</span> แจกการ์ด + เลือกทิ้ง 0-3 ใบ</li>
+        <li><span>2️⃣</span> จัดกระเช้า 0-4 ใบ</li>
+        <li><span>3️⃣</span> ตำรวจตรวจทีละคน (เปิดตรวจ / รับสินบน)</li>
+        <li><span>4️⃣</span> สรุปรอบ</li>
+        <li><span>5️⃣</span> จบเกมและเปิดโบนัสทั้งหมด</li>
       </ul>
-      <form method="dialog"><button class="btn">ปิด</button></form>
-    </dialog>
-
-    <dialog id="bonusModal">
-      <h3>ระบบโบนัส</h3>
-      <ul class="steps-list">
-        <li><span>🌾</span> ข้าวสาร: อันดับ 1 = +15, อันดับ 2 = +10</li>
-        <li><span>🥚</span> ไข่ไก่: อันดับ 1 = +12, อันดับ 2 = +8</li>
-        <li><span>🥬</span> ผักสด: อันดับ 1 = +10, อันดับ 2 = +6</li>
-        <li><span>🐟</span> ปลาทู: อันดับ 1 = +8, อันดับ 2 = +4</li>
-        <li><span>💨🍷🥤💊</span> ของเถื่อน (นับรวมทุกชนิด): อันดับ 1 = +10, อันดับ 2 = +5</li>
-        <li><span>🤝</span> ถ้าจำนวนการ์ดเสมอกัน ผู้เล่นทุกคนที่เสมอจะได้โบนัสอันดับนั้นเท่ากัน</li>
-        <li><span>🧮</span> คะแนนรวมต่อคน = เงิน + แต้มการ์ด + โบนัส</li>
-      </ul>
-      <form method="dialog"><button class="btn">ปิด</button></form>
-    </dialog>
-
-    <dialog id="cardsModal">
-      <h3>รายละเอียดการ์ด</h3>
-      <div id="cardsInfoList" class="cards-list"></div>
       <form method="dialog"><button class="btn">ปิด</button></form>
     </dialog>
 
