@@ -28,6 +28,9 @@ input,select { border:1px solid #b8c7bc; border-radius:10px; padding:10px; backg
 .hand-row { display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; }
 .hand-card { min-width:120px; border:2px solid #2f6a49; border-radius:14px; padding:10px; background:#fff; cursor:pointer; }
 .hand-card .big { font-size:1.35rem; font-weight:800; }
+.hand-card small { font-size:.8rem; font-weight:700; }
+.p-green { color:#0e8f41; }
+.p-red { color:#be2135; }
 .hand-card.selected-discard { border-color:#d6a100; background:#fff6d8; }
 .hand-card.selected-bag { border-color:#1d8e53; background:#e9ffef; position:relative; }
 .hand-card.selected-bag::after { content:'🧺'; position:absolute; right:8px; top:6px; }
