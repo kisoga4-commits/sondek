@@ -544,7 +544,7 @@ function setControlAvailability() {
   const status = String(state.room?.status || 'setup');
   const playing = status === 'playing';
   const duelPlayerCount = state.duelPlayers.length;
-  const canStartByPlayerCount = duelPlayerCount >= 3 && duelPlayerCount <= 24;
+  const canStartByPlayerCount = duelPlayerCount >= 2 && duelPlayerCount <= 24;
   const inspection = getCurrentRoundInspection();
   const phase = getInspectionPhase();
   const roundComplete = !playing || !inspection || inspection.isComplete;
@@ -561,7 +561,7 @@ function setControlAvailability() {
         : 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
       : canStartByPlayerCount
         ? ''
-        : 'ต้องมีผู้เล่นจากห้อง Duel 3-24 คน';
+        : 'ต้องมีผู้เล่นจากห้อง Duel 2-24 คน';
   }
 
   const allowPrepareActions = isHost && playing && phase === 'prepare';
@@ -647,9 +647,9 @@ async function startGame() {
   try {
     const rounds = normalizeRounds(el.roundsPerPlayerInput?.value || 1);
     const duelEntries = state.duelPlayers;
-    if (duelEntries.length < 3 || duelEntries.length > 24) {
+    if (duelEntries.length < 2 || duelEntries.length > 24) {
       if (el.setupError) {
-        el.setupError.textContent = 'ยังมีผู้เล่นในห้องไม่พอ (ต้องมี 3 ถึง 24 คนจากห้อง Duel)';
+        el.setupError.textContent = 'ยังมีผู้เล่นในห้องไม่พอ (ต้องมี 2 ถึง 24 คนจากห้อง Duel)';
         el.setupError.classList.remove('hidden');
       }
       return;
