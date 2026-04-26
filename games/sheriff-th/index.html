@@ -12,6 +12,7 @@
         <div class="mode-title">💸 จ่ายส่วย</div>
         <div id="gameStatus" class="top-chips"></div>
         <div class="top-actions">
+          <a class="btn btn-secondary btn-mini" href="../../index.html">🏠 Home</a>
           <a class="btn btn-secondary btn-mini" href="../../duel.html">กลับ Duel</a>
           <button type="button" class="btn btn-secondary btn-mini" data-open-modal="stepsModal">วิธีเล่น</button>
         </div>
@@ -41,9 +42,7 @@
 
         <div class="player-focus">
           <div class="focus-head">
-            <label>ผู้เล่นที่กำลังเล่น
-              <select id="merchantPlayerInput"></select>
-            </label>
+            <div id="playerIdentity" class="identity-banner"></div>
             <p id="phaseGuide" class="muted"></p>
           </div>
 
@@ -83,6 +82,9 @@
         <h2>จบเกม</h2>
         <p id="winnerText"></p>
         <div id="winnerDetail" class="muted"></div>
+        <div class="actions">
+          <button type="button" id="restartGameBtn" class="btn">เริ่มเกมใหม่</button>
+        </div>
       </section>
     </main>
 
@@ -96,6 +98,18 @@
         <li><span>5️⃣</span> จบเกมและเปิดโบนัสทั้งหมด</li>
       </ul>
       <form method="dialog"><button class="btn">ปิด</button></form>
+    </dialog>
+
+    <dialog id="bribeModal">
+      <h3>ส่งส่วย</h3>
+      <p id="bribeModalHint" class="muted"></p>
+      <label>จำนวนเงินส่วย
+        <input id="bribeModalAmountInput" type="number" min="0" step="1" value="5" />
+      </label>
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" id="cancelBribeBtn">ยกเลิก</button>
+        <button type="button" class="btn" id="confirmBribeBtn">ยืนยันส่งส่วย</button>
+      </div>
     </dialog>
 
     <script type="module" src="js/app.js"></script>
