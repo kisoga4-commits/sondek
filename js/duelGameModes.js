@@ -40,7 +40,7 @@ export const EXTERNAL_GAME_MODES = {
   },
   sheriff_th: {
     label: 'จ่ายส่วย',
-    minPlayers: 3,
+    minPlayers: 2,
     requiresQuestionBank: false,
     redirectPath: 'games/sheriff-th/index.html',
     buildRedirectParams: ({ roomId, pin, uid, isHost, playerName }) => ({
@@ -111,7 +111,7 @@ export function getRequiredPlayersToStart({ gameMode = 'quick', matchType = 'sol
   const mode = normalizeDuelGameMode(gameMode);
   if (mode === 'pob' || mode === 'pob_v2') return 4;
   if (mode === 'logic_spy') return 2;
-  if (mode === 'sheriff_th') return 3;
+  if (mode === 'sheriff_th') return 2;
   return String(matchType || 'solo') === 'party' ? Math.max(2, Number(teamSize || 2)) * 2 : 2;
 }
 
