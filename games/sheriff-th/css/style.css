@@ -1,348 +1,43 @@
 :root {
+  font-family: 'Noto Sans Thai', system-ui, sans-serif;
   color-scheme: light;
-  font-family: 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
 }
-
 * { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background: radial-gradient(circle at top, #eff3ff 0%, #f8f9ff 45%, #edf3f8 100%);
-  color: #1f2230;
-}
-
-.page {
-  width: min(1100px, 100%);
-  margin: 0 auto;
-  padding: 20px;
-  display: grid;
-  gap: 14px;
-}
-
-.card {
-  background: #fff;
-  border: 1px solid #dbe3fb;
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 8px 24px rgba(41, 58, 122, 0.08);
-}
-
-.hero-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.info-shortcuts-card h2 {
-  margin-bottom: 12px;
-}
-
-.shortcut-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.shortcut-card {
-  border: 1px solid #dbe3fb;
-  border-radius: 12px;
-  padding: 12px;
-  background: #f8faff;
-  color: #243065;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.shortcut-card .icon {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  background: #eaf0ff;
-  border-radius: 999px;
-}
-
-h1, h2, h3 { margin: 0 0 8px; }
-
-.muted { color: #5d627f; }
-
-.summary-grid,
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px;
-}
-
-.score-highlight-grid {
-  margin-top: 8px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
-}
-
-.score-card {
-  border: 1px solid #dbe3fb;
-  border-radius: 12px;
-  padding: 10px;
-  background: linear-gradient(180deg, #f9fbff 0%, #f2f6ff 100%);
-}
-
-.score-card small {
-  color: #556089;
-}
-
-.score-card strong {
-  display: block;
-  font-size: 1.05rem;
-  margin-top: 4px;
-}
-
-.chip {
-  border: 1px solid #dbe3fb;
-  border-radius: 12px;
-  background: #f8faff;
-  padding: 10px;
-}
-
-.chip small {
-  display: block;
-  color: #5d627f;
-}
-
-.setup-grid,
-.manager-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-weight: 600;
-}
-
-input,
-select,
-textarea,
-button {
-  font: inherit;
-}
-
-input,
-select,
-textarea {
-  border: 1px solid #ced9fb;
-  border-radius: 10px;
-  padding: 9px;
-  background: #fff;
-}
-
-.toolbar,
-.actions {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.btn {
-  border: 0;
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: #305bf6;
-  color: #fff;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: #eaf0ff;
-  color: #25316e;
-}
-
-.btn-danger {
-  background: #d83a55;
-}
-
-.table-wrap {
-  overflow-x: auto;
-  margin-top: 14px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th,
-td {
-  border-bottom: 1px solid #e8ecfb;
-  padding: 8px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.money-actions {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.money-actions button {
-  border: 1px solid #d3dcfc;
-  border-radius: 8px;
-  background: #fff;
-  color: #243065;
-  padding: 5px 8px;
-  cursor: pointer;
-}
-
-.event-log {
-  margin-top: 10px;
-}
-
-.player-list {
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 6px;
-}
-
-.player-list li {
-  border: 1px solid #dbe3fb;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #f8faff;
-}
-
-.role-strip {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.role-pill {
-  border: 1px solid #dbe3fb;
-  border-radius: 999px;
-  padding: 7px 10px;
-  background: #f8faff;
-  font-size: 0.95rem;
-}
-
-.role-pill.is-sheriff {
-  background: #eaf0ff;
-  border-color: #adc2ff;
-}
-
-.role-pill.is-market {
-  background: #ecfff3;
-  border-color: #a8ebc1;
-}
-
-.role-pill.is-you {
-  background: #fff9e8;
-  border-color: #f3d37f;
-}
-
-.system-health {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
-}
-
-.health-item {
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 0.95rem;
-}
-
-.health-item.ok {
-  border: 1px solid #bae5cb;
-  background: #effcf4;
-  color: #1c5b34;
-}
-
-.health-item.warn {
-  border: 1px solid #f4d59b;
-  background: #fff8ea;
-  color: #8b5b00;
-}
-
-.steps-list {
-  padding-left: 0;
-  list-style: none;
-  display: grid;
-  gap: 8px;
-}
-
-.steps-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hidden { display: none !important; }
-
-.error {
-  color: #b41939;
-  margin-top: 8px;
-  font-weight: 700;
-}
-
-dialog {
-  border: 1px solid #d6e0ff;
-  border-radius: 14px;
-  padding: 16px;
-  width: min(640px, calc(100% - 24px));
-}
-
-.cards-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.card-item {
-  border: 1px solid #dbe3fb;
-  border-radius: 10px;
-  padding: 8px;
-  background: #f8faff;
-}
-
-.card-item-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.card-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: #e8eeff;
-  display: grid;
-  place-items: center;
-}
+body { margin: 0; background: #123020; color: #102015; }
+.table-ui { width: min(1100px, 100%); margin: 0 auto; padding: 12px; display: grid; gap: 10px; }
+.card { background: #f7fbf6; border: 2px solid #24583d; border-radius: 16px; padding: 12px; }
+.mode-title { font-size: 1.2rem; font-weight: 800; }
+.top-bar { display: grid; gap: 8px; }
+.top-chips { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: 8px; }
+.chip { border: 2px solid #2b6c49; border-radius: 12px; padding: 8px; background: #fff; }
+.chip small { display:block; color:#3f5b4c; }
+.top-actions { display:flex; gap:8px; }
+.btn { border: 0; border-radius: 12px; padding: 10px 12px; background: #2c6cff; color: #fff; font-weight: 700; cursor: pointer; text-decoration: none; }
+.btn-secondary { background: #e9eefc; color: #21367a; }
+.btn-danger { background: #cb2943; }
+.btn-mini { padding: 8px 10px; font-size: .9rem; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+label { display:grid; gap:6px; font-weight:700; }
+input,select,button { font: inherit; }
+input,select { border:1px solid #b8c7bc; border-radius:10px; padding:10px; background:#fff; }
+.player-list { margin:0; padding-left:18px; }
+.table-center { display:grid; grid-template-columns: 1.3fr 1fr; gap:10px; margin-bottom:10px; }
+.center-pile, .score-mini-board { display:grid; gap:8px; }
+.player-focus { display:grid; gap:8px; }
+.focus-head { display:grid; gap:6px; }
+.hand-row { display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; }
+.hand-card { min-width:120px; border:2px solid #2f6a49; border-radius:14px; padding:10px; background:#fff; cursor:pointer; }
+.hand-card .big { font-size:1.35rem; font-weight:800; }
+.hand-card.selected-discard { border-color:#d6a100; background:#fff6d8; }
+.hand-card.selected-bag { border-color:#1d8e53; background:#e9ffef; position:relative; }
+.hand-card.selected-bag::after { content:'🧺'; position:absolute; right:8px; top:6px; }
+.hand-card.illegal { border-color:#bc243b; }
+.action-bar { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.bottom-info { border-top:1px dashed #98ad9d; padding-top:8px; margin-top:8px; }
+.mini-info, .inspect-focus { display:grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap:8px; }
+.muted { color:#425d4e; margin:0; }
+.hidden { display:none !important; }
+.error { color:#bf1d3b; font-weight:700; }
+dialog { border:1px solid #cad4cd; border-radius:12px; width:min(560px, calc(100% - 24px)); }
+.steps-list { list-style:none; padding:0; display:grid; gap:8px; }
+@media (max-width: 760px) { .table-center { grid-template-columns: 1fr; } .hand-card{ min-width: 110px; } }

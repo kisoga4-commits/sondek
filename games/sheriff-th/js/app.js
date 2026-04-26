@@ -48,6 +48,10 @@ const state = {
   duelPlayers: [],
   isHostMode: role ? role === 'host' : roomId ? null : true,
 };
+const uiState = {
+  handSelections: new Set(),
+  selectionMode: 'discard',
+};
 
 function isPermissionDenied(error) {
   const code = String(error?.code || '').toLowerCase();
@@ -80,6 +84,9 @@ const el = {
   gameCard: document.getElementById('gameCard'),
   gameStatus: document.getElementById('gameStatus'),
   phaseGuide: document.getElementById('phaseGuide'),
+  phaseActions: document.getElementById('phaseActions'),
+  scoreMiniBoard: document.getElementById('scoreMiniBoard'),
+  playerHandCards: document.getElementById('playerHandCards'),
   merchantPlayerInput: document.getElementById('merchantPlayerInput'),
   merchantCardTypeInput: document.getElementById('merchantCardTypeInput'),
   merchantQtyInput: document.getElementById('merchantQtyInput'),
@@ -373,10 +380,9 @@ function renderDeckStatus() {
   const totalSoldOut = Object.values(soldOut).reduce((sum, value) => sum + Number(value || 0), 0);
 
   el.deckStatus.innerHTML = [
-    ['การ์ดในกองกลาง', `${totalDeck} ใบ`],
-    ['การ์ดในกองทิ้ง', `${totalDiscard} ใบ`],
-    ['ขายแล้ว/ออกจากเกม', `${totalSoldOut} ใบ`],
-    ...CARD_CATALOG.map((card) => [`${getCardIcon(card.id)} ${card.name}`, `กองกลาง ${Number(deck[card.id] || 0)} • ทิ้ง ${Number(discard[card.id] || 0)} • ขายแล้ว ${Number(soldOut[card.id] || 0)}`]),
+    ['🃏 กองกลาง', `${totalDeck} ใบ`],
+    ['🗑️ กองทิ้ง', `${totalDiscard} ใบ`],
+    ['📦 ขายแล้ว', `${totalSoldOut} ใบ`],
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
@@ -391,21 +397,17 @@ function renderGameStatus() {
   const inspection = getCurrentRoundInspection();
   const pendingCount = inspection ? Math.max(0, inspection.merchantIds.length - inspection.resolvedCount) : 0;
   const submittedCount = inspection ? Number(inspection.submittedCount || 0) : 0;
-  const deck = state.room?.deck || createInitialDeck();
-  const totalDeck = Object.values(deck).reduce((sum, value) => sum + Number(value || 0), 0);
+  const currentMerchant = getPlayers().find((p) => p.id === String(el.merchantPlayerInput?.value || ''))?.name || '-';
   const phase = inspection?.phase === 'inspect' ? 'ด่านตำรวจ' : 'เตรียมกระเช้า';
-  const starterUse = players.length * 6;
 
   el.gameStatus.innerHTML = [
     ['สถานะ', status === 'finished' ? 'จบเกม' : status === 'playing' ? 'กำลังเล่น' : 'ตั้งค่า'],
-    ['รอบปัจจุบัน', `${Math.min(activeRound + 1, Math.max(queue.length, 1))}/${Math.max(queue.length, 1)}`],
-    ['🚨 ตำรวจรอบนี้', currentSheriff],
+    ['รอบ', `${Math.min(activeRound + 1, Math.max(queue.length, 1))}/${Math.max(queue.length, 1)}`],
+    ['👮 ตำรวจ', currentSheriff],
+    ['🎯 ผู้เล่นที่กำลังเล่น', currentMerchant],
     ['เฟส', phase],
-    ['🧺 ส่งกระเช้าแล้ว', `${submittedCount}/${inspection?.merchantIds?.length || 0}`],
-    ['🕵️ พ่อค้าที่รอตัดสิน', `${pendingCount} คน`],
-    ['ไพ่เริ่มต้นที่ใช้', `${starterUse}/60 ใบ`],
-    ['รอบตำรวจต่อคน', `${normalizeRounds(state.room?.roundsPerPlayer || 1)} รอบ`],
-    ['การ์ดกองกลาง', `${totalDeck} ใบ`],
+    ['🧺 ส่งแล้ว', `${submittedCount}/${inspection?.merchantIds?.length || 0}`],
+    ['⏳ รอตรวจ', `${pendingCount} คน`],
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
@@ -416,15 +418,10 @@ function renderPhaseGuide() {
   const isSheriff = viewer?.id && viewer.id === sheriffId;
   const inspection = getCurrentRoundInspection();
   const phaseText = inspection?.phase === 'inspect'
-    ? 'เฟสตรวจ: ตำรวจตรวจพ่อค้าทีละคน'
-    : 'เฟสเตรียม: ทิ้ง 0-3 แล้วส่งกระเช้า 0-4';
-  const viewerRoleText = isSheriff ? 'คุณเป็นตำรวจรอบนี้: เลือกเปิดตรวจหรือรับสินบน' : 'คุณเป็นพ่อค้า: จัดมือและเลือกของเข้ากระเช้า';
-  el.phaseGuide.innerHTML = [
-    ['ลำดับเล่น', 'แจก 6 ใบ → ทิ้งได้สูงสุด 3 ใบ → ส่งกระเช้า 0-4 ใบ → ตรวจด่าน'],
-    ['เฟสรอบนี้', phaseText],
-    ['กติกาง่ายๆ', 'การ์ดในกระเช้าเปิดให้ดูเฉพาะเจ้าของกับตำรวจรอบนี้'],
-    ['คำแนะนำรอบนี้', viewerRoleText],
-  ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
+    ? 'หน้า 3: ตำรวจตรวจทีละคน'
+    : 'หน้า 1-2: เลือกทิ้ง แล้วจัดกระเช้า';
+  const viewerRoleText = isSheriff ? 'คุณเป็นตำรวจ 👮' : 'คุณเป็นพ่อค้า 🧺';
+  el.phaseGuide.textContent = `${phaseText} • ${viewerRoleText}`;
 }
 
 function renderInspectionBoard() {
@@ -493,29 +490,22 @@ function renderPlayerHandSummary() {
   const bagTotal = countPileCards(prep.bag || {});
   const sold = merchant?.sold || createEmptyPile();
   el.playerHandSummary.innerHTML = [
-    [`มือของ ${merchant.name}`, formatHandSummary(merchant.hand || {})],
-    ['ขายสะสมแล้ว', formatHandSummary(sold)],
-    ['ทิ้งและสุ่มใหม่ในรอบนี้', `${Math.max(0, Number(prep.redrawCount || 0))}/3 ใบ`],
-    ['กระเช้าปัจจุบัน', `${formatHandSummary(prep.bag || {})}`],
-    ['จำนวนในกระเช้า', `${bagTotal}/4 ใบ`],
-    ['สถานะส่งกระเช้า', prep.bagSubmitted ? '✅ ส่งแล้ว' : '⏳ ยังไม่ส่ง'],
+    ['ทิ้ง/จั่วใหม่', `${Math.max(0, Number(prep.redrawCount || 0))}/3`],
+    ['ในกระเช้า', `${bagTotal}/4`],
+    ['การ์ดขายแล้ว', formatHandSummary(sold)],
+    ['สถานะ', prep.bagSubmitted ? '✅ ส่งแล้ว' : '⏳ ยังไม่ส่ง'],
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
 function renderTable() {
-  if (!el.playersTableBody) return;
+  if (!el.scoreMiniBoard) return;
   const status = String(state.room?.status || 'setup');
   const rows = computePlayerTotals(getPlayersForScoring(getPlayers()));
-  el.playersTableBody.innerHTML = rows.map((player) => `
-    <tr>
-      <td>${player.name}</td>
-      <td><strong>${player.money}</strong></td>
-      <td><strong>${getVisibleRoundScore(player).legalPoints}</strong></td>
-      <td><strong>${status === 'finished' ? getVisibleRoundScore(player).contrabandPoints : '❓'}</strong></td>
-      <td><strong>${status === 'finished' ? player.bonus : '-'}</strong></td>
-      <td><strong>🏆 ${status === 'finished' ? player.total : getVisibleRoundScore(player).publicTotal}</strong></td>
-    </tr>
-  `).join('');
+  el.scoreMiniBoard.innerHTML = rows.map((player) => {
+    const publicScore = getVisibleRoundScore(player).publicTotal;
+    const total = status === 'finished' ? player.total : publicScore;
+    return `<div class="chip"><small>${player.name}</small><strong>🏆 ${total} • 💰 ${player.money}</strong></div>`;
+  }).join('');
 }
 
 function renderWinner() {
@@ -537,6 +527,64 @@ function renderWinner() {
       .map((player) => `${player.rank}. ${player.name} = ${player.total} คะแนน`)
       .join('<br/>');
   }
+}
+
+function getHandEntries(hand = {}) {
+  const entries = [];
+  CARD_CATALOG.forEach((card) => {
+    const qty = Math.max(0, Number(hand?.[card.id] || 0));
+    for (let i = 0; i < qty; i += 1) entries.push({ token: `${card.id}#${i + 1}`, cardId: card.id });
+  });
+  return entries.slice(0, 6);
+}
+
+function renderHandCards() {
+  if (!el.playerHandCards) return;
+  const players = getPlayers();
+  const merchantId = String(el.merchantPlayerInput?.value || '');
+  const merchant = players.find((player) => player.id === merchantId) || players[0];
+  if (!merchant) {
+    el.playerHandCards.innerHTML = '';
+    return;
+  }
+  const inspection = getCurrentRoundInspection();
+  const prep = inspection?.prepMap?.[merchant.id] || { bag: createEmptyPile() };
+  const bag = prep.bag || createEmptyPile();
+  const entries = getHandEntries(merchant.hand || {});
+  el.playerHandCards.innerHTML = entries.map((entry) => {
+    const card = getCardById(entry.cardId);
+    const selected = uiState.handSelections.has(entry.token);
+    const inBag = Number(bag?.[entry.cardId] || 0) > 0;
+    const classes = ['hand-card'];
+    if (selected && uiState.selectionMode === 'discard') classes.push('selected-discard');
+    if (selected && uiState.selectionMode === 'bag') classes.push('selected-bag');
+    if (card?.type === 'contraband') classes.push('illegal');
+    if (!selected && inBag) classes.push('selected-bag');
+    return `<button type="button" class="${classes.join(' ')}" data-token="${entry.token}" data-card-id="${entry.cardId}">
+      <div class="big">${getCardIcon(entry.cardId)}</div>
+      <div>${card?.name || entry.cardId}</div>
+    </button>`;
+  }).join('');
+}
+
+function renderPhaseActions() {
+  if (!el.phaseActions) return;
+  const phase = getInspectionPhase();
+  if (phase === 'inspect') {
+    el.phaseActions.innerHTML = `
+      <button type="button" class="btn" id="btnInspect">ให้ตรวจ</button>
+      <button type="button" class="btn btn-secondary" id="btnPassBribe">รับสินบน</button>
+      <button type="button" class="btn btn-danger" id="btnForceFinish">ยึดของ</button>
+      <button type="button" class="btn btn-secondary" id="btnNextRound">ผ่าน/รอบถัดไป</button>
+    `;
+    return;
+  }
+  el.phaseActions.innerHTML = `
+    <button type="button" class="btn btn-secondary" id="btnSelectDiscard">โหมดทิ้งการ์ด</button>
+    <button type="button" class="btn btn-secondary" id="btnSelectBag">โหมดใส่กระเช้า</button>
+    <button type="button" class="btn" id="btnApplySelection">${uiState.selectionMode === 'bag' ? 'ส่งให้ตรวจ' : 'ทิ้งการ์ด + จั่วใหม่'}</button>
+    <button type="button" class="btn btn-secondary" id="btnClearSelection">ยกเลิกเลือก</button>
+  `;
 }
 
 function setControlAvailability() {
@@ -583,7 +631,9 @@ function renderAll() {
   renderGameStatus();
   renderPhaseGuide();
   renderPlayerHandSummary();
+  renderHandCards();
   renderInspectionBoard();
+  renderPhaseActions();
   renderTable();
   renderWinner();
 
@@ -971,6 +1021,33 @@ async function finishGame() {
   }));
 }
 
+async function applyHandSelection() {
+  const selected = Array.from(uiState.handSelections);
+  if (!selected.length) return;
+  const cardIds = selected.map((token) => String(token).split('#')[0]);
+  const counts = cardIds.reduce((acc, cardId) => {
+    acc[cardId] = (acc[cardId] || 0) + 1;
+    return acc;
+  }, {});
+  const playerId = String(el.merchantPlayerInput?.value || '');
+  if (uiState.selectionMode === 'discard') {
+    for (const [cardId, qty] of Object.entries(counts)) {
+      if (el.merchantCardTypeInput) el.merchantCardTypeInput.value = cardId;
+      if (el.merchantQtyInput) el.merchantQtyInput.value = String(Math.min(3, Number(qty)));
+      await discardAndRedrawForMerchant();
+    }
+  } else {
+    await clearMerchantBag();
+    for (const [cardId, qty] of Object.entries(counts)) {
+      if (el.merchantCardTypeInput) el.merchantCardTypeInput.value = cardId;
+      if (el.merchantQtyInput) el.merchantQtyInput.value = String(Math.min(4, Number(qty)));
+      await addCardToMerchantBag();
+    }
+    if (playerId) await submitMerchantBag();
+  }
+  uiState.handSelections.clear();
+}
+
 function wireEvents() {
   el.startGameBtn?.addEventListener('click', () => { void startGame(); });
   el.discardRedrawBtn?.addEventListener('click', () => { void discardAndRedrawForMerchant(); });
@@ -981,7 +1058,39 @@ function wireEvents() {
   el.resolveInspectionBtn?.addEventListener('click', () => { void resolveInspectionDecision(); });
   el.nextSheriffBtn?.addEventListener('click', () => { void nextSheriffRound(); });
   el.finishGameBtn?.addEventListener('click', () => { void finishGame(); });
-  el.merchantPlayerInput?.addEventListener('change', () => { renderPlayerHandSummary(); });
+  el.merchantPlayerInput?.addEventListener('change', () => { uiState.handSelections.clear(); renderAll(); });
+  el.playerHandCards?.addEventListener('click', (event) => {
+    const button = event.target instanceof HTMLElement ? event.target.closest('[data-token]') : null;
+    if (!button) return;
+    const token = String(button.getAttribute('data-token') || '');
+    if (!token) return;
+    if (uiState.handSelections.has(token)) uiState.handSelections.delete(token);
+    else {
+      const limit = uiState.selectionMode === 'discard' ? 3 : 4;
+      if (uiState.handSelections.size >= limit) return;
+      uiState.handSelections.add(token);
+    }
+    renderHandCards();
+  });
+  el.phaseActions?.addEventListener('click', (event) => {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (!target) return;
+    if (target.id === 'btnSelectDiscard') { uiState.selectionMode = 'discard'; uiState.handSelections.clear(); renderAll(); }
+    if (target.id === 'btnSelectBag') { uiState.selectionMode = 'bag'; uiState.handSelections.clear(); renderAll(); }
+    if (target.id === 'btnClearSelection') { uiState.handSelections.clear(); renderAll(); }
+    if (target.id === 'btnApplySelection') { void applyHandSelection(); }
+    if (target.id === 'btnInspect') {
+      if (el.inspectionActionInput) el.inspectionActionInput.value = 'inspect';
+      void resolveInspectionDecision();
+    }
+    if (target.id === 'btnPassBribe') {
+      if (el.inspectionActionInput) el.inspectionActionInput.value = 'pass';
+      if (el.inspectionBribeInput && !el.inspectionBribeInput.value) el.inspectionBribeInput.value = '5';
+      void resolveInspectionDecision();
+    }
+    if (target.id === 'btnForceFinish') { void finishGame(); }
+    if (target.id === 'btnNextRound') { void nextSheriffRound(); }
+  });
 
   document.querySelectorAll('[data-open-modal]').forEach((button) => {
     button.addEventListener('click', () => {
