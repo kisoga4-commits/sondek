@@ -28,6 +28,8 @@ const firebaseConfig = {
 
 const params = new URLSearchParams(window.location.search);
 const roomId = String(params.get('roomId') || '').trim();
+const roomPin = String(params.get('pin') || '').trim();
+const duelRoomId = String(roomId || roomPin).trim();
 const rawRole = String(params.get('role') || '').trim().toLowerCase();
 const role = rawRole === 'host' || rawRole === 'join' ? rawRole : '';
 const requestedUid = String(params.get('uid') || '').trim();
@@ -38,15 +40,15 @@ const ROOM_UID_CACHE_PREFIX = 'sheriff_th_room_uid_v1:';
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const roomRef = roomId ? ref(db, `sheriff_th_rooms/${roomId}/public`) : null;
-const duelRoomPlayersRef = roomId ? ref(db, `rooms/${roomId}/players`) : null;
-const duelRoomHostRef = roomId ? ref(db, `rooms/${roomId}/hostUid`) : null;
+const roomRef = duelRoomId ? ref(db, `sheriff_th_rooms/${duelRoomId}/public`) : null;
+const duelRoomPlayersRef = duelRoomId ? ref(db, `rooms/${duelRoomId}/players`) : null;
+const duelRoomHostRef = duelRoomId ? ref(db, `rooms/${duelRoomId}/hostUid`) : null;
 
 const state = {
   uid: '',
   room: null,
   duelPlayers: [],
-  isHostMode: role ? role === 'host' : roomId ? null : true,
+  isHostMode: role ? role === 'host' : duelRoomId ? null : true,
 };
 const uiState = {
   handSelections: new Set(),
@@ -322,9 +324,9 @@ function drawWithAutoReshuffle(room = {}, playerId = '', qty = 1) {
 }
 
 function renderRoomSummary() {
-  if (!roomId) {
+  if (!duelRoomId) {
     if (el.hostOnlyHint) {
-      el.hostOnlyHint.textContent = 'ไม่พบ roomId ในลิงก์นี้ กรุณาเข้าหน้านี้จาก Duel Lobby เพื่อผูกสิทธิ์ Host/Join';
+      el.hostOnlyHint.textContent = 'ไม่พบ roomId/PIN ในลิงก์นี้ กรุณาเข้าหน้านี้จาก Duel Lobby เพื่อผูกสิทธิ์ Host/Join';
     }
     return;
   }
@@ -727,7 +729,7 @@ function setControlAvailability() {
         : 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
       : canStartByPlayerCount
         ? ''
-        : !roomId
+        : !duelRoomId
           ? 'ยังไม่ได้ผูกห้อง Duel (roomId หาย) กรุณาเข้าผ่านหน้า Duel'
           : 'ต้องมีผู้เล่นจากห้อง Duel 2-24 คน';
   }
@@ -812,9 +814,9 @@ function buildInitialRoomState() {
 
 async function startGame() {
   try {
-    if (!roomId) {
+    if (!duelRoomId) {
       if (el.setupError) {
-        el.setupError.textContent = 'ไม่พบ roomId ของห้อง Duel กรุณากลับหน้า Duel แล้วกดเข้าโหมดจ่ายส่วยใหม่';
+        el.setupError.textContent = 'ไม่พบ roomId/PIN ของห้อง Duel กรุณากลับหน้า Duel แล้วกดเข้าโหมดจ่ายส่วยใหม่';
         el.setupError.classList.remove('hidden');
       }
       return;
@@ -1347,7 +1349,7 @@ function wireEvents() {
 }
 
 function getRoomUidCacheKey() {
-  return `${ROOM_UID_CACHE_PREFIX}${roomId}`;
+  return `${ROOM_UID_CACHE_PREFIX}${duelRoomId}`;
 }
 
 function readCachedRoomUid() {
@@ -1425,15 +1427,18 @@ function subscribeRoom() {
 }
 
 function subscribeHostRoleFallback() {
-  if (role) return;
   if (!duelRoomHostRef) {
-    state.isHostMode = true;
+    state.isHostMode = role ? role === 'host' : true;
     renderAll();
     return;
   }
   onValue(duelRoomHostRef, (snapshot) => {
     const hostUid = String(snapshot.val() || '').trim();
-    state.isHostMode = Boolean(hostUid) && Boolean(state.uid) && hostUid === state.uid;
+    if (hostUid && state.uid) {
+      state.isHostMode = hostUid === state.uid;
+    } else {
+      state.isHostMode = role ? role === 'host' : false;
+    }
     renderAll();
   });
 }
@@ -1477,8 +1482,8 @@ function subscribeDuelPlayersForPrefill() {
 }
 
 async function ensureDuelMembershipForCurrentUser() {
-  if (!roomId || !state.uid) return;
-  const duelRoomRef = ref(db, `rooms/${roomId}`);
+  if (!duelRoomId || !state.uid) return;
+  const duelRoomRef = ref(db, `rooms/${duelRoomId}`);
   const roomSnap = await new Promise((resolve, reject) => {
     onValue(duelRoomRef, (snap) => resolve(snap), reject, { onlyOnce: true });
   });
