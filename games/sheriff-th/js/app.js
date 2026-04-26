@@ -51,6 +51,7 @@ const state = {
 const uiState = {
   handSelections: new Set(),
   selectionMode: 'discard',
+  bribeDraft: 0,
 };
 
 function isPermissionDenied(error) {
@@ -151,6 +152,10 @@ function canHostMutate() {
   return state.isHostMode === true;
 }
 
+function canMutateRoom() {
+  return Boolean(state.uid);
+}
+
 function getCurrentSheriffId(room = state.room) {
   const queue = Array.isArray(room?.sheriffQueue) ? room.sheriffQueue : [];
   const activeRound = Math.max(0, Number(room?.activeRoundIndex || 0));
@@ -201,6 +206,8 @@ function buildInspectionState(players = [], sheriffId = '') {
       if (player.id && player.id !== sheriffId) {
         acc[player.id] = {
           redrawCount: 0,
+          redrawUsed: false,
+          bribePaid: 0,
           bag: createEmptyPile(),
           bagSubmitted: false,
         };
@@ -461,8 +468,10 @@ function renderInspectionBoard() {
       : resolved?.action === 'pass'
         ? '✅ ปล่อยผ่าน'
         : '⏳ รอตัดสิน';
+    const bribePaid = Math.max(0, Number(inspection?.prepMap?.[id]?.bribePaid || 0));
+    const bribeText = bribePaid > 0 ? `💸 จ่ายส่วยแล้ว ${bribePaid}` : '💸 ยังไม่จ่ายส่วย';
     const handText = canRevealHand ? formatHandSummary(bagMap) : `🂠 ซ่อนการ์ด (${handCount} ใบ)`;
-    return `<div class="chip"><small>${merchant?.name || id} • ${decision}</small><strong>${handText}</strong></div>`;
+    return `<div class="chip"><small>${merchant?.name || id} • ${decision}</small><strong>${handText}</strong><small>${bribeText}</small></div>`;
   }).join('');
 
   const stageText = inspection.phase === 'prepare'
@@ -475,24 +484,38 @@ function renderInspectionBoard() {
   ].join('');
 }
 
+
+function getActiveMerchantId(room = state.room) {
+  const inspection = getCurrentRoundInspection(room);
+  const viewer = getCurrentViewerPlayer(room);
+  const sheriffId = getCurrentSheriffId(room);
+  if (!inspection) return String(viewer?.id || '');
+  if (viewer?.id && viewer.id !== sheriffId) return String(viewer.id);
+  const list = inspection.phase === 'inspect'
+    ? inspection.merchantIds.filter((id) => !inspection.resolvedMap[id])
+    : inspection.merchantIds.filter((id) => !inspection.prepMap?.[id]?.bagSubmitted);
+  return String(list[0] || inspection.merchantIds[0] || '');
+}
+
 function renderPlayerHandSummary() {
   if (!el.playerHandSummary) return;
   const room = state.room || {};
   const players = getPlayers(room);
-  const merchantId = String(el.merchantPlayerInput?.value || '');
+  const merchantId = getActiveMerchantId(room);
   const merchant = players.find((player) => player.id === merchantId) || players[0];
   const inspection = getCurrentRoundInspection(room);
   if (!merchant) {
     el.playerHandSummary.innerHTML = '';
     return;
   }
-  const prep = inspection?.prepMap?.[merchant.id] || { redrawCount: 0, bag: createEmptyPile(), bagSubmitted: false };
+  const prep = inspection?.prepMap?.[merchant.id] || { redrawCount: 0, redrawUsed: false, bribePaid: 0, bag: createEmptyPile(), bagSubmitted: false };
   const bagTotal = countPileCards(prep.bag || {});
   const sold = merchant?.sold || createEmptyPile();
   el.playerHandSummary.innerHTML = [
-    ['ทิ้ง/จั่วใหม่', `${Math.max(0, Number(prep.redrawCount || 0))}/3`],
+    ['ทิ้ง+จั่วใหม่', prep.redrawUsed ? 'ใช้แล้ว 1/1' : 'ยังไม่ใช้'],
     ['ในกระเช้า', `${bagTotal}/4`],
     ['การ์ดขายแล้ว', formatHandSummary(sold)],
+    ['💸 ส่วยรอบนี้', `${Math.max(0, Number(prep.bribePaid || 0))}`],
     ['สถานะ', prep.bagSubmitted ? '✅ ส่งแล้ว' : '⏳ ยังไม่ส่ง'],
   ].map(([label, value]) => `<div class="chip"><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
@@ -540,8 +563,9 @@ function getHandEntries(hand = {}) {
 
 function renderHandCards() {
   if (!el.playerHandCards) return;
+  const room = state.room || {};
   const players = getPlayers();
-  const merchantId = String(el.merchantPlayerInput?.value || '');
+  const merchantId = getActiveMerchantId(room);
   const merchant = players.find((player) => player.id === merchantId) || players[0];
   if (!merchant) {
     el.playerHandCards.innerHTML = '';
@@ -563,27 +587,41 @@ function renderHandCards() {
     return `<button type="button" class="${classes.join(' ')}" data-token="${entry.token}" data-card-id="${entry.cardId}">
       <div class="big">${getCardIcon(entry.cardId)}</div>
       <div>${card?.name || entry.cardId}</div>
+      <small><span class="p-green">+${Number(card?.points || 0)}</span> / <span class="p-red">-${Number(card?.fine || 0)}</span></small>
     </button>`;
   }).join('');
 }
 
 function renderPhaseActions() {
   if (!el.phaseActions) return;
-  const phase = getInspectionPhase();
+  const room = state.room || {};
+  const inspection = getCurrentRoundInspection(room);
+  const phase = getInspectionPhase(room);
+  const sheriffId = getCurrentSheriffId(room);
+  const viewer = getCurrentViewerPlayer(room);
+  const isSheriff = Boolean(viewer?.id) && viewer.id === sheriffId;
+
   if (phase === 'inspect') {
+    if (!isSheriff) {
+      el.phaseActions.innerHTML = '<span class="muted">รอตำรวจตัดสิน: ตรวจ หรือ ปล่อยผ่าน</span>';
+      return;
+    }
     el.phaseActions.innerHTML = `
-      <button type="button" class="btn" id="btnInspect">ให้ตรวจ</button>
-      <button type="button" class="btn btn-secondary" id="btnPassBribe">รับสินบน</button>
-      <button type="button" class="btn btn-danger" id="btnForceFinish">ยึดของ</button>
-      <button type="button" class="btn btn-secondary" id="btnNextRound">ผ่าน/รอบถัดไป</button>
+      <button type="button" class="btn" id="btnInspect">ตรวจ</button>
+      <button type="button" class="btn btn-secondary" id="btnPassBribe">ปล่อยผ่าน</button>
     `;
     return;
   }
+
+  if (isSheriff) {
+    el.phaseActions.innerHTML = `<span class="muted">รอพ่อค้าเตรียมกระเช้า (${inspection?.submittedCount || 0}/${inspection?.merchantIds?.length || 0})</span>`;
+    return;
+  }
+
   el.phaseActions.innerHTML = `
-    <button type="button" class="btn btn-secondary" id="btnSelectDiscard">โหมดทิ้งการ์ด</button>
-    <button type="button" class="btn btn-secondary" id="btnSelectBag">โหมดใส่กระเช้า</button>
-    <button type="button" class="btn" id="btnApplySelection">${uiState.selectionMode === 'bag' ? 'ส่งให้ตรวจ' : 'ทิ้งการ์ด + จั่วใหม่'}</button>
-    <button type="button" class="btn btn-secondary" id="btnClearSelection">ยกเลิกเลือก</button>
+    <button type="button" class="btn btn-secondary" id="btnApplySelection">ทิ้งการ์ด + จั่วใหม่</button>
+    <button type="button" class="btn" id="btnSubmitBag">ส่งการ์ดเข้าตลาด</button>
+    <button type="button" class="btn btn-secondary" id="btnPayBribe">ส่งส่วย</button>
   `;
 }
 
@@ -597,7 +635,7 @@ function setControlAvailability() {
   const phase = getInspectionPhase();
   const roundComplete = !playing || !inspection || inspection.isComplete;
 
-  [el.startGameBtn, el.discardRedrawBtn, el.addBagBtn, el.clearBagBtn, el.submitBagBtn, el.reshuffleBtn, el.nextSheriffBtn, el.finishGameBtn].forEach((button) => {
+  [el.startGameBtn, el.finishGameBtn].forEach((button) => {
     if (!button) return;
     button.disabled = !isHost;
   });
@@ -612,15 +650,7 @@ function setControlAvailability() {
         : 'ต้องมีผู้เล่นจากห้อง Duel 2-24 คน';
   }
 
-  const allowPrepareActions = isHost && playing && phase === 'prepare';
-  if (el.discardRedrawBtn) el.discardRedrawBtn.disabled = !allowPrepareActions;
-  if (el.addBagBtn) el.addBagBtn.disabled = !allowPrepareActions;
-  if (el.clearBagBtn) el.clearBagBtn.disabled = !allowPrepareActions;
-  if (el.submitBagBtn) el.submitBagBtn.disabled = !allowPrepareActions;
-  if (el.nextSheriffBtn) el.nextSheriffBtn.disabled = !isHost || !playing || !roundComplete;
-  if (el.resolveInspectionBtn) el.resolveInspectionBtn.disabled = !isHost || !playing || phase !== 'inspect' || roundComplete;
   if (el.finishGameBtn) el.finishGameBtn.disabled = !isHost || status === 'finished';
-  if (el.reshuffleBtn) el.reshuffleBtn.disabled = !isHost || status === 'setup';
 }
 
 function renderAll() {
@@ -649,7 +679,7 @@ function renderAll() {
 }
 
 async function mutateRoom(mutator) {
-  if (!canHostMutate()) return;
+  if (!canMutateRoom()) return;
   if (!roomRef) {
     const base = state.room && typeof state.room === 'object' ? state.room : buildInitialRoomState();
     state.room = mutator(base);
@@ -750,24 +780,29 @@ async function startGame() {
 }
 
 async function discardAndRedrawForMerchant() {
-  const playerId = String(el.merchantPlayerInput?.value || '');
-  const cardId = String(el.merchantCardTypeInput?.value || '');
-  const qty = Math.max(1, Math.min(3, Number(el.merchantQtyInput?.value || 1)));
+  const playerId = getActiveMerchantId();
+  const selected = Array.from(uiState.handSelections);
+  const qty = Math.max(0, Math.min(3, selected.length));
+  const cardIds = selected.map((token) => String(token).split('#')[0]);
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
     const inspection = getCurrentRoundInspection(room);
     if (!inspection || inspection.phase !== 'prepare') return room;
+    const viewer = getCurrentViewerPlayer(room);
+    if (!viewer?.id || viewer.id !== playerId) return room;
     const prep = inspection.prepMap?.[playerId];
     if (!prep || prep.bagSubmitted) return room;
-    const used = Math.max(0, Number(prep.redrawCount || 0));
-    if (used + qty > 3) {
-      return { ...room, lastEvent: 'ทิ้ง+สุ่มใหม่ได้รวมไม่เกิน 3 ใบต่อรอบ' };
+    if (prep.redrawUsed) {
+      return { ...room, lastEvent: 'รอบนี้ใช้สิทธิ์ทิ้ง+จั่วใหม่แล้ว' };
     }
-    const discardResult = discardCard(room, { playerId, cardId, qty });
-    if (!discardResult.ok) {
-      return { ...room, lastEvent: 'ทิ้งการ์ดไม่สำเร็จ: การ์ดในมือไม่พอ' };
+    if (qty > 3) return { ...room, lastEvent: 'ทิ้งได้สูงสุด 3 ใบต่อรอบ' };
+    let stagedRoom = room;
+    for (const cardId of cardIds) {
+      const step = discardCard(stagedRoom, { playerId, cardId, qty: 1 });
+      if (!step.ok) return { ...room, lastEvent: 'ทิ้งการ์ดไม่สำเร็จ: การ์ดในมือไม่พอ' };
+      stagedRoom = step.room;
     }
-    const drawResult = drawWithAutoReshuffle(discardResult.room, playerId, qty);
+    const drawResult = qty > 0 ? drawWithAutoReshuffle(stagedRoom, playerId, qty) : { ok: true, room: stagedRoom, reshuffled: false };
     if (!drawResult.ok) {
       return { ...room, lastEvent: 'สุ่มการ์ดใหม่ไม่สำเร็จ: กองกลางไม่พอ' };
     }
@@ -777,7 +812,8 @@ async function discardAndRedrawForMerchant() {
         ...inspection.prepMap,
         [playerId]: {
           ...prep,
-          redrawCount: used + qty,
+          redrawCount: qty,
+          redrawUsed: true,
         },
       },
     };
@@ -789,19 +825,21 @@ async function discardAndRedrawForMerchant() {
       deck: drawResult.room.deck,
       discard: drawResult.room.discard,
       inspection: nextInspection,
-      lastEvent: `${playerName} ทิ้ง+สุ่มใหม่ ${qty} ใบ (ใช้สิทธิ์ ${used + qty}/3)${drawResult.reshuffled ? ' • สับกองทิ้งอัตโนมัติ' : ''}`,
+      lastEvent: `${playerName} ทิ้ง+สุ่มใหม่ ${qty} ใบ${drawResult.reshuffled ? ' • สับกองทิ้งอัตโนมัติ' : ''}`,
     };
   });
 }
 
 async function addCardToMerchantBag() {
-  const playerId = String(el.merchantPlayerInput?.value || '');
+  const playerId = getActiveMerchantId();
   const cardId = String(el.merchantCardTypeInput?.value || '');
   const qty = Math.max(1, Math.min(4, Number(el.merchantQtyInput?.value || 1)));
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
     const inspection = getCurrentRoundInspection(room);
     if (!inspection || inspection.phase !== 'prepare') return room;
+    const viewer = getCurrentViewerPlayer(room);
+    if (!viewer?.id || viewer.id !== playerId) return room;
     const prep = inspection.prepMap?.[playerId];
     if (!prep || prep.bagSubmitted) return room;
     const merchant = getPlayers(room).find((player) => player.id === playerId);
@@ -827,11 +865,13 @@ async function addCardToMerchantBag() {
 }
 
 async function clearMerchantBag() {
-  const playerId = String(el.merchantPlayerInput?.value || '');
+  const playerId = getActiveMerchantId();
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
     const inspection = getCurrentRoundInspection(room);
     if (!inspection || inspection.phase !== 'prepare') return room;
+    const viewer = getCurrentViewerPlayer(room);
+    if (!viewer?.id || viewer.id !== playerId) return room;
     const prep = inspection.prepMap?.[playerId];
     if (!prep || prep.bagSubmitted) return room;
     return {
@@ -849,11 +889,13 @@ async function clearMerchantBag() {
 }
 
 async function submitMerchantBag() {
-  const playerId = String(el.merchantPlayerInput?.value || '');
+  const playerId = getActiveMerchantId();
   await mutateRoom((room) => {
     if (String(room.status || '') !== 'playing') return room;
     const inspection = getCurrentRoundInspection(room);
     if (!inspection || inspection.phase !== 'prepare') return room;
+    const viewer = getCurrentViewerPlayer(room);
+    if (!viewer?.id || viewer.id !== playerId) return room;
     const prep = inspection.prepMap?.[playerId];
     if (!prep || prep.bagSubmitted) return room;
     const prepMap = {
@@ -922,7 +964,7 @@ async function nextSheriffRound() {
 }
 
 async function resolveInspectionDecision() {
-  const merchantId = String(el.inspectMerchantInput?.value || '').trim();
+  const merchantId = getActiveMerchantId();
   const action = String(el.inspectionActionInput?.value || 'inspect').trim();
   const bribe = Math.max(0, Number(el.inspectionBribeInput?.value || 0));
   if (!merchantId) return;
@@ -932,10 +974,12 @@ async function resolveInspectionDecision() {
     const inspection = getCurrentRoundInspection(room);
     if (!inspection) return room;
     if (inspection.phase !== 'inspect') return { ...room, lastEvent: 'ยังตรวจไม่ได้: รอพ่อค้าส่งกระเช้าให้ครบก่อน' };
+    const viewer = getCurrentViewerPlayer(room);
+    const sheriffId = String(inspection.sheriffId || getCurrentSheriffId(room) || '');
+    if (!viewer?.id || viewer.id !== sheriffId) return room;
     if (!inspection.merchantIds.includes(merchantId) || inspection.resolvedMap[merchantId]) return room;
 
     const players = getPlayers(room).map((player) => ({ ...player, hand: { ...(player.hand || createEmptyPile()) } }));
-    const sheriffId = String(inspection.sheriffId || getCurrentSheriffId(room) || '');
     const sheriff = players.find((player) => player.id === sheriffId);
     const merchant = players.find((player) => player.id === merchantId);
     if (!sheriff || !merchant) return room;
@@ -948,7 +992,8 @@ async function resolveInspectionDecision() {
     let lastEvent = '';
 
     if (action === 'pass') {
-      const paidBribe = Math.min(Math.max(0, Math.floor(bribe)), Math.max(0, Number(merchant.money || 0)));
+      const prepaidBribe = Math.max(0, Number(inspection.prepMap?.[merchantId]?.bribePaid || 0));
+      const paidBribe = prepaidBribe > 0 ? prepaidBribe : Math.min(Math.max(0, Math.floor(bribe)), Math.max(0, Number(merchant.money || 0)));
       merchant.money = Math.max(0, Number(merchant.money || 0) - paidBribe);
       sheriff.money = Math.max(0, Number(sheriff.money || 0) + paidBribe);
       merchant.hand = subtractPileFromHand(merchant.hand, bag);
@@ -994,20 +1039,43 @@ async function resolveInspectionDecision() {
       players,
       discard,
       soldOut,
-      inspection: {
-        ...inspection,
-        phase: 'inspect',
-        prepMap: {
-          ...inspection.prepMap,
-          [merchantId]: {
-            ...(inspection.prepMap?.[merchantId] || {}),
-            bag: createEmptyPile(),
+      ...(isComplete
+        ? (() => {
+          const queue = Array.isArray(room.sheriffQueue) ? room.sheriffQueue : [];
+          const nextIndex = Number(room.activeRoundIndex || 0) + 1;
+          if (nextIndex >= queue.length) {
+            return {
+              status: 'finished',
+              activeRoundIndex: queue.length,
+              lastEvent: `${lastEvent} • ✅ จบรอบแล้วและจบเกม`,
+              endedAtMs: Date.now(),
+            };
+          }
+          const nextSheriffId = String(queue[nextIndex] || '');
+          const nextSheriffName = players.find((player) => player.id === nextSheriffId)?.name || '-';
+          return {
+            marketPlayerId: pickMarketPlayerId(players, nextSheriffId),
+            activeRoundIndex: nextIndex,
+            inspection: buildInspectionState(players, nextSheriffId),
+            lastEvent: `${lastEvent} • ✅ จบรอบแล้ว → รอบถัดไป: ${nextSheriffName}`,
+          };
+        })()
+        : {
+          inspection: {
+            ...inspection,
+            phase: 'inspect',
+            prepMap: {
+              ...inspection.prepMap,
+              [merchantId]: {
+                ...(inspection.prepMap?.[merchantId] || {}),
+                bag: createEmptyPile(),
+              },
+            },
+            resolvedMap,
+            completedAtMs: null,
           },
-        },
-        resolvedMap,
-        completedAtMs: isComplete ? Date.now() : null,
-      },
-      lastEvent: isComplete ? `${lastEvent} • ✅ จบรอบแล้ว` : lastEvent,
+          lastEvent,
+        }),
     };
   });
 }
@@ -1022,30 +1090,44 @@ async function finishGame() {
 }
 
 async function applyHandSelection() {
-  const selected = Array.from(uiState.handSelections);
-  if (!selected.length) return;
-  const cardIds = selected.map((token) => String(token).split('#')[0]);
-  const counts = cardIds.reduce((acc, cardId) => {
-    acc[cardId] = (acc[cardId] || 0) + 1;
-    return acc;
-  }, {});
-  const playerId = String(el.merchantPlayerInput?.value || '');
-  if (uiState.selectionMode === 'discard') {
-    for (const [cardId, qty] of Object.entries(counts)) {
-      if (el.merchantCardTypeInput) el.merchantCardTypeInput.value = cardId;
-      if (el.merchantQtyInput) el.merchantQtyInput.value = String(Math.min(3, Number(qty)));
-      await discardAndRedrawForMerchant();
-    }
-  } else {
-    await clearMerchantBag();
-    for (const [cardId, qty] of Object.entries(counts)) {
-      if (el.merchantCardTypeInput) el.merchantCardTypeInput.value = cardId;
-      if (el.merchantQtyInput) el.merchantQtyInput.value = String(Math.min(4, Number(qty)));
-      await addCardToMerchantBag();
-    }
-    if (playerId) await submitMerchantBag();
-  }
+  await discardAndRedrawForMerchant();
   uiState.handSelections.clear();
+}
+
+async function payBribeForMerchant() {
+  const playerId = getActiveMerchantId();
+  const input = window.prompt('กรอกจำนวนส่วยที่ต้องการส่งให้ตำรวจรอบนี้', '5');
+  if (input === null) return;
+  const amount = Math.max(0, Math.floor(Number(input || 0)));
+  await mutateRoom((room) => {
+    const inspection = getCurrentRoundInspection(room);
+    if (!inspection || inspection.phase !== 'prepare') return room;
+    const viewer = getCurrentViewerPlayer(room);
+    if (!viewer?.id || viewer.id !== playerId) return room;
+    const sheriffId = String(inspection.sheriffId || getCurrentSheriffId(room) || '');
+    const players = getPlayers(room).map((player) => ({ ...player }));
+    const sheriff = players.find((player) => player.id === sheriffId);
+    const merchant = players.find((player) => player.id === playerId);
+    if (!sheriff || !merchant) return room;
+    const paid = Math.min(amount, Math.max(0, Number(merchant.money || 0)));
+    merchant.money = Math.max(0, Number(merchant.money || 0) - paid);
+    sheriff.money = Math.max(0, Number(sheriff.money || 0) + paid);
+    return {
+      ...room,
+      players,
+      inspection: {
+        ...inspection,
+        prepMap: {
+          ...inspection.prepMap,
+          [playerId]: {
+            ...(inspection.prepMap?.[playerId] || {}),
+            bribePaid: Math.max(0, Number(inspection.prepMap?.[playerId]?.bribePaid || 0)) + paid,
+          },
+        },
+      },
+      lastEvent: `💸 ${merchant.name} ส่งส่วยให้ ${sheriff.name} จำนวน ${paid}`,
+    };
+  });
 }
 
 function wireEvents() {
@@ -1075,10 +1157,9 @@ function wireEvents() {
   el.phaseActions?.addEventListener('click', (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (!target) return;
-    if (target.id === 'btnSelectDiscard') { uiState.selectionMode = 'discard'; uiState.handSelections.clear(); renderAll(); }
-    if (target.id === 'btnSelectBag') { uiState.selectionMode = 'bag'; uiState.handSelections.clear(); renderAll(); }
-    if (target.id === 'btnClearSelection') { uiState.handSelections.clear(); renderAll(); }
     if (target.id === 'btnApplySelection') { void applyHandSelection(); }
+    if (target.id === 'btnSubmitBag') { void submitMerchantBag(); }
+    if (target.id === 'btnPayBribe') { void payBribeForMerchant(); }
     if (target.id === 'btnInspect') {
       if (el.inspectionActionInput) el.inspectionActionInput.value = 'inspect';
       void resolveInspectionDecision();
@@ -1088,8 +1169,6 @@ function wireEvents() {
       if (el.inspectionBribeInput && !el.inspectionBribeInput.value) el.inspectionBribeInput.value = '5';
       void resolveInspectionDecision();
     }
-    if (target.id === 'btnForceFinish') { void finishGame(); }
-    if (target.id === 'btnNextRound') { void nextSheriffRound(); }
   });
 
   document.querySelectorAll('[data-open-modal]').forEach((button) => {
