@@ -32,7 +32,7 @@ test('returns min players by mode config', () => {
   assert.equal(getMinimumPlayers({ gameMode: 'worm', matchType: 'party', teamSize: 2 }), 4);
   assert.equal(getMinimumPlayers({ gameMode: 'pob_v2' }), 4);
   assert.equal(getMinimumPlayers({ gameMode: 'pob' }), 4);
-  assert.equal(getMinimumPlayers({ gameMode: 'logic_spy' }), 3);
+  assert.equal(getMinimumPlayers({ gameMode: 'logic_spy' }), 2);
   assert.equal(getMinimumPlayers({ gameMode: 'sheriff_th' }), 3);
 });
 
@@ -88,7 +88,7 @@ test('resolves default label by mode including pob_v2', () => {
 test('required players to start stays compatible and supports pob_v2', () => {
   assert.equal(getRequiredPlayersToStart({ gameMode: 'pob_v2' }), 4);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'pob' }), 4);
-  assert.equal(getRequiredPlayersToStart({ gameMode: 'logic_spy' }), 3);
+  assert.equal(getRequiredPlayersToStart({ gameMode: 'logic_spy' }), 2);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'sheriff_th' }), 3);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'quick', matchType: 'solo' }), 2);
   assert.equal(getRequiredPlayersToStart({ gameMode: 'quick', matchType: 'party', teamSize: 3 }), 6);

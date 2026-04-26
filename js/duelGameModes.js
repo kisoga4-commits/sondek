@@ -27,7 +27,7 @@ export const EXTERNAL_GAME_MODES = {
   },
   logic_spy: {
     label: 'ใครต่างจากเพื่อน',
-    minPlayers: 3,
+    minPlayers: 2,
     requiresQuestionBank: false,
     redirectPath: 'games/logic-spy/index.html',
     buildRedirectParams: ({ roomId, pin, uid, isHost, playerName }) => ({
@@ -110,7 +110,8 @@ export function getMinimumPlayers(modeConfig = {}) {
 export function getRequiredPlayersToStart({ gameMode = 'quick', matchType = 'solo', teamSize = 2 } = {}) {
   const mode = normalizeDuelGameMode(gameMode);
   if (mode === 'pob' || mode === 'pob_v2') return 4;
-  if (mode === 'logic_spy' || mode === 'sheriff_th') return 3;
+  if (mode === 'logic_spy') return 2;
+  if (mode === 'sheriff_th') return 3;
   return String(matchType || 'solo') === 'party' ? Math.max(2, Number(teamSize || 2)) * 2 : 2;
 }
 
