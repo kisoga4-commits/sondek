@@ -1465,6 +1465,11 @@ function subscribeHostRoleFallback() {
     state.duelHostUid = hostUid;
     if (hostUid && state.uid) {
       state.isHostMode = hostUid === state.uid;
+    } else if (role) {
+      // Preserve explicit role passed from Duel page while hostUid is still unavailable
+      // (e.g. slow sync / permission window). This prevents host from being downgraded
+      // to join mode before hostUid arrives.
+      state.isHostMode = role === 'host';
     } else {
       state.isHostMode = false;
     }
