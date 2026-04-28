@@ -616,7 +616,9 @@ function handleRoomUpdate(room) {
     void ensureRoomQuestionBank(room);
   }
   const players = Object.values(room.players || {});
-  const isHost = String(room.hostUid || '') === state.uid;
+  const myEntry = room?.players?.[state.uid] || null;
+  const isHost = Boolean(state.uid)
+    && (String(room.hostUid || '') === state.uid || Boolean(myEntry?.isHost));
 
   el.lobbyRoomIdText.textContent = room.pin || room.roomId || state.roomId;
   el.battleRoomId.textContent = room.pin || room.roomId || state.roomId;

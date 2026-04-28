@@ -47,6 +47,7 @@ const duelRoomRef = duelRoomId ? ref(db, `rooms/${duelRoomId}`) : null;
 const state = {
   uid: '',
   room: null,
+  duelRoom: null,
   duelPlayers: [],
   duelHostUid: '',
   isHostMode: role ? role === 'host' : duelRoomId ? null : true,
@@ -168,6 +169,17 @@ function getCardIcon(cardId = '') {
 
 function canHostMutate() {
   return state.isHostMode === true;
+}
+
+function resolveHostModeFromDuelRoom(room = null) {
+  if (!duelRoomId) return role ? role === 'host' : true;
+  const safeRoom = room && typeof room === 'object' ? room : {};
+  const hostUid = String(safeRoom?.hostUid || state.duelHostUid || '').trim();
+  const me = state.uid ? safeRoom?.players?.[state.uid] : null;
+  if (hostUid && state.uid) return hostUid === state.uid;
+  if (me && typeof me === 'object' && typeof me.isHost === 'boolean') return Boolean(me.isHost);
+  if (role) return role === 'host';
+  return false;
 }
 
 function canMutateRoom() {
@@ -734,6 +746,8 @@ function setControlAvailability() {
       ? state.isHostMode === null
         ? 'กำลังตรวจสอบสิทธิ์ Host...'
         : 'เฉพาะ Host เท่านั้นที่เริ่มเกมได้'
+      : status !== 'setup'
+        ? 'เกมถูกเริ่มแล้ว (หรืออยู่ในสถานะที่ไม่ใช่ setup)'
       : canStartByPlayerCount
         ? ''
         : !duelRoomId
@@ -803,10 +817,13 @@ async function mutateRoom(mutator) {
     return;
   }
   const applyMutation = async () => {
-    await runTransaction(roomRef, (current) => {
+    const tx = await runTransaction(roomRef, (current) => {
       const base = current && typeof current === 'object' ? current : buildInitialRoomState();
       return mutator(base);
     });
+    if (!tx?.committed) {
+      throw new Error('ไม่สามารถบันทึกสถานะเกมได้ (transaction not committed)');
+    }
   };
   try {
     await applyMutation();
@@ -851,6 +868,14 @@ async function startGame() {
     if (!canHostMutate()) {
       if (el.setupError) {
         el.setupError.textContent = 'เฉพาะ Host เท่านั้นที่เริ่มโหมดจ่ายส่วยได้';
+        el.setupError.classList.remove('hidden');
+      }
+      return;
+    }
+    const roomStatus = String(state.room?.status || 'setup');
+    if (roomStatus !== 'setup') {
+      if (el.setupError) {
+        el.setupError.textContent = 'เกมนี้ถูกเริ่มไปแล้ว หรือสถานะห้องไม่ใช่ setup';
         el.setupError.classList.remove('hidden');
       }
       return;
@@ -1456,23 +1481,14 @@ function subscribeRoom() {
 function subscribeHostRoleFallback() {
   if (!duelRoomHostRef) {
     state.duelHostUid = '';
-    state.isHostMode = role ? role === 'host' : true;
+    state.isHostMode = resolveHostModeFromDuelRoom(state.duelRoom);
     renderAll();
     return;
   }
   onValue(duelRoomHostRef, (snapshot) => {
     const hostUid = String(snapshot.val() || '').trim();
     state.duelHostUid = hostUid;
-    if (hostUid && state.uid) {
-      state.isHostMode = hostUid === state.uid;
-    } else if (role) {
-      // Preserve explicit role passed from Duel page while hostUid is still unavailable
-      // (e.g. slow sync / permission window). This prevents host from being downgraded
-      // to join mode before hostUid arrives.
-      state.isHostMode = role === 'host';
-    } else {
-      state.isHostMode = false;
-    }
+    state.isHostMode = resolveHostModeFromDuelRoom(state.duelRoom);
     renderAll();
   });
 }
@@ -1481,9 +1497,11 @@ function subscribeDuelPlayersForPrefill() {
   if (!duelRoomRef) return;
   onValue(duelRoomRef, (snapshot) => {
     const room = snapshot.val();
+    state.duelRoom = room && typeof room === 'object' ? room : null;
     const roomPlayers = room?.players && typeof room.players === 'object' ? room.players : {};
     const entries = getDuelPlayerEntries(roomPlayers);
     state.duelPlayers = entries;
+    state.isHostMode = resolveHostModeFromDuelRoom(room);
     if (el.setupError) el.setupError.classList.add('hidden');
     renderAll();
   }, async (error) => {
@@ -1496,6 +1514,8 @@ function subscribeDuelPlayersForPrefill() {
       }
     }
     state.duelPlayers = [];
+    state.duelRoom = null;
+    state.isHostMode = resolveHostModeFromDuelRoom(null);
     if (el.setupError) {
       el.setupError.textContent = 'ยังไม่มีสิทธิ์ดึงรายชื่อผู้เล่นจากห้อง Duel กรุณากลับหน้า Duel แล้วเข้าห้องใหม่';
       el.setupError.classList.remove('hidden');
